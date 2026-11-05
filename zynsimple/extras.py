@@ -99,6 +99,7 @@ class Extras:
         self.autosave_info = {"enabled": bool(settings.get("autosave", True)), "last": None, "error": None}
         self._last_hash = None
         self._boot = time.monotonic()
+        self._dirty = None          # Zeitpunkt der letzten Änderung (noch nicht gespeichert)
         threading.Thread(target=self._sync_loop, name="zynsimple-sync", daemon=True).start()
         self._register_midi()
 
@@ -112,6 +113,7 @@ class Extras:
                 d = json.load(f)
             self.state["sync"] = dict(d.get("sync", {}))
             self.state["foot"] = list(d.get("foot", []))
+            self.state["inputs"] = dict(d.get("inputs", {}))
         except FileNotFoundError:
             pass
         except Exception as e:
@@ -231,7 +233,11 @@ class Extras:
         if self.state["sync"].get(str(proc.id)) and z is self._sync_target(proc)[0]:
             self.set_sync(chain, index, None)
 
+    def mark_dirty(self):
+        self._dirty = time.monotonic()
+
     def nudge_param(self, proc, z, steps):
+        self.mark_dirty()
         tgt = self._sync_target(proc) if proc is not None and self.state["sync"].get(str(proc.id)) else None
         if tgt and z is tgt[0]:
             with self.lock:
@@ -388,7 +394,54 @@ class Extras:
             raise KeyError("Eingangsregler nicht gefunden")
         if isinstance(value, dict):
             value = float(z.value) + float(value.get("step", 0))
-        z.set_value(int(round(max(float(z.value_min), min(float(z.value_max), float(value))))))
+        v = int(round(max(float(z.value_min), min(float(z.value_max), float(value)))))
+        z.set_value(v)
+        with self.lock:
+            self.state.setdefault("inputs", {})[sym] = v
+            self._save()
+
+    def remember_inputs(self):
+        """Aktuelle Eingangspegel der Soundkarte merken (auch wenn sie woanders verstellt wurden)."""
+        try:
+            proc = self.b.sm.alsa_mixer_processor
+            eng = proc.engine
+            cfgs = eng.get_mixer_zctrls(eng.device_name, None)
+            inputs = {}
+            for sym, cfg in cfgs.items():
+                gp = cfg.get("graph_path")
+                if isinstance(gp, list) and len(gp) > 3 and gp[3] == "capture_level" and not cfg.get("is_toggle"):
+                    inputs[sym] = int(cfg.get("value"))
+                    if sym in self._input_ctrls():
+                        self._inp[sym].value = inputs[sym]
+            if inputs:
+                with self.lock:
+                    self.state["inputs"] = inputs
+                    self._save()
+        except Exception as e:
+            log.debug(f"Eingangspegel merken: {e}")
+
+    def restore_inputs(self):
+        saved = self.state.get("inputs") or {}
+        for sym, v in saved.items():
+            z = self._input_ctrls().get(sym)
+            if z is not None:
+                try:
+                    z.set_value(int(v))
+                except Exception as e:
+                    log.debug(f"Eingangspegel {sym}: {e}")
+        if saved:
+            log.info(f"ZynSimple: {len(saved)} Eingangspegel wiederhergestellt")
+
+    def save_now(self, reason=""):
+        """Sofort speichern (beim Verlassen von Menüs und beim Herunterfahren)."""
+        try:
+            self.remember_inputs()
+            self.autosave(force=True)
+            self._dirty = None
+            log.info(f"ZynSimple: gespeichert ({reason})")
+        except Exception as e:
+            self.autosave_info["error"] = str(e)
+            log.warning(f"ZynSimple: Speichern fehlgeschlagen ({e})")
 
     # ------------------------------------------------------------------
     # Delay im Takt
@@ -711,16 +764,27 @@ class Extras:
                 log.info("ZynSimple: „Letzten Stand beim Start laden“ eingeschaltet")
         except Exception as e:
             log.warning(f"ZynSimple: Start-Wiederherstellung nicht einstellbar ({e})")
-        interval = max(10, int(self.settings.get("autosave_seconds", 20))) * 1000
+        interval = max(10, int(self.settings.get("autosave_seconds", 20)))
+        state = {"last_full": time.monotonic()}
 
         def loop():
             try:
-                self.autosave()
+                now = time.monotonic()
+                # Änderung über ZynSimple: 2 Sekunden nach der letzten Bewegung speichern
+                if self._dirty and now - self._dirty >= 2 and now - self._boot > 15:
+                    self._dirty = None
+                    self.autosave(force=True)
+                # Alles andere (Änderungen in den Zynthian-Menüs): regelmäßig prüfen
+                elif now - state["last_full"] >= interval:
+                    state["last_full"] = now
+                    self.autosave()
             except Exception as e:
                 self.autosave_info["error"] = str(e)
-            tk_root.after(interval, loop)
+            tk_root.after(1000, loop)
 
-        tk_root.after(interval, loop)
+        tk_root.after(1000, loop)
+        # Eingangspegel der Soundkarte nach dem Start wiederherstellen
+        tk_root.after(8000, self.restore_inputs)
 
     def autosave(self, force=False):
         if not self.autosave_info["enabled"]:
@@ -734,8 +798,15 @@ class Extras:
         except Exception:
             pass
         try:
-            if len(self.b.cm.chains) <= 1 and not force:
-                return   # leerer Zustand – nichts überschreiben
+            if len(self.b.cm.chains) <= 1:
+                return   # leerer Zustand (z. B. beim Hoch-/Runterfahren) – nichts überschreiben
+        except Exception:
+            pass
+        try:
+            if force and sm.is_busy():
+                busy = getattr(sm, "busy", set())
+                if any(b in busy for b in ("load snapshot", "ui startup", "remove_chain", "clean all")):
+                    return
         except Exception:
             pass
         state = sm.get_state()

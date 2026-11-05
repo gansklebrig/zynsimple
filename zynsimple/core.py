@@ -257,6 +257,12 @@ class Bridge:
         return c
 
     def action(self, chain_id, op, value=None):
+        res = self._action(chain_id, op, value)
+        if self.extras and op not in ("learn", "learn_cancel"):
+            self.extras.mark_dirty()
+        return res
+
+    def _action(self, chain_id, op, value=None):
         if op == "handpan":
             v = value if isinstance(value, dict) else {}
             return {"plugins": self.extras.create_handpan(v.get("inputs") or [1], v.get("title") or "Handpan")}
@@ -328,6 +334,8 @@ class Bridge:
         z = self._ctrl(chain, "level")
         if z is not None:
             self.set_level(chain, float(z.value) + steps * 0.01)
+            if self.extras:
+                self.extras.mark_dirty()
 
     def set_toggle(self, chain, symbol, value=None):
         z = self._ctrl(chain, symbol)

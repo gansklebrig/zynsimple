@@ -87,6 +87,8 @@ class zynsimple_screen(zynthian_gui_base):
         self.tick()
 
     def hide(self):
+        if self.shown:
+            self._save_soon()
         if self.timer:
             try:
                 self.canvas.after_cancel(self.timer)
@@ -467,6 +469,7 @@ class zynsimple_screen(zynthian_gui_base):
     def close_browser(self):
         self.browser = None
         self.sig = None
+        self._save_soon()
 
     def draw_browser(self):
         cv = self.canvas
@@ -577,6 +580,13 @@ class zynsimple_screen(zynthian_gui_base):
     def close_editor(self):
         self.fxedit = None
         self.sig = None
+        self._save_soon()
+
+    def _save_soon(self):
+        try:
+            self.bridge.extras.mark_dirty()
+        except Exception:
+            pass
 
     def _editor_params(self):
         x = self.bridge.extras

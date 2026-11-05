@@ -73,6 +73,18 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 1.7 – Alles bleibt nach dem Neustart erhalten
+
+- **Sofort gespeichert:** Jede Änderung im einfachen Mischer (Gain, Lautstärke, Mute,
+  Effekte, Effekt-Regler, Eingangspegel …) wird **2 Sekunden** nach der letzten Bewegung
+  gespeichert – auch beim Schließen eines Regler- oder Effekt-Fensters.
+- **Beim Herunterfahren** (Ausschalten über das Menü, Neustart, Update) wird vorher noch
+  einmal alles gespeichert.
+- **Eingangspegel der Soundkarte** merkt sich ZynSimple extra und stellt sie nach dem
+  Start wieder ein – der Zynthian selbst tut das sonst nicht.
+- Änderungen in den normalen Zynthian-Menüs werden alle 20 Sekunden mitgespeichert.
+- Tipp: Strom einfach ziehen geht – nur Änderungen der letzten 2 Sekunden wären weg.
+
 ## Neu in Version 1.6 – Effekte durchprobieren & neues Design
 
 **＋ Effekt – viele Effekte durchschalten**

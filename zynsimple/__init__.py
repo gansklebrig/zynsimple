@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "1.6"
+VERSION = "1.7"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -67,6 +67,7 @@ def setup(zyngui):
         bridge.extras = Extras(bridge, settings)
         from zyngui import zynthian_gui_config
         bridge.extras.start_autosave(zynthian_gui_config.top)
+        _hook_exit(zyngui, bridge.extras)
     except Exception as e:
         log.exception(f"ZynSimple: Extras fehlgeschlagen: {e}")
 
@@ -89,6 +90,25 @@ def setup(zyngui):
         except Exception as e:
             log.exception(f"ZynSimple: Touchscreen-Ansicht fehlgeschlagen: {e}")
         _add_menu_entry(zyngui)
+
+
+def _hook_exit(zyngui, extras):
+    """Vor dem Beenden/Herunterfahren noch einmal alles speichern."""
+    orig = getattr(zyngui, "exit", None)
+    if not callable(orig) or getattr(zyngui, "_zs_exit_hooked", False):
+        return
+
+    def exit_and_save(*args, **kwargs):
+        try:
+            if not getattr(zyngui, "_zs_saved_on_exit", False):
+                zyngui._zs_saved_on_exit = True
+                extras.save_now("Beenden")
+        except Exception as e:
+            log.warning(f"ZynSimple: Speichern beim Beenden fehlgeschlagen ({e})")
+        return orig(*args, **kwargs)
+
+    zyngui.exit = exit_and_save
+    zyngui._zs_exit_hooked = True
 
 
 def _info(zyngui, text):
