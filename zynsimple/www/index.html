@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0d0f12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Zynthian Mischer</title>
+<style>
+  :root {
+    --bg: #0d0f12;
+    --panel: #171a1f;
+    --panel2: #1f242b;
+    --line: #2b313a;
+    --tx: #e8eaed;
+    --tx2: #8b93a0;
+    --accent: #f2a33a;
+    --mute: #e5484d;
+    --solo: #f5d90a;
+    --fxon: #3dd68c;
+    --meter-lo: #3dd68c;
+    --meter-mid: #f5d90a;
+    --meter-hi: #e5484d;
+    --r: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--tx);
+    font: 15px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    overscroll-behavior: none; user-select: none; -webkit-user-select: none; }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    padding-top: max(10px, env(safe-area-inset-top)); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 17px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--mute); flex: none; }
+  .dot.ok { background: var(--fxon); }
+  header .sp { flex: 1; }
+  header small { color: var(--tx2); }
+  #strips { display: flex; gap: 10px; padding: 12px 16px 16px; overflow-x: auto;
+    height: calc(100% - 52px); scroll-snap-type: x proximity; }
+  .strip { flex: 0 0 auto; width: 148px; min-height: 420px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--r); display: flex; flex-direction: column;
+    padding: 10px; gap: 8px; scroll-snap-align: start; }
+  .strip.main { background: var(--panel2); border-color: #3a4250; }
+  .strip.muted .fader-fill { filter: grayscale(1) brightness(.6); }
+  .name { font-weight: 650; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kind { font-size: 11px; color: var(--tx2); text-transform: uppercase; letter-spacing: .8px; }
+  .preset { display: flex; align-items: center; gap: 4px; background: var(--bg); border-radius: 10px; }
+  .preset button { flex: none; width: 34px; height: 38px; border: 0; background: none; color: var(--accent);
+    font-size: 22px; font-weight: 700; border-radius: 10px; }
+  .preset button:active { background: var(--panel2); }
+  .preset span { flex: 1; min-width: 0; font-size: 13px; text-align: center; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .preset.none { visibility: hidden; height: 0; margin-top: -8px; }
+  .fadewrap { flex: 1; display: flex; gap: 6px; min-height: 200px; }
+  .fader { position: relative; flex: 1; background: var(--bg); border-radius: 10px; touch-action: none; overflow: hidden; }
+  .fader-fill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, #b8742a, var(--accent)); border-radius: 0 0 10px 10px; }
+  .fader-cap { position: absolute; left: 6px; right: 6px; height: 8px; margin-bottom: -4px; background: #fff; border-radius: 4px; box-shadow: 0 1px 4px #0008; }
+  .fader-val { position: absolute; top: 6px; left: 0; right: 0; text-align: center; font-size: 12px; color: var(--tx); font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px #000; }
+  .unity { position: absolute; left: 0; right: 0; height: 1px; background: #ffffff33; }
+  .meter { width: 14px; display: flex; gap: 2px; }
+  .meter div { position: relative; flex: 1; background: var(--bg); border-radius: 4px; overflow: hidden; }
+  .meter div { background: linear-gradient(to top, var(--meter-lo) 0%, var(--meter-lo) 70%, var(--meter-mid) 85%, var(--meter-hi) 100%); }
+  .meter i { position: absolute; left: 0; right: 0; top: 0; height: 100%; background: var(--bg); }
+  .meter b { position: absolute; left: 0; right: 0; height: 2px; background: #fff; }
+  .fx { display: flex; flex-wrap: wrap; gap: 6px; }
+  .fx button { flex: 1 1 100%; min-height: 34px; border-radius: 9px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--tx2); font-size: 12px; padding: 0 8px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; text-align: left; }
+  .fx button.on { color: var(--bg); background: var(--fxon); border-color: var(--fxon); font-weight: 650; }
+  .fx button.na { opacity: .45; }
+  .ms { display: flex; gap: 6px; }
+  .ms button { flex: 1; height: 48px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg);
+    color: var(--tx); font-size: 15px; font-weight: 700; letter-spacing: .5px; }
+  .ms button.m.on { background: var(--mute); border-color: var(--mute); }
+  .ms button.s.on { background: var(--solo); border-color: var(--solo); color: #111; }
+  .ms button.s.hide { display: none; }
+  #empty { color: var(--tx2); padding: 40px 20px; text-align: center; display: none; }
+  #pinbox { position: fixed; inset: 0; background: #000c; display: none; align-items: center; justify-content: center; }
+  #pinbox div { background: var(--panel); padding: 20px; border-radius: var(--r); display: flex; gap: 10px; }
+  #pinbox input { font-size: 20px; width: 140px; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--tx); }
+  #pinbox button { font-size: 16px; padding: 8px 14px; border-radius: 8px; border: 0; background: var(--accent); color: #111; font-weight: 700; }
+  #upd { height: 34px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line);
+    background: var(--panel2); color: var(--accent); font-weight: 650; font-size: 14px; }
+  #upd:active { background: var(--accent); color: #111; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: 90vw;
+    background: var(--panel2); border: 1px solid var(--accent); color: var(--tx); padding: 12px 18px;
+    border-radius: 12px; display: none; z-index: 10; text-align: center; }
+  #tabs { display: flex; gap: 4px; margin-left: 8px; }
+  #tabs button { height: 34px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--line);
+    background: none; color: var(--tx2); font-weight: 650; font-size: 14px; }
+  #tabs button.on { background: var(--accent); border-color: var(--accent); color: #111; }
+  #imres { height: calc(100% - 56px); display: flex; flex-direction: column; padding: 12px 16px; gap: 10px; }
+  #imres[hidden] { display: none; }
+  #imres-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  #imres-modes button { min-height: 56px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel);
+    color: var(--tx); font-weight: 700; font-size: 14px; }
+  #imres-modes button small { display: block; font-weight: 400; font-size: 11px; color: var(--tx2); margin-top: 3px; }
+  #imres-modes button:active { border-color: var(--accent); }
+  #imres-msg { color: var(--tx2); font-size: 14px; min-height: 1.2em; }
+  #imres-msg code { background: var(--panel); padding: 2px 6px; border-radius: 6px; user-select: text; -webkit-user-select: text; }
+  #fern { flex: 1; width: 100%; border: 1px solid var(--line); border-radius: var(--r); background: #120e18; }
+  .fx .row { display: flex; gap: 4px; flex: 1 1 100%; }
+  .fx .row button:first-child { flex: 1; min-width: 0; }
+  .fx .row button.gear { flex: 0 0 34px; padding: 0; text-align: center; font-size: 15px; color: var(--accent); }
+  .ms button.fz { flex: 0 0 48px; font-size: 20px; }
+  .ms button.fz.on { background: #f5f0e6; border-color: #fff; color: #111; }
+  #sheet { position: fixed; inset: 0; background: #000a; display: none; align-items: flex-end; justify-content: center; z-index: 20; }
+  #sheet.open { display: flex; }
+  #sheet .box { width: min(640px, 100%); max-height: 86vh; overflow: auto; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 18px 18px 0 0; padding: 14px 16px 24px; }
+  #sheet h3 { margin: 0; font-size: 17px; flex: 1; }
+  #sheet .top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  #sheet .x { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--tx); font-size: 18px; }
+  #sheet h4 { margin: 14px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--tx2); }
+  .prm { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid #ffffff0d; }
+  .prm label { font-size: 14px; }
+  .prm output { font-size: 13px; color: var(--accent); font-variant-numeric: tabular-nums; text-align: right; min-width: 70px; }
+  .prm input[type=range] { grid-column: 1 / 3; width: 100%; accent-color: var(--accent); height: 30px; }
+  .prm select { grid-column: 1 / 3; background: var(--bg); color: var(--tx); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button { min-width: 52px; height: 38px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--tx); font-weight: 650; }
+  .chips button.on { background: var(--accent); border-color: var(--accent); color: #111; }
+  #extras { padding: 12px 16px 30px; max-width: 720px; display: none; height: calc(100% - 56px); overflow: auto; }
+  #extras.show { display: block; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; margin-bottom: 12px; }
+  .card h2 { margin: 0 0 4px; font-size: 16px; }
+  .card p { margin: 4px 0 10px; color: var(--tx2); font-size: 13px; }
+  .card .line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+  .card select, .card input[type=text] { background: var(--bg); color: var(--tx); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 14px; }
+  .btn { height: 42px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent); color: #111; font-weight: 700; font-size: 14px; }
+  .btn.sec { background: var(--bg); color: var(--tx); border-color: var(--line); }
+  .ins label { display: inline-flex; align-items: center; gap: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .ins input { accent-color: var(--accent); width: 18px; height: 18px; }
+  .map { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #ffffff0d; font-size: 14px; }
+  .map span { flex: 1; }
+  .warn { color: var(--solo); }
+  #tabs button { white-space: nowrap; }
+  @media (max-width: 520px) { header { gap: 8px; padding-left: 10px; padding-right: 10px; } header h1, #info { display: none; }
+    #tabs { margin-left: 0; } #tabs button { padding: 0 9px; font-size: 13px; } #upd { padding: 0 9px; font-size: 13px; } }
+  @media (min-width: 900px) { .strip { width: 170px; } }
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="dot"></span>
+  <h1>Zynthian</h1>
+  <nav id="tabs"><button data-tab="mix" class="on">Mischer</button><button data-tab="imres">♫ Imres</button><button data-tab="extras">⚙ Extras</button></nav>
+  <span class="sp"></span>
+  <small id="info"></small>
+  <button id="upd" title="Update einspielen">Update</button>
+  <input id="updfile" type="file" accept=".zip,application/zip" hidden>
+</header>
+<div id="toast"></div>
+<div id="strips"></div>
+<section id="imres" hidden>
+  <div id="imres-modes">
+    <button data-mode="imres">♫ Imres-Bühne<small>Vollbild am Gerät</small></button>
+    <button data-mode="hintergrund">⇄ Zusammen<small>Zynthian + Imres</small></button>
+    <button data-mode="zynthian">◼ Nur Zynthian<small>Imres aus</small></button>
+  </div>
+  <div id="imres-msg"></div>
+  <iframe id="fern" title="Imres Fernbedienung"></iframe>
+</section>
+<section id="extras">
+  <div class="card">
+    <h2>🪘 Handpan anlegen</h2>
+    <p>Legt mit einem Tipp einen Kanal fürs Mikro an: Low-Cut gegen Rumpeln, Kompressor, Delay im Takt und Hall.</p>
+    <div class="line ins" id="hp-ins"></div>
+    <div class="line"><input type="text" id="hp-title" value="Handpan" maxlength="24" style="width:150px"><button class="btn" id="hp-go">Anlegen</button></div>
+    <p id="hp-plugins"></p>
+  </div>
+  <div class="card">
+    <h2>🦶 Fußschalter</h2>
+    <p>Aktion wählen, „Lernen“ tippen, dann einmal auf den Fußschalter treten (MIDI-Fußtaster am Zynthian).</p>
+    <div id="foot-list"></div>
+    <div class="line">
+      <select id="ft-action"><option value="freeze">❄ Freeze</option><option value="fx">Effekt an/aus</option><option value="mute">Stumm</option></select>
+      <select id="ft-chain"></select>
+      <select id="ft-fx"></select>
+      <select id="ft-mode"><option value="toggle">umschalten</option><option value="hold">nur solange gedrückt</option></select>
+    </div>
+    <div class="line"><button class="btn" id="ft-learn">Lernen</button><span id="ft-status"></span></div>
+  </div>
+  <div class="card">
+    <h2>💾 Automatisch speichern</h2>
+    <p id="as-status">…</p>
+  </div>
+  <div class="card">
+    <h2>⬇ Update</h2>
+    <p id="up-gh-info">Mit Internet holt sich der Zynthian neue Versionen selbst von GitHub.</p>
+    <div class="line"><button class="btn" id="up-check">Nach Updates suchen</button><button class="btn" id="up-gh" style="display:none">Jetzt installieren</button></div>
+    <p>Ohne Internet: neue <b>zynsimple-…zip</b> vom Handy/PC oder vom USB-Stick einspielen. Der Zynthian startet danach kurz neu.</p>
+    <div class="line"><button class="btn sec" id="up-file">Datei wählen</button><button class="btn sec" id="up-usb">Vom USB-Stick</button></div>
+    <p id="up-usb-info"></p>
+  </div>
+</section>
+<div id="sheet"><div class="box">
+  <div class="top"><h3 id="sh-title">Effekt</h3><button class="x" id="sh-close">✕</button></div>
+  <div id="sh-body"></div>
+</div></div>
+<div id="empty">Noch keine Kanäle. Unter „⚙ Extras“ legst du mit einem Tipp die Handpan an – oder am Zynthian eine Kette (z.&nbsp;B. „Audio Input“).</div>
+<div id="pinbox"><div><input id="pin" type="password" inputmode="numeric" placeholder="PIN"><button id="pinok">OK</button></div></div>
+
+<script>
+(() => {
+  const $strips = document.getElementById('strips');
+  const $empty = document.getElementById('empty');
+  const $dot = document.getElementById('dot');
+  const $info = document.getElementById('info');
+  let pin = '';
+  try { pin = localStorage.getItem('zs_pin') || ''; } catch (e) {}
+  let signature = '';
+  const els = {};          // chain id -> DOM refs
+  const dragging = {};     // chain id -> true while finger on fader
+  const pending = {};      // chain id -> last level sent (to avoid jumping)
+  const KIND = { synth: 'Synth', audio: 'Audio-Eingang', bus: 'Bus', main: 'Hauptausgang', other: '' };
+  const FLOOR = -60;
+
+  const dbOf = l => l <= 0.0001 ? '−∞' : (20 * Math.log10(l)).toFixed(1);
+  const meterPct = db => Math.max(0, Math.min(1, (db - FLOOR) / (0 - FLOOR))) * 100;
+
+  function api(path, body) {
+    const opt = { headers: { 'X-Zynsimple-Pin': pin } };
+    if (body) { opt.method = 'POST'; opt.body = JSON.stringify(body); opt.headers['Content-Type'] = 'application/json'; }
+    return fetch(path, opt).then(r => {
+      if (r.status === 401) { showPin(); throw new Error('pin'); }
+      return r.json();
+    });
+  }
+  const act = (chain, op, value) => api('/api/action', { chain, op, value }).catch(() => {});
+
+  function showPin() {
+    document.getElementById('pinbox').style.display = 'flex';
+  }
+  document.getElementById('pinok').onclick = () => {
+    pin = document.getElementById('pin').value;
+    try { localStorage.setItem('zs_pin', pin); } catch (e) {}
+    document.getElementById('pinbox').style.display = 'none';
+  };
+
+  function el(tag, cls, parent, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function build(strips) {
+    $strips.innerHTML = '';
+    for (const k in els) delete els[k];
+    for (const s of strips) {
+      const r = {};
+      const root = r.root = el('div', 'strip' + (s.kind === 'main' ? ' main' : ''), $strips);
+      r.name = el('div', 'name', root, s.name);
+      el('div', 'kind', root, KIND[s.kind] || '');
+
+      const pr = r.preset = el('div', 'preset' + (s.preset ? '' : ' none'), root);
+      const prev = el('button', '', pr, '‹');
+      r.pname = el('span', '', pr, '');
+      const next = el('button', '', pr, '›');
+      prev.onclick = () => act(s.id, 'preset_prev');
+      next.onclick = () => act(s.id, 'preset_next');
+
+      const fw = el('div', 'fadewrap', root);
+      const meter = el('div', 'meter', fw);
+      r.mA = el('div', '', meter); r.iA = el('i', '', r.mA); r.hA = el('b', '', r.mA);
+      r.mB = el('div', '', meter); r.iB = el('i', '', r.mB); r.hB = el('b', '', r.mB);
+      const fader = r.fader = el('div', 'fader', fw);
+      r.fill = el('div', 'fader-fill', fader);
+      r.cap = el('div', 'fader-cap', fader);
+      r.val = el('div', 'fader-val', fader);
+      if (s.level == null) fader.style.opacity = .3;
+      bindFader(s.id, fader, r);
+
+      r.fx = el('div', 'fx', root);
+      r.fxButtons = [];
+      for (const f of s.fx) {
+        const row = el('div', 'row', r.fx);
+        const b = el('button', '', row, f.name);
+        b.onclick = () => act(s.id, 'fx', f.i);
+        const g = el('button', 'gear', row, '⚙');
+        g.title = 'Regler';
+        g.onclick = () => openFx(s.id, f.i);
+        r.fxButtons.push(b);
+      }
+
+      const ms = el('div', 'ms', root);
+      r.m = el('button', 'm', ms, 'MUTE');
+      r.s = el('button', 's' + (s.solo == null ? ' hide' : ''), ms, 'SOLO');
+      r.m.onclick = () => act(s.id, 'mute', r.m.classList.contains('on') ? 0 : 1);
+      r.s.onclick = () => act(s.id, 'solo', r.s.classList.contains('on') ? 0 : 1);
+      if (s.freeze != null) {
+        r.fz = el('button', 'fz', ms, '❄');
+        r.fz.title = 'Freeze';
+        r.fz.onclick = () => act(s.id, 'freeze', r.fz.classList.contains('on') ? 0 : 1);
+      }
+      els[s.id] = r;
+    }
+  }
+
+  function setFader(r, level) {
+    const p = Math.max(0, Math.min(1, level)) * 100;
+    r.fill.style.height = p + '%';
+    r.cap.style.bottom = p + '%';
+    r.val.textContent = dbOf(level) + ' dB';
+  }
+
+  function bindFader(id, fader, r) {
+    let rect = null;
+    let lastSend = 0, timer = null, want = null;
+    const send = () => {
+      timer = null; lastSend = performance.now();
+      pending[id] = want; act(id, 'level', want);
+    };
+    const move = ev => {
+      const y = (ev.clientY - rect.top) / rect.height;
+      want = Math.round(Math.max(0, Math.min(1, 1 - y)) * 1000) / 1000;
+      setFader(r, want);
+      const dt = performance.now() - lastSend;
+      if (dt > 50) send(); else if (!timer) timer = setTimeout(send, 50 - dt);
+    };
+    fader.addEventListener('pointerdown', ev => {
+      rect = fader.getBoundingClientRect();
+      dragging[id] = true;
+      fader.setPointerCapture(ev.pointerId);
+      move(ev);
+    });
+    fader.addEventListener('pointermove', ev => { if (dragging[id]) move(ev); });
+    const end = () => {
+      if (!dragging[id]) return;
+      dragging[id] = false;
+      if (timer) { clearTimeout(timer); send(); }
+      setTimeout(() => { delete pending[id]; }, 400);
+    };
+    fader.addEventListener('pointerup', end);
+    fader.addEventListener('pointercancel', end);
+    // Doppeltippen = zurück auf 0 dB
+    let lastTap = 0;
+    fader.addEventListener('pointerup', () => {
+      const now = performance.now();
+      if (now - lastTap < 300) { want = 1.0; setFader(r, 1.0); send(); }
+      lastTap = now;
+    });
+  }
+
+  function update(strips) {
+    for (const s of strips) {
+      const r = els[s.id];
+      if (!r) continue;
+      r.root.classList.toggle('muted', !!s.mute);
+      if (s.preset) r.pname.textContent = s.preset.name;
+      if (s.level != null && !dragging[s.id] && pending[s.id] == null) setFader(r, s.level);
+      r.m.classList.toggle('on', !!s.mute);
+      r.s.classList.toggle('on', !!s.solo);
+      if (r.fz) r.fz.classList.toggle('on', !!s.freeze);
+      s.fx.forEach((f, i) => {
+        const b = r.fxButtons[i]; if (!b) return;
+        b.classList.toggle('on', f.on === true);
+        b.classList.toggle('na', f.on == null);
+        b.textContent = (f.on === true ? '● ' : '○ ') + f.name + (f.sync ? '  ♩' + f.sync : '');
+      });
+      if (s.meter) {
+        r.iA.style.height = (100 - meterPct(s.meter[0])) + '%';
+        r.iB.style.height = (100 - meterPct(s.meter[1])) + '%';
+        r.hA.style.bottom = meterPct(s.meter[2]) + '%';
+        r.hB.style.bottom = meterPct(s.meter[3]) + '%';
+      }
+    }
+  }
+
+  const $toast = document.getElementById('toast');
+  let toastTimer = null, updating = false;
+  function toast(msg, ms) {
+    $toast.textContent = msg; $toast.style.display = 'block';
+    clearTimeout(toastTimer);
+    if (ms) toastTimer = setTimeout(() => { $toast.style.display = 'none'; }, ms);
+  }
+  const $updfile = document.getElementById('updfile');
+  document.getElementById('upd').onclick = () => {
+    if (updState && updState.available) return updGithub();
+    showTab('extras'); updCheck(true);
+  };
+  $updfile.onchange = async () => {
+    const f = $updfile.files[0]; $updfile.value = '';
+    if (!f) return;
+    if (!confirm('Update „' + f.name + '“ einspielen? Der Zynthian startet danach kurz neu.')) return;
+    toast('Lade Update hoch …');
+    try {
+      const r = await fetch('/api/update', { method: 'POST', body: f,
+        headers: { 'X-Zynsimple-Pin': pin, 'Content-Type': 'application/zip' } });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Fehler');
+      updating = true;
+      toast(d.message + ' Diese Seite lädt sich danach von selbst neu.');
+    } catch (e) { toast('Update fehlgeschlagen: ' + e.message, 8000); }
+  };
+
+  // ---- Tabs & Imres ----
+  let tab = 'mix';
+  try { tab = localStorage.getItem('zs_tab') || 'mix'; } catch (e) {}
+  if (['#imres', '#mix', '#extras'].includes(location.hash)) tab = location.hash.slice(1);
+  const $imres = document.getElementById('imres'), $fern = document.getElementById('fern'), $imsg = document.getElementById('imres-msg');
+  const fernUrl = location.protocol + '//' + location.hostname + ':8790/zyn/fern';
+  async function imresCheck() {
+    try {
+      const d = await api('/api/imres');
+      document.getElementById('imres-modes').style.display = d.installed ? '' : 'none';
+      if (!d.installed) {
+        $fern.style.display = 'none';
+        $imsg.innerHTML = 'Imres ist auf diesem Zynthian noch nicht installiert. Per SSH einmal ausführen:<br><br>'
+          + '<code>curl -sL https://raw.githubusercontent.com/gansklebrig/Imres-tales-Public/main/zynthian/install.sh | bash</code>';
+        return;
+      }
+      $fern.style.display = '';
+      $imsg.textContent = d.bridge ? '' : 'Die Imres-Fernbedienung antwortet gerade nicht – startet sie noch?';
+      if (d.bridge && $fern.getAttribute('src') !== fernUrl) $fern.src = fernUrl;
+    } catch (e) {}
+  }
+  function showTab(t) {
+    tab = t;
+    try { localStorage.setItem('zs_tab', t); } catch (e) {}
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+    $strips.style.display = t === 'mix' ? '' : 'none';
+    if (t !== 'mix') $empty.style.display = 'none';
+    $imres.hidden = t !== 'imres';
+    document.getElementById('extras').classList.toggle('show', t === 'extras');
+    if (t === 'imres') imresCheck();
+    if (t === 'extras') extrasLoad();
+  }
+  document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+  document.querySelectorAll('#imres-modes button').forEach(b => b.onclick = async () => {
+    const m = b.dataset.mode;
+    if (m === 'imres' && !confirm('Imres-Bühne im Vollbild starten? Die Zynthian-Oberfläche pausiert so lange.')) return;
+    try {
+      let r;
+      try { r = await api('/api/imres', { aktion: m }); }
+      catch (e) {
+        // Zynthian-Oberfläche gerade aus (Imres-Vollbild) → direkt an die Imres-Brücke
+        await fetch(location.protocol + '//' + location.hostname + ':8790/zyn/system',
+          { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ aktion: m }) });
+        r = { ok: true };
+      }
+      if (r.error) throw new Error(r.error);
+      toast({ imres: 'Imres-Bühne startet …', hintergrund: 'Zynthian + Imres starten …', zynthian: 'Zurück zum Zynthian …' }[m], 5000);
+      setTimeout(imresCheck, 6000);
+    } catch (e) { toast('Ging nicht: ' + e.message, 6000); }
+  });
+  setInterval(() => { if (tab === 'imres') imresCheck(); }, 8000);
+
+  // ---- Effekt-Regler (Blatt von unten) ----
+  const $sheet = document.getElementById('sheet'), $shBody = document.getElementById('sh-body');
+  let sheetFor = null, sheetTimer = null, sheetDrag = null;
+  document.getElementById('sh-close').onclick = closeFx;
+  $sheet.addEventListener('click', e => { if (e.target === $sheet) closeFx(); });
+  function closeFx() { $sheet.classList.remove('open'); sheetFor = null; clearInterval(sheetTimer); }
+  async function openFx(chain, fx) {
+    sheetFor = { chain, fx };
+    $shBody.innerHTML = '<p style="color:var(--tx2)">Lade Regler …</p>';
+    $sheet.classList.add('open');
+    await renderFx(true);
+    clearInterval(sheetTimer);
+    sheetTimer = setInterval(() => renderFx(false), 1200);
+  }
+  function fmt(v) { return Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2); }
+  async function renderFx(full) {
+    if (!sheetFor) return;
+    let d;
+    try { d = await api('/api/fx?chain=' + sheetFor.chain + '&fx=' + sheetFor.fx); } catch (e) { return; }
+    if (d.error) { $shBody.textContent = d.error; return; }
+    document.getElementById('sh-title').textContent = d.name;
+    if (!full) {
+      // nur Werte auffrischen
+      $shBody.querySelectorAll('[data-sym]').forEach(n => {
+        const p = d.pages.flatMap(pg => pg.params).find(x => x.sym === n.dataset.sym);
+        if (!p || sheetDrag === p.sym) return;
+        if (n.tagName === 'INPUT') { n.value = p.value; n.parentNode.querySelector('output').textContent = p.text; }
+        else if (n.tagName === 'SELECT') n.value = p.text;
+      });
+      $shBody.querySelectorAll('.chips button').forEach(b => b.classList.toggle('on', (b.dataset.div || null) === (d.sync || null)));
+      const t = document.getElementById('sh-tempo'); if (t) t.textContent = d.tempo ? d.tempo + ' BPM' : 'kein Tempo';
+      return;
+    }
+    $shBody.innerHTML = '';
+    if (d.syncable) {
+      el('h4', '', $shBody, '♩ Im Takt');
+      const info = el('p', '', $shBody); info.style.cssText = 'margin:0 0 6px;color:var(--tx2);font-size:13px';
+      info.innerHTML = 'Tempo: <b id="sh-tempo">' + (d.tempo ? d.tempo + ' BPM' : 'kein Tempo') + '</b> – folgt der TR-8S, wenn sie die Uhr schickt.';
+      const ch = el('div', 'chips', $shBody);
+      const off = el('button', d.sync ? '' : 'on', ch, 'aus'); off.onclick = () => setSync(null);
+      for (const dv of d.divisions) {
+        const b = el('button', d.sync === dv ? 'on' : '', ch, dv); b.dataset.div = dv; b.onclick = () => setSync(dv);
+      }
+    }
+    for (const pg of d.pages) {
+      el('h4', '', $shBody, pg.title);
+      for (const p of pg.params) {
+        const row = el('div', 'prm', $shBody);
+        el('label', '', row, p.name);
+        const out = el('output', '', row, p.text);
+        if (p.labels && p.labels.length) {
+          out.textContent = '';
+          const sel = el('select', '', row); sel.dataset.sym = p.sym;
+          p.labels.forEach(l => { const o = el('option', '', sel, l); o.value = l; });
+          sel.value = p.text;
+          sel.onchange = () => act(sheetFor.chain, 'fx_param', { fx: sheetFor.fx, sym: p.sym, value: sel.value });
+        } else if (typeof p.value === 'number') {
+          const inp = el('input', '', row); inp.type = 'range'; inp.dataset.sym = p.sym;
+          inp.min = p.min; inp.max = p.max; inp.step = (p.int || p.toggle) ? 1 : (p.max - p.min) / 500;
+          inp.value = p.value;
+          let t = null;
+          inp.oninput = () => {
+            sheetDrag = p.sym; out.textContent = fmt(+inp.value);
+            clearTimeout(t); t = setTimeout(() => act(sheetFor.chain, 'fx_param', { fx: sheetFor.fx, sym: p.sym, value: +inp.value }), 40);
+          };
+          inp.onchange = () => { setTimeout(() => { if (sheetDrag === p.sym) sheetDrag = null; }, 800); };
+        }
+      }
+    }
+    if (!d.pages.length) el('p', '', $shBody, 'Dieser Effekt hat keine Regler.');
+  }
+  async function setSync(div) {
+    const r = await api('/api/action', { chain: sheetFor.chain, op: 'fx_sync', value: { fx: sheetFor.fx, div } }).catch(e => ({ error: e.message }));
+    if (r && r.error) toast(r.error, 5000);
+    renderFx(false);
+  }
+
+  // ---- Extras ----
+  let lastStrips = [], extrasTimer = null;
+  async function extrasLoad() {
+    clearInterval(extrasTimer);
+    extrasTimer = setInterval(() => { if (tab === 'extras') extrasRefresh(); else clearInterval(extrasTimer); }, 1500);
+    const ins = document.getElementById('hp-ins');
+    const d = await api('/api/extras').catch(() => null);
+    if (!d) return;
+    ins.innerHTML = '<span style="color:var(--tx2);font-size:13px">Eingang:</span>';
+    for (let i = 1; i <= Math.min(d.inputs || 2, 8); i++) {
+      const l = el('label', '', ins); const c = el('input', '', l); c.type = 'checkbox'; c.value = i; c.checked = i === 1;
+      l.appendChild(document.createTextNode(' ' + i));
+    }
+    document.getElementById('hp-plugins').textContent = d.handpan_plugins.length
+      ? 'Effekte: ' + d.handpan_plugins.join(' → ') : 'Auf diesem Zynthian wurden keine passenden Effekte gefunden.';
+    fillChains();
+    extrasShow(d);
+  }
+  function fillChains() {
+    const sel = document.getElementById('ft-chain'), cur = sel.value;
+    sel.innerHTML = '';
+    lastStrips.filter(s => s.kind !== 'main').forEach(s => { const o = el('option', '', sel, s.name); o.value = s.id; });
+    if (cur) sel.value = cur;
+    fillFx();
+  }
+  function fillFx() {
+    const a = document.getElementById('ft-action').value, sel = document.getElementById('ft-fx');
+    const s = lastStrips.find(x => String(x.id) === document.getElementById('ft-chain').value);
+    sel.style.display = a === 'fx' ? '' : 'none';
+    sel.innerHTML = '';
+    (s ? s.fx : []).forEach(f => { const o = el('option', '', sel, f.name); o.value = f.i; });
+  }
+  document.getElementById('ft-action').onchange = fillFx;
+  document.getElementById('ft-chain').onchange = fillFx;
+  async function extrasRefresh() { const d = await api('/api/extras').catch(() => null); if (d) extrasShow(d); }
+  function extrasShow(d) {
+    const ACT = { freeze: '❄ Freeze', fx: 'Effekt', mute: 'Stumm' };
+    const list = document.getElementById('foot-list'); list.innerHTML = '';
+    d.foot.mappings.forEach((m, i) => {
+      const row = el('div', 'map', list);
+      const fxName = m.action === 'fx' ? (() => { const s = lastStrips.find(x => x.id === m.chain); const f = s && s.fx[m.fx]; return f ? ' „' + f.name + '“' : ' ' + (m.fx + 1); })() : '';
+      el('span', '', row, 'CC ' + m.cc + (m.midi_chan != null ? ' (Kanal ' + (m.midi_chan + 1) + ')' : '') + ' → ' + ACT[m.action] + fxName + ' · ' + m.chain_name + (m.mode === 'hold' ? ' · halten' : ''));
+      const del = el('button', 'btn sec', row, 'Löschen'); del.style.height = '34px';
+      del.onclick = () => act(null, 'foot_delete', i).then(extrasRefresh);
+    });
+    if (!d.foot.mappings.length) el('p', '', list, 'Noch kein Fußschalter belegt.');
+    const st = document.getElementById('ft-status'), lb = document.getElementById('ft-learn');
+    if (d.foot.learning) { st.innerHTML = '<span class="warn">Tritt jetzt auf den Fußschalter …</span>'; lb.textContent = 'Abbrechen'; lb.dataset.on = '1'; }
+    else { st.textContent = d.foot.last_learn ? '✓ Gelernt: CC ' + d.foot.last_learn.cc : ''; lb.textContent = 'Lernen'; lb.dataset.on = ''; }
+    const a = d.autosave;
+    document.getElementById('as-status').textContent = !a.enabled ? 'Ausgeschaltet (in zynsimple.json: "autosave": true).'
+      : a.error ? 'Fehler: ' + a.error
+      : a.last ? 'An. Zuletzt gespeichert vor ' + Math.max(0, Math.round(Date.now() / 1000 - a.last)) + ' s. Beim Einschalten lädt der Zynthian diesen Stand.'
+      : 'An. Gespeichert wird, sobald du etwas änderst (alle 20 s geprüft).';
+    document.getElementById('up-usb-info').textContent = d.local_update ? 'Gefunden: ' + d.local_update : 'Auf dem USB-Stick wurde noch keine zynsimple-ZIP gefunden.';
+  }
+  document.getElementById('ft-learn').onclick = async () => {
+    const lb = document.getElementById('ft-learn');
+    if (lb.dataset.on) { await act(null, 'learn_cancel'); return extrasRefresh(); }
+    const chain = document.getElementById('ft-chain').value;
+    if (!chain) return toast('Erst einen Kanal anlegen.', 4000);
+    await act(chain, 'learn', { action: document.getElementById('ft-action').value, fx: +document.getElementById('ft-fx').value || 0, mode: document.getElementById('ft-mode').value });
+    extrasRefresh();
+  };
+  document.getElementById('hp-go').onclick = async () => {
+    const inputs = [...document.querySelectorAll('#hp-ins input:checked')].map(c => +c.value);
+    if (!inputs.length) return toast('Bitte mindestens einen Eingang wählen.', 4000);
+    const r = await api('/api/action', { op: 'handpan', value: { inputs, title: document.getElementById('hp-title').value || 'Handpan' } }).catch(e => ({ error: e.message }));
+    if (r.error) return toast('Ging nicht: ' + r.error, 6000);
+    toast('Handpan wird angelegt …', 4000);
+    setTimeout(() => showTab('mix'), 2500);
+  };
+  document.getElementById('up-file').onclick = () => $updfile.click();
+  let updState = null;
+  function showUpd(st) {
+    updState = st;
+    const info = document.getElementById('up-gh-info'), go = document.getElementById('up-gh'), hb = document.getElementById('upd');
+    if (!st) return;
+    if (st.available) {
+      info.innerHTML = '<span class="warn">Neue Version ' + st.latest + ' ist da</span> (installiert: ' + st.current + ').';
+      go.style.display = ''; hb.textContent = 'Update ' + st.latest + ' ●';
+    } else {
+      go.style.display = 'none'; hb.textContent = 'Update';
+      info.textContent = st.error ? st.error + ' – installiert ist ' + st.current + '.'
+        : st.checked ? 'Alles aktuell (Version ' + st.current + ').' : 'Mit Internet holt sich der Zynthian neue Versionen selbst von GitHub.';
+    }
+  }
+  async function updCheck(force) {
+    if (force) document.getElementById('up-gh-info').textContent = 'Suche auf GitHub …';
+    const st = await api('/api/update_check' + (force ? '?force=1' : '')).catch(() => null);
+    showUpd(st); return st;
+  }
+  async function updGithub() {
+    if (!confirm('Version ' + (updState && updState.latest || '') + ' von GitHub installieren? Der Zynthian startet danach kurz neu.')) return;
+    toast('Lade Update von GitHub …');
+    const r = await api('/api/update_github', {}).catch(e => ({ error: e.message }));
+    if (r.error) return toast('Update fehlgeschlagen: ' + r.error, 8000);
+    updating = true; toast(r.message + ' Diese Seite lädt sich danach von selbst neu.');
+  }
+  document.getElementById('up-check').onclick = () => updCheck(true);
+  document.getElementById('up-gh').onclick = updGithub;
+  setTimeout(() => updCheck(false), 2000);
+  setInterval(() => updCheck(false), 10 * 60 * 1000);
+  document.getElementById('up-usb').onclick = async () => {
+    if (!confirm('Update vom USB-Stick einspielen? Der Zynthian startet danach kurz neu.')) return;
+    const r = await api('/api/update_local', {}).catch(e => ({ error: e.message }));
+    if (r.error) return toast(r.error, 6000);
+    updating = true; toast(r.message + ' Diese Seite lädt sich danach von selbst neu.');
+  };
+
+  showTab(tab);
+
+  let fails = 0;
+  async function poll() {
+    try {
+      const d = await api('/api/state');
+      if (updating && fails > 3) { location.reload(); return; }
+      fails = 0;
+      $dot.classList.add('ok');
+      $info.textContent = d.strips.length + ' Kanäle' + (d.app_version ? ' · v' + d.app_version : '');
+      const sig = JSON.stringify(d.strips.map(s => [s.id, s.name, s.kind, !!s.preset, s.solo == null, s.freeze == null, s.fx.map(f => f.name)]));
+      lastStrips = d.strips;
+      if (sig !== signature) { signature = sig; build(d.strips); if (tab === 'extras') fillChains(); }
+      $empty.style.display = (d.strips.length || tab !== 'mix') ? 'none' : 'block';
+      update(d.strips);
+    } catch (e) {
+      if (++fails > 3) { $dot.classList.remove('ok'); $info.textContent = tab === 'imres' ? 'Zynthian pausiert' : 'keine Verbindung'; }
+    }
+    setTimeout(poll, document.hidden ? 1000 : 120);
+  }
+  poll();
+})();
+</script>
+</body>
+</html>
