@@ -228,12 +228,15 @@ class zynsimple_screen(zynthian_gui_base):
                     self.update_dynamic()
             elif self.mode == "edit":
                 self.edit_tick += 1
-                if self.edit_tick % 6 == 1:
-                    self.draw_editor()
+                if self.edit_tick % 3 == 1:
+                    self.refresh_editor()
             elif self.mode == "xy":
                 self.edit_tick += 1
                 if self.edit_tick % 4 == 1 and not self.edit_drag:
-                    self.draw_xy()
+                    try:
+                        self._xy_move(*self.pf.xy_pos(self.bridge._chain(self.xy_chain)))
+                    except Exception:
+                        pass
             elif self.mode == "fxview":
                 sig = self._signature()
                 if sig != getattr(self, "fx_sig", None):
@@ -908,12 +911,14 @@ class zynsimple_screen(zynthian_gui_base):
             cv.create_line(gx, by0 + 6, gx, by1 - 6, fill=P["line"], dash=(2, 6))
             cv.create_line(bx0 + 6, gy, bx1 - 6, gy, fill=P["line"], dash=(2, 6))
         px, py = bx0 + (bx1 - bx0) * x, by1 - (by1 - by0) * y
+        self.xy_dot = []
         for r, col in ((34, "#2a2014"), (24, "#4a3618"), (15, P["gold_dim"]), (9, P["gold"]), (4, P["gold2"])):
-            cv.create_oval(px - r, py - r, px + r, py + r, fill=col, outline="")
+            self.xy_dot.append((cv.create_oval(px - r, py - r, px + r, py + r, fill=col, outline=""), r))
         cv.create_text(20, 22, anchor="w", text=f"XY · {name}", font=self.f_big, fill=P["gold"])
         cv.create_text(bx1 - 10, by1 - 12, anchor="e", text="Echo →", font=self.f_small, fill=P["tx2"])
         cv.create_text(bx0 + 12, by0 + 14, anchor="w", text="↑ Raum", font=self.f_small, fill=P["tx2"])
-        cv.create_text(px, py - 42, text=f"Echo {int(x * 100)} · Raum {int(y * 100)}", font=self.f_tiny, fill=P["champ"])
+        self.xy_lbl = cv.create_text(px, py - 42, text=f"Echo {int(x * 100)} · Raum {int(y * 100)}", font=self.f_tiny,
+                                     fill=P["champ"])
         sx = W - side - 4
         def btn(yy, label, art, on=False):
             self.rrect(sx, yy, W - 10, yy + 56, 12, fill=P["gold"] if on else P["card2"], outline=P["line"])
@@ -944,6 +949,17 @@ class zynsimple_screen(zynthian_gui_base):
             self.edit_drag = "xy"
             self.xy_motion(ev)
 
+    def _xy_move(self, x, y):
+        bx0, by0, bx1, by1 = self.xy_box
+        x, y = max(0.0, min(1.0, x)), max(0.0, min(1.0, y))
+        px, py = bx0 + (bx1 - bx0) * x, by1 - (by1 - by0) * y
+        cv = self.canvas
+        for item, r in getattr(self, "xy_dot", []):
+            cv.coords(item, px - r, py - r, px + r, py + r)
+        if getattr(self, "xy_lbl", None):
+            cv.coords(self.xy_lbl, px, py - 42)
+            cv.itemconfig(self.xy_lbl, text=f"Echo {int(x * 100)} · Raum {int(y * 100)}")
+
     def xy_motion(self, ev):
         if self.edit_drag != "xy":
             return
@@ -954,7 +970,7 @@ class zynsimple_screen(zynthian_gui_base):
             self.bridge.action(self.xy_chain, "xy", {"x": x, "y": y})
         except Exception:
             pass
-        self.draw_xy()
+        self._xy_move(x, y)
 
     def xy_release(self):
         if self.edit_drag == "xy" and getattr(self, "xy_spring", False):
@@ -963,7 +979,7 @@ class zynsimple_screen(zynthian_gui_base):
                 self.bridge.action(self.xy_chain, "xy", {"x": x, "y": y})
             except Exception:
                 pass
-            self.draw_xy()
+            self._xy_move(x, y)
 
     # ------------------------------------------------------------------
     # Große Effekt-Ansicht: alle Kanäle, alle Effekte, große Mute-Tasten
@@ -1257,6 +1273,7 @@ class zynsimple_screen(zynthian_gui_base):
             return self.close_editor()
         cv.delete("all")
         self.edit_hits = []
+        self.ed_items = []
         W, H = self._geom()
         cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
         pages = max(1, math.ceil(len(flat) / 4))
@@ -1291,15 +1308,16 @@ class zynsimple_screen(zynthian_gui_base):
                 cv.create_text(W - 16 - star_w / 2 + 2, y + row * 0.26, text="★", font=self.f_mid,
                                fill=P["black"] if on else P["tx2"])
                 self.edit_hits.append((W - 16 - star_w, y, W - 16, y + row * 0.5, "pin", k, None))
-            cv.create_text(W - 24 - star_w, y + row * 0.28, anchor="e", font=self.f_mid, fill=P["gold2"], text=txt)
+            vt = cv.create_text(W - 24 - star_w, y + row * 0.28, anchor="e", font=self.f_mid, fill=P["gold2"], text=txt)
             bx0, bx1, by0, by1 = 16, W - 16, y + row * 0.55, y + row * 0.85
             self.rrect(bx0, by0, bx1, by1, 6, fill=P["black"], outline=P["line"])
             try:
                 frac = (float(z.value) - float(z.value_min)) / max(1e-9, float(z.value_max) - float(z.value_min))
             except Exception:
                 frac = 0
-            cv.create_rectangle(bx0 + 2, by0 + 2, bx0 + 2 + (bx1 - bx0 - 4) * max(0, min(1, frac)), by1 - 2,
-                                fill=P["gold"], outline="")
+            bar = cv.create_rectangle(bx0 + 2, by0 + 2, bx0 + 2 + (bx1 - bx0 - 4) * max(0, min(1, frac)), by1 - 2,
+                                      fill=P["gold"], outline="")
+            self.ed_items.append((z, vt, bar, (bx0, by0, bx1, by1)))
             self.edit_hits.append((bx0, by0 - 8, bx1, by1 + 8, "param", k, (bx0, bx1)))
         if not shown:
             cv.create_text(W / 2, (area_y0 + area_y1) / 2, font=self.f_mid, fill=P["tx2"], text="Keine Regler vorhanden.")
@@ -1326,6 +1344,39 @@ class zynsimple_screen(zynthian_gui_base):
             btn(W - 3 * bw - 16, "↺ Andere", "ebrowse")
             btn(W - 2 * bw - 10, "✓ Behalten", "ekeep", None, True, fill=P["emerald"], fg=P["black"])
         btn(W - bw - 4, "Fertig", "eclose")
+        self.ed_sig = self._editor_sig()
+
+    def _editor_sig(self):
+        try:
+            x, chain, proc, flat = self._editor_params()
+        except Exception:
+            return None
+        pins = tuple(self.pf.pinned(chain)) if proc is not None else ()
+        sync = x.state["sync"].get(str(proc.id)) if proc is not None else None
+        trial = x.is_trial(chain, self.fxedit["fx"]) if proc is not None else None
+        return (self.fxedit["page"], tuple(id(z) for z in flat), pins, sync, trial, self._geom())
+
+    def refresh_editor(self):
+        """Nur Werte und Balken nachziehen – kein Neuzeichnen (sonst flackert das Bild)."""
+        sig = self._editor_sig()
+        if sig is None:
+            return self.close_editor()
+        if sig != getattr(self, "ed_sig", None) or not getattr(self, "ed_items", None):
+            self.ed_sig = sig
+            return self.draw_editor()
+        cv = self.canvas
+        for z, vt, bar, (bx0, by0, bx1, by1) in self.ed_items:
+            try:
+                txt = str(z.get_value2label())
+            except Exception:
+                txt = str(z.value)
+            try:
+                frac = (float(z.value) - float(z.value_min)) / max(1e-9, float(z.value_max) - float(z.value_min))
+            except Exception:
+                frac = 0
+            if cv.itemcget(vt, "text") != txt:
+                cv.itemconfig(vt, text=txt)
+            cv.coords(bar, bx0 + 2, by0 + 2, bx0 + 2 + (bx1 - bx0 - 4) * max(0, min(1, frac)), by1 - 2)
 
     def editor_press(self, ev):
         for h in self.edit_hits:
@@ -1374,7 +1425,7 @@ class zynsimple_screen(zynthian_gui_base):
             self.x.mark_dirty()
         except Exception as e:
             log.debug(f"Regler: {e}")
-        self.draw_editor()
+        self.refresh_editor()
 
     def cycle_sync(self):
         from .extras import DIVISIONS
@@ -1616,7 +1667,7 @@ class zynsimple_screen(zynthian_gui_base):
                 x, chain, proc, _ = self._editor_params()
                 if role < len(self.edit_shown):
                     x.nudge_param(proc, self.edit_shown[role], dval)
-                    self.draw_editor()
+                    self.refresh_editor()
             except Exception as e:
                 log.debug(f"Regler: {e}")
             return True
