@@ -38,6 +38,7 @@ class Bridge:
         self._oram_dpm = []
         self.extras = None          # wird in setup() gesetzt
         self.perform = None
+        self.tracks = None
         self.settings = {}
         threading.Thread(target=self._worker, name="zynsimple-worker", daemon=True).start()
         log.info(f"ZynSimple Bridge aktiv (Zynthian {self.version})")
@@ -208,6 +209,12 @@ class Bridge:
             out["morph"] = pf.morphing()
             out["morph_beats"] = pf.x.state.get("morph_beats", 4)
             out["tempo"] = pf.x.tempo()
+        if self.tracks:
+            try:
+                out["sys"] = self.tracks.sys()
+                out["undo"] = self.tracks.undo_info()
+            except Exception as e:
+                log.debug(f"Systemlast: {e}")
         return out
 
     def _strip(self, chain, meters):
@@ -275,6 +282,8 @@ class Bridge:
         return res
 
     def _action(self, chain_id, op, value=None):
+        if op.startswith("track_"):
+            return self._track_action(chain_id, op, value)
         if op == "handpan":
             v = value if isinstance(value, dict) else {}
             return {"plugins": self.extras.create_handpan(v.get("inputs") or [1], v.get("title") or "Handpan")}
@@ -357,6 +366,34 @@ class Bridge:
             self.sm.set_event_flag()
         except Exception:
             pass
+
+    def _track_action(self, chain_id, op, value):
+        t = self.tracks
+        v = value if isinstance(value, dict) else {}
+        if op == "track_info":
+            return t.info(chain_id)
+        if op == "track_templates":
+            return t.templates()
+        if op == "track_add":
+            cid = t.add(v.get("template", "audio"), v.get("inputs"), v.get("title"), v.get("midi_chan", 0), v.get("eng"))
+            return {"chain": cid}
+        if op == "track_remove":
+            return t.remove(chain_id)
+        if op == "track_undo":
+            return {"chain": t.undo_remove()}
+        if op == "track_dup":
+            return {"chain": t.duplicate(chain_id)}
+        if op == "track_rename":
+            return {"title": t.rename(chain_id, v.get("title", value if isinstance(value, str) else ""))}
+        if op == "track_inputs":
+            if "toggle" in v:
+                return {"inputs": t.toggle_input(chain_id, v["toggle"])}
+            return {"inputs": t.set_inputs(chain_id, v.get("inputs") or [])}
+        if op == "track_midi":
+            return {"midi_chan": t.set_midi(chain_id, v.get("chan", value if isinstance(value, int) else 0))}
+        if op == "track_move":
+            return {"pos": t.move(chain_id, v.get("dir", value if isinstance(value, int) else 1))}
+        raise ValueError(f"Unbekannte Spur-Aktion {op}")
 
     def set_level(self, chain, value):
         value = max(0.0, min(1.0, value))

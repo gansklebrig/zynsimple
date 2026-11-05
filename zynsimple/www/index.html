@@ -241,6 +241,43 @@
   @media (max-width: 520px) { header { gap: 8px; padding-left: 10px; padding-right: 10px; } header h1, #info { display: none; }
     #tabs { margin-left: 0; } #tabs button { padding: 0 9px; font-size: 13px; } #upd { padding: 0 9px; font-size: 13px; } }
   @media (min-width: 900px) { .strip { width: 170px; } }
+  .name.tap { cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .name.tap::after { content: "✎"; flex: none; font-size: 12px; color: var(--accent); opacity: .8; }
+  .name.tap span { overflow: hidden; text-overflow: ellipsis; }
+  .strip.add { width: 74px; min-height: 420px; border: 2px dashed #5a4524; background: transparent; color: var(--accent);
+    align-items: center; justify-content: center; gap: 10px; font-weight: 700; cursor: pointer; }
+  .strip.add b { font-size: 40px; line-height: 1; font-weight: 400; }
+  .strip.add small { writing-mode: vertical-rl; letter-spacing: 3px; font-size: 12px; }
+  .strip.add:active { background: #2a2116; }
+  #sys { font-size: 12px; font-variant-numeric: tabular-nums; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line);
+    color: var(--tx2); white-space: nowrap; }
+  #sys .s { display: none; }
+  @media (max-width: 380px) { #tabs button { padding: 0 6px; font-size: 12px; } header { gap: 6px; } }
+  @media (max-width: 520px) { #upd { display: none; } #sys { font-size: 11px; padding: 3px 6px; } #sys .f { display: none; } #sys .s { display: inline; } }
+  #sys.ok { color: var(--fxon); } #sys.warn { color: var(--gold2); border-color: #5a4524; } #sys.bad { color: #fff; background: var(--mute); border-color: var(--mute); }
+  #undo { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 15; display: none; align-items: center; gap: 12px;
+    background: #2a2014; border: 2px solid var(--accent); border-radius: 14px; padding: 8px 8px 8px 16px; box-shadow: 0 8px 30px #000c;
+    max-width: calc(100vw - 24px); }
+  #undo.on { display: flex; }
+  #undo span { color: var(--tx); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips button { min-width: 54px; height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--tx);
+    font-size: 18px; font-weight: 700; }
+  .chips button.on { background: var(--accent); border-color: var(--accent); color: #111; }
+  .tk-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tk-row .btn { flex: 1 1 140px; }
+  .tk-fx { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .tk-fx span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tk-fx button { height: 40px; min-width: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--tx); }
+  .tk-fx button.del { color: var(--mute); border-color: #5a2430; }
+  .tk-fx button.del.arm { background: var(--mute); color: #fff; }
+  .btn.danger { background: var(--bg); color: var(--mute); border-color: var(--mute); }
+  .btn.danger.arm { background: var(--mute); color: #fff; }
+  .tiles.tpl button { min-height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px; }
+  .tiles.tpl button b { font-size: 15px; }
+  .tiles.tpl button small { color: var(--tx2); font-size: 11px; line-height: 1.25; }
+  .tk-name { display: flex; gap: 8px; } .tk-name input { flex: 1; min-width: 0; background: var(--bg); color: var(--tx);
+    border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; height: 44px; font-size: 16px; }
 </style>
 </head>
 <body>
@@ -250,10 +287,12 @@
   <nav id="tabs"><button data-tab="mix" class="on">Mischer</button><button data-tab="imres">♫ Imres</button><button data-tab="fxall">✦ Effekte</button><button data-tab="extras">⚙ Extras</button></nav>
   <span class="sp"></span>
   <small id="info"></small>
+  <span id="sys" title="Auslastung: DSP = Audio-Last, dazu CPU und Temperatur"></span>
   <button id="upd" title="Update einspielen">Update</button>
   <input id="updfile" type="file" accept=".zip,application/zip" hidden>
 </header>
 <div id="toast"></div>
+<div id="undo"><span id="undo-t"></span><button class="btn" id="undo-b">↶ Zurückholen</button></div>
 <div id="updov"><div class="uo">
   <div class="ring"><i></i><i></i><i></i><b></b></div>
   <h2 id="uo-t">Update</h2><p id="uo-s"></p>
@@ -266,7 +305,7 @@
   <select id="morph" title="Überblenden"><option value="0">hart</option><option value="2">↝ 2 Schläge</option><option value="4">↝ 4</option><option value="8">↝ 8</option><option value="16">↝ 16</option></select>
   <button class="tap" id="tap">TAP</button>
   <button class="panic" id="panic">Panik</button>
-  <button id="perf-synth" style="color:var(--accent)">＋ Synth</button>
+  <button id="perf-synth" style="color:var(--accent);border-color:#5a4524">＋ Spur</button>
 </div>
 <div id="strips"></div>
 <section id="imres" hidden>
@@ -388,7 +427,9 @@
     for (const s of strips) {
       const r = {};
       const root = r.root = el('div', 'strip' + (s.kind === 'main' ? ' main' : ''), $strips);
-      r.name = el('div', 'name', root, s.name);
+      r.name = el('div', 'name' + (s.kind !== 'main' ? ' tap' : ''), root);
+      el('span', '', r.name, s.name);
+      if (s.kind !== 'main') { r.name.title = 'Spur bearbeiten: Name, Eingang, Löschen …'; r.name.onclick = () => openTrack(s.id); }
       const kd = el('div', 'kind', root, KIND[s.kind] || '');
       r.clip = el('span', 'clip', kd, 'CLIP');
       r.clipT = 0;
@@ -463,6 +504,11 @@
       }
       els[s.id] = r;
     }
+    const add = el('div', 'strip add', $strips);
+    el('b', '', add, '＋'); el('small', '', add, 'NEUE SPUR');
+    add.onclick = openNewTrack;
+    const main = $strips.querySelector('.strip.main');
+    if (main) $strips.insertBefore(add, main);
   }
 
   function showGain(r, g) { if (r.gval) r.gval.innerHTML = '<b>GAIN</b>' + (g > 0 ? '+' : '') + g + ' dB'; }
@@ -1065,7 +1111,146 @@
     }
   }
   document.getElementById('synth-add').onclick = openSynths;
-  document.getElementById('perf-synth').onclick = openSynths;
+  document.getElementById('perf-synth').onclick = openNewTrack;
+
+  // ---- Systemlast ----
+  const $sys = document.getElementById('sys');
+  function sysShow(v) {
+    if (!v) { $sys.style.display = 'none'; return; }
+    $sys.style.display = '';
+    const load = v.dsp != null ? v.dsp : v.cpu;
+    const parts = [];
+    if (load != null) parts.push((v.dsp != null ? 'DSP ' : 'CPU ') + load + '%');
+    if (v.dsp != null && v.cpu != null) parts.push('CPU ' + v.cpu + '%');
+    if (v.temp != null) parts.push(v.temp + '°');
+    if (v.xrun) parts.push('⚠ Aussetzer'); else if (v.volt) parts.push('⚡ Strom');
+    const short = [load != null ? load + '%' : '', v.temp != null ? v.temp + '°' : '', v.xrun ? '⚠' : v.volt ? '⚡' : ''].filter(Boolean).join(' ');
+    $sys.innerHTML = '';
+    el('span', 'f', $sys, parts.join(' · ')); el('span', 's', $sys, short);
+    const bad = v.xrun || v.volt || v.hot || (load != null && load >= 80) || (v.temp != null && v.temp >= 75);
+    const warn = (load != null && load >= 60) || (v.temp != null && v.temp >= 65);
+    $sys.className = bad ? 'bad' : warn ? 'warn' : 'ok';
+  }
+
+  // ---- Rückgängig nach dem Löschen ----
+  const $undo = document.getElementById('undo');
+  function undoShow(u) {
+    $undo.classList.toggle('on', !!u);
+    if (u) { document.getElementById('undo-t').textContent = '„' + u.name + '“ gelöscht'; document.getElementById('undo-b').textContent = '↶ Zurückholen ' + u.left; }
+  }
+  document.getElementById('undo-b').onclick = async () => {
+    $undo.classList.remove('on'); toast('Spur wird zurückgeholt …');
+    const r = await api('/api/action', { op: 'track_undo' }).catch(e => ({ error: e.message }));
+    toast(r.error ? 'Ging nicht: ' + r.error : 'Spur ist zurück', 3000);
+  };
+
+  // ---- Spur bearbeiten ----
+  const trackOp = (chain, op, value) => api('/api/action', { chain, op, value }).then(r => { if (r.error) throw new Error(r.error); return r.result; });
+  function sheetOpen(title) {
+    clearInterval(sheetTimer); sheetFor = null;
+    document.getElementById('sh-title').textContent = title;
+    $shBody.innerHTML = '';
+    $sheet.classList.add('open');
+  }
+  async function openTrack(chain) {
+    sheetOpen('Spur');
+    let info;
+    try { info = await trackOp(chain, 'track_info'); } catch (e) { $shBody.textContent = 'Geht nicht: ' + e.message; return; }
+    const strip = (lastStrips || []).find(x => x.id === chain);
+    document.getElementById('sh-title').textContent = info.name;
+    el('h4', '', $shBody, 'Name');
+    const nm = el('div', 'tk-name', $shBody);
+    const inp = el('input', '', nm); inp.type = 'text'; inp.maxLength = 32; inp.value = info.title || info.name;
+    const save = el('button', 'btn', nm, 'Speichern');
+    const doSave = async () => { try { await trackOp(chain, 'track_rename', { title: inp.value }); toast('Umbenannt', 1500); openTrack(chain); } catch (e) { toast(e.message, 4000); } };
+    save.onclick = doSave; inp.onkeydown = e => { if (e.key === 'Enter') doSave(); };
+
+    if (info.inputs != null) {
+      el('h4', '', $shBody, 'Eingang der Soundkarte');
+      const ch = el('div', 'chips', $shBody);
+      for (let k = 1; k <= Math.max(2, info.n_inputs); k++) {
+        const b = el('button', info.inputs.includes(k) ? 'on' : '', ch, String(k));
+        b.onclick = async () => { try { await trackOp(chain, 'track_inputs', { toggle: k }); openTrack(chain); } catch (e) { toast(e.message, 4000); } };
+      }
+      if (!info.inputs.length) el('p', '', $shBody, 'Kein Eingang gewählt – die Spur bleibt stumm.').style.cssText = 'color:var(--mute);font-size:13px;margin:6px 0 0';
+      const dup = info.inputs.filter(i => (info.used || {})[i]).map(i => i + ' auch bei „' + info.used[i].join(', ') + '“');
+      if (dup.length) el('p', '', $shBody, 'Eingang ' + dup.join('; ') + ' – dann klingt es doppelt.').style.cssText = 'color:var(--gold2);font-size:13px;margin:6px 0 0';
+    } else if (info.midi_chan != null || info.midi_all) {
+      el('h4', '', $shBody, 'MIDI-Kanal (Keyboard auf denselben Kanal stellen)');
+      const sel = el('select', '', $shBody); sel.style.cssText = 'background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:16px';
+      for (let i = 0; i < 16; i++) { const o = el('option', '', sel, 'Kanal ' + (i + 1)); o.value = i; }
+      if (info.midi_all) { const o = el('option', '', sel, 'alle'); o.value = -1; sel.value = -1; } else sel.value = info.midi_chan;
+      sel.onchange = async () => { if (+sel.value < 0) return; try { await trackOp(chain, 'track_midi', { chan: +sel.value }); toast('MIDI-Kanal ' + (+sel.value + 1), 1500); } catch (e) { toast(e.message, 4000); } };
+    }
+
+    el('h4', '', $shBody, 'Effekte');
+    (strip ? strip.fx : []).forEach(f => {
+      const row = el('div', 'tk-fx', $shBody);
+      el('span', '', row, (f.on ? '● ' : '○ ') + f.name);
+      const g = el('button', '', row, '⚙'); g.title = 'Regler'; g.onclick = () => openFx(chain, f.i);
+      const d = el('button', 'del', row, '✕'); d.title = 'Effekt entfernen';
+      d.onclick = async () => {
+        if (!d.classList.contains('arm')) { d.classList.add('arm'); d.textContent = 'weg?'; setTimeout(() => { d.classList.remove('arm'); d.textContent = '✕'; }, 3000); return; }
+        await act(chain, 'fx_remove', f.i); toast('Effekt entfernt', 1500); setTimeout(() => openTrack(chain), 300);
+      };
+    });
+    const addfx = el('button', 'btn sec', $shBody, '＋ Effekt'); addfx.style.marginTop = '8px'; addfx.onclick = () => openBrowser(chain, info.name);
+
+    el('h4', '', $shBody, 'Spur');
+    const row = el('div', 'tk-row', $shBody);
+    const L = el('button', 'btn sec', row, '◀ nach links'); L.disabled = !info.left;
+    const R = el('button', 'btn sec', row, 'nach rechts ▶'); R.disabled = !info.right;
+    L.onclick = async () => { await trackOp(chain, 'track_move', { dir: -1 }).catch(e => toast(e.message)); openTrack(chain); };
+    R.onclick = async () => { await trackOp(chain, 'track_move', { dir: 1 }).catch(e => toast(e.message)); openTrack(chain); };
+    if (info.can_dup) {
+      const D = el('button', 'btn sec', row, '⧉ Verdoppeln');
+      D.onclick = async () => { D.disabled = true; toast('Wird verdoppelt …'); try { const r = await trackOp(chain, 'track_dup'); toast('Verdoppelt', 2000); if (r.chain != null) openTrack(r.chain); } catch (e) { toast(e.message, 4000); D.disabled = false; } };
+    }
+    const row2 = el('div', 'tk-row', $shBody); row2.style.marginTop = '14px';
+    const X = el('button', 'btn danger', row2, '🗑 Spur löschen');
+    if (!info.can_undo) el('p', '', $shBody, 'Achtung: Löschen lässt sich auf diesem Zynthian nicht rückgängig machen.').style.cssText = 'color:var(--tx2);font-size:12px';
+    X.onclick = async () => {
+      if (!X.classList.contains('arm')) { X.classList.add('arm'); X.textContent = 'Wirklich löschen? Nochmal tippen'; setTimeout(() => { X.classList.remove('arm'); X.textContent = '🗑 Spur löschen'; }, 3000); return; }
+      X.disabled = true;
+      try { await trackOp(chain, 'track_remove'); closeFx(); toast('Gelöscht – unten 20 s lang zurückholbar', 3000); } catch (e) { toast(e.message, 4000); X.disabled = false; }
+    };
+  }
+
+  // ---- Neue Spur ----
+  async function openNewTrack() {
+    sheetOpen('＋ Neue Spur');
+    let d;
+    try { d = await trackOp(null, 'track_templates'); } catch (e) { $shBody.textContent = 'Geht nicht: ' + e.message; return; }
+    let ins = [d.free || 1];
+    el('h4', '', $shBody, 'Eingang (für Stereo zwei wählen)');
+    const ch = el('div', 'chips', $shBody);
+    const chips = [];
+    const note = el('p', '', $shBody); note.style.cssText = 'color:var(--gold2);font-size:13px;margin:6px 0 0;min-height:1em';
+    const noteUpd = () => { const u = d.used || {}; const x = ins.filter(i => u[i]).map(i => i + ' hört schon „' + u[i].join(', ') + '“'); note.textContent = x.length ? 'Eingang ' + x.join('; ') + ' – dann klingt es doppelt.' : ''; };
+    for (let k = 1; k <= Math.max(2, d.n_inputs); k++) {
+      const b = el('button', ins.includes(k) ? 'on' : '', ch, String(k)); chips.push(b);
+      b.onclick = () => {
+        if (ins.includes(k)) { if (ins.length > 1) ins = ins.filter(i => i !== k); }
+        else { ins.push(k); if (ins.length > 2) ins.shift(); }
+        chips.forEach((c, i) => c.classList.toggle('on', ins.includes(i + 1))); noteUpd();
+      };
+    }
+    ch.after(note); noteUpd();
+    el('h4', '', $shBody, 'Was kommt rein?');
+    const grid = el('div', 'tiles tpl', $shBody);
+    for (const t of d.templates) {
+      const b = el('button', '', grid);
+      el('i', '', b, t.icon); el('b', '', b, t.title);
+      el('small', '', b, t.plugins && t.plugins.length ? t.plugins.join(' · ') : t.sub);
+      b.onclick = async () => {
+        if (t.key === 'synth') return openSynths();
+        if (grid.querySelector('.busy')) return;
+        b.classList.add('busy'); toast(t.title + ' wird angelegt …');
+        try { await trackOp(null, 'track_add', { template: t.key, inputs: ins }); toast(t.title + ' ist da', 2500); closeFx(); showTab('mix'); }
+        catch (e) { toast('Ging nicht: ' + e.message, 5000); b.classList.remove('busy'); }
+      };
+    }
+  }
 
   showTab(tab);
 
@@ -1081,9 +1266,11 @@
       const sig = JSON.stringify(d.strips.map(s => [s.id, s.name, s.kind, !!s.preset, s.solo == null, s.freeze == null, s.gain == null, s.tiefe == null, s.fx.map(f => f.name)]));
       lastStrips = d.strips;
       perfUpdate(d);
+      sysShow(d.sys);
+      undoShow(d.undo);
       fxallRender(d.strips);
       if (sig !== signature) { signature = sig; build(d.strips); if (tab === 'extras') fillChains(); }
-      $empty.style.display = (d.strips.length || tab !== 'mix') ? 'none' : 'block';
+      $empty.style.display = 'none';
       update(d.strips);
     } catch (e) {
       if (updating && fails >= 1) uoPoll(false);

@@ -172,6 +172,10 @@ class zynsimple_screen(zynthian_gui_base):
             self.draw_xy()
         elif self.mode == "fxview":
             self.draw_fxview()
+        elif self.mode == "track":
+            self.draw_track()
+        elif self.mode == "newtrack":
+            self.draw_newtrack()
 
     # ------------------------------------------------------------------
     # Lebenszyklus
@@ -242,6 +246,10 @@ class zynsimple_screen(zynthian_gui_base):
                 if sig != getattr(self, "fx_sig", None):
                     self.fx_sig = sig
                     self.draw_fxview()
+            elif self.mode in ("track", "newtrack"):
+                self.edit_tick += 1
+                if self.edit_tick % 6 == 1:
+                    self.tick_track()
             elif self.mode == "update":
                 self.draw_update()
                 delay = 40
@@ -261,7 +269,7 @@ class zynsimple_screen(zynthian_gui_base):
                       s.get("freeze"), s.get("throw"), [(f["name"], f["on"], f.get("sync")) for f in s["fx"]])
                      for s in self.strips]) + \
             f"|{self.selected}|{W}x{H}|{d.get('scenes')}|{d.get('last_scene')}|{d.get('morph')}|" \
-            f"{d.get('morph_beats')}|{self.locked}"
+            f"{d.get('morph_beats')}|{self.locked}|{d.get('undo')}"
 
     # ------------------------------------------------------------------
     # Hauptansicht
@@ -281,6 +289,8 @@ class zynsimple_screen(zynthian_gui_base):
         strip_h = H - bar_h
         n = len(self.strips)
 
+        add_w = max(40, int(W * 0.05))
+        mix_w -= add_w
         min_w = int(self.settings.get("strip_min_width", 124))
         self.per_page = max(1, min(n if n else 1, mix_w // min_w))
         pages = max(1, math.ceil(n / self.per_page)) if n else 1
@@ -291,9 +301,30 @@ class zynsimple_screen(zynthian_gui_base):
 
         if not n:
             cv.create_text(mix_w / 2, strip_h / 2, fill=P["tx2"], font=self.f_mid, justify="center",
-                           text="Noch keine Kanäle.\n⋯ → „Handpan anlegen“")
+                           text="Noch keine Kanäle.\nRechts auf ＋ tippen")
         for k, s in enumerate(visible):
             self._draw_strip(s, first + k, k * sw + 4, 4, sw - 6, strip_h - 6)
+
+        # ＋ Neue Spur
+        ax0, ax1 = mix_w + 1, mix_w + add_w - 3
+        self.rrect(ax0, 4, ax1, strip_h - 2, 12, fill=P["bg"], outline=P["gold_dim"], dash=(4, 4))
+        cv.create_text((ax0 + ax1) / 2, strip_h * 0.42, text="＋", font=self.f_huge, fill=P["gold"])
+        cv.create_text((ax0 + ax1) / 2, strip_h * 0.62, text="S\nP\nU\nR", font=self.f_tiny, fill=P["gold"],
+                       justify="center")
+        self.hits.append((ax0, 4, ax1, strip_h - 2, "newtrack", None, None))
+        # Rückgängig nach dem Löschen
+        u = self.data.get("undo")
+        if u:
+            bw_, bh_ = min(mix_w - 20, 420), max(44, int(H * 0.1))
+            bx, by = (mix_w - bw_) / 2, strip_h * 0.42
+            self.rrect(bx, by, bx + bw_, by + bh_, 14, fill="#2a2014", outline=P["gold"], width=2)
+            cv.create_text(bx + 16, by + bh_ / 2, anchor="w", font=self.f_small, fill=P["champ"],
+                           text=self._clip_text(f"„{u['name']}“ gelöscht", bw_ * 0.55, self.f_small))
+            self._button(bx + bw_ - 190, by + 6, 182, bh_ - 12, f"↶ Zurückholen {u['left']}", True, "undo",
+                         None, None, fill=P["gold"], fg=P["black"], font=self.f_small)
+            mix_w += add_w
+        else:
+            mix_w += add_w
 
         self._draw_live(mix_w + 2, 4, live_w - 6, strip_h - 6)
         self._draw_bar(0, strip_h, W, bar_h, pages)
@@ -365,7 +396,7 @@ class zynsimple_screen(zynthian_gui_base):
         cx0, cx1 = x + pad, x + w - pad
         cy = y + pad
 
-        # Name (antippen → Gain & Eingang)
+        # Name (antippen → Spur-Seite: Eingänge, Name, Löschen …)
         name = self._clip_text(s["name"], w - 2 * pad, self.f_big)
         it["name"] = cv.create_text(x + w / 2, cy + self.f_big[1] * 0.95, text=name, font=self.f_big, fill=P["champ"])
         if s["kind"] != "main":
@@ -466,11 +497,15 @@ class zynsimple_screen(zynthian_gui_base):
         s = self._sel_strip()
         self.rrect(x, y, x + w, y + h, 14, fill=P["card"], outline=P["gold_dim"], width=1)
         cv.create_text(x + 12, y + 14, anchor="w", text="LIVE", font=self.f_small, fill=P["gold"])
+        # Systemlast oben rechts (wird in update_dynamic aufgefrischt)
+        self.sys_item = cv.create_text(x + w - 10, y + 14, anchor="e", font=self.f_tiny, fill=P["tx2"], text="")
+        self.sys_hit = (x + w * 0.45, y, x + w, y + 28)
+        self.hits.append((x + w * 0.45, y, x + w, y + 28, "sysinfo", None, None))
         if not s or s["kind"] == "main":
             cv.create_text(x + w / 2, y + h / 2, text="Kanal wählen", font=self.f_small, fill=P["tx2"])
             return
-        cv.create_text(x + w - 12, y + 14, anchor="e", font=self.f_tiny, fill=P["champ"],
-                       text=self._clip_text(s["name"], w - 60, self.f_tiny))
+        cv.create_text(x + 12, y + 32, anchor="w", font=self.f_tiny, fill=P["champ"],
+                       text=self._clip_text(s["name"], w - 24, self.f_tiny))
         chain = self._sel_chain()
         slots = []
         if chain is not None:
@@ -478,9 +513,9 @@ class zynsimple_screen(zynthian_gui_base):
                 slots = [self.pf.slot_info(chain, sl) for sl in self.pf.live_slots(chain)]
             except Exception as e:
                 log.debug(f"Live: {e}")
-        top = y + 30
+        top = y + 42
         pads_h = int(h * 0.32)
-        sh = (h - 30 - pads_h - 8) / 4
+        sh = (h - 42 - pads_h - 8) / 4
         for k, sl in enumerate(slots):
             sy = top + k * sh
             star = "★ " if sl.get("pin") else ""
@@ -544,6 +579,8 @@ class zynsimple_screen(zynthian_gui_base):
                 cv.itemconfig(it[key + "_bar"], fill=P["emerald"] if m[k] < -12 else (P["gold2"] if m[k] < -3 else P["rose"]))
                 yh = d - (d - b) * hold
                 cv.coords(it[key + "_hold"], a, yh, c, yh)
+        # Systemlast
+        self._paint_sys()
         # Live-Leiste
         chain = self._sel_chain()
         if chain is not None and self.live_items:
@@ -589,11 +626,15 @@ class zynsimple_screen(zynthian_gui_base):
             return self.xy_press(ev)
         if self.mode == "fxview":
             return self.fxview_press(ev)
+        if self.mode in ("track", "newtrack"):
+            return self.track_press(ev)
         h = self._hit(self.hits, ev.x, ev.y)
         if not h:
             return
         art, cid, extra = h[4], h[5], h[6]
         if self.locked and art not in ("lock", "select"):
+            if art in ("newtrack", "chanedit"):
+                self._flash("Gesperrt – Sperre lang drücken zum Entsperren")
             return
         if cid is not None and art != "panic":
             idx = self._index_of(cid)
@@ -633,7 +674,13 @@ class zynsimple_screen(zynthian_gui_base):
             elif art == "gain0":
                 b.action(cid, "gain", 0)
             elif art == "chanedit":
-                self.open_editor(cid, "chan")
+                self.open_track(cid)
+                return
+            elif art == "newtrack":
+                self.open_newtrack()
+                return
+            elif art == "undo":
+                self._run_track(lambda: b.action(None, "track_undo"), "Spur ist zurück")
                 return
             elif art == "browse":
                 self.open_browser(cid)
@@ -653,6 +700,11 @@ class zynsimple_screen(zynthian_gui_base):
             elif art == "panic":
                 b.action(None, "panic")
                 self._flash("Panik – alles beruhigt")
+            elif art == "sysinfo":
+                v = self.data.get("sys") or {}
+                self._flash(f"DSP {v.get('dsp', '?')} % (Audio-Last) · CPU {v.get('cpu', '?')} % · "
+                            f"{v.get('temp', '?')} °C" + (" · Aussetzer!" if v.get("xrun") else ""))
+                return
             elif art == "tap":
                 self.do_tap()
                 return
@@ -814,8 +866,7 @@ class zynsimple_screen(zynthian_gui_base):
             upd = None
         items = [("menu", "Zynthian-Menü", "Ketten, Snapshots, Admin"),
                  ("expert", "Profi-Mischer", "der originale Zynthian-Mischer"),
-                 ("handpan", "Handpan anlegen", "Mikro-Kanal mit Effekten"),
-                 ("synth", "＋ Synth dazuschalten", "spielt über MIDI mit, eigener Kanal"),
+                 ("newtrack", "＋ Neue Spur", "Eingang, Handpan, Gesang, Synth …"),
                  ("idle", "Bühnenbild", "Animation jetzt zeigen"),
                  ("update", f"Update {upd} installieren" if upd else "Nach Updates suchen", "GitHub oder USB-Stick"),
                  ("close", "Zurück", "")]
@@ -850,12 +901,8 @@ class zynsimple_screen(zynthian_gui_base):
                     from . import imres
                     threading.Thread(target=imres.system, args=("imres",), daemon=True).start()
                     self._flash("Imres-Bühne startet …")
-                elif art == "handpan":
-                    try:
-                        self.x.create_handpan(self.settings.get("handpan_inputs") or [1])
-                        self._flash("Handpan wird angelegt …")
-                    except Exception as e:
-                        self._flash(str(e))
+                elif art == "newtrack":
+                    self.open_newtrack()
                 elif art == "idle":
                     self.start_idle()
                 elif art == "synth":
@@ -1322,28 +1369,39 @@ class zynsimple_screen(zynthian_gui_base):
         if not shown:
             cv.create_text(W / 2, (area_y0 + area_y1) / 2, font=self.f_mid, fill=P["tx2"], text="Keine Regler vorhanden.")
         y0 = H - bar_h
-        bw = max(90, W // 6)
+        bw = max(84, int(W / 6.5))
 
         def btn(xx, label, art, extra=None, on=True, fill=None, fg=None):
             self.rrect(xx, y0 + 4, xx + bw, H - 4, 10, fill=fill or P["card2"], outline="")
-            cv.create_text(xx + bw / 2, (y0 + H) / 2, text=label, font=self.f_mid,
+            cv.create_text(xx + bw / 2, (y0 + H) / 2, text=label, font=self.f_mid if len(label) < 11 else self.f_small,
                            fill=(fg or P["champ"]) if on else P["tx2"])
             if on:
                 self.edit_hits.append((xx, y0 + 4, xx + bw, H - 4, art, None, extra))
         btn(4, "◀ Seite", "epage", -1, pg > 0)
         btn(8 + bw, "Seite ▶", "epage", 1, pg < pages - 1)
-        cv.create_text(16 + 2 * bw, (y0 + H) / 2, anchor="w", font=self.f_small, fill=P["tx2"],
-                       text=f"{pg + 1}/{pages}" + ("  · ★ = auf die Live-Knöpfe" if proc is not None else ""))
+        # rechte Knöpfe von rechts nach links
+        right = [("Fertig", "eclose", None, None)]
+        if proc is None:
+            right.append(("＋ Effekte", "ebrowse", P["gold"], P["black"]))
+        elif x.is_trial(chain, self.fxedit["fx"]):
+            right += [("✓ Behalten", "ekeep", P["emerald"], P["black"]), ("↺ Andere", "ebrowse", None, None)]
+        else:
+            armed = getattr(self, "fx_del_armed", 0) > time.monotonic()
+            right.append(("Wirklich?" if armed else "Entfernen", "edel", P["rose"] if armed else None,
+                          "#ffffff" if armed else P["rose"]))
         if proc is not None and x.fx_kind(proc) == "delay" and x._sync_target(proc):
             cur = x.state["sync"].get(str(proc.id))
-            btn(W - 2 * bw - 10, f"♩ {cur}" if cur else "♩ aus", "esync", None, True,
-                fill=P["gold"] if cur else None, fg=P["black"] if cur else None)
-        if proc is None:
-            btn(W - 2 * bw - 10, "＋ Effekte", "ebrowse", None, True, fill=P["gold"], fg=P["black"])
-        elif x.is_trial(chain, self.fxedit["fx"]):
-            btn(W - 3 * bw - 16, "↺ Andere", "ebrowse")
-            btn(W - 2 * bw - 10, "✓ Behalten", "ekeep", None, True, fill=P["emerald"], fg=P["black"])
-        btn(W - bw - 4, "Fertig", "eclose")
+            right.append((f"♩ {cur}" if cur else "♩ aus", "esync", P["gold"] if cur else None, P["black"] if cur else None))
+        xx = W - 4
+        for label, art, fill, fg in right:
+            xx -= bw
+            btn(xx, label, art, None, True, fill=fill, fg=fg)
+            xx -= 6
+        tx0 = 16 + 2 * bw
+        if xx - tx0 > 60:
+            cv.create_text(tx0, (y0 + H) / 2, anchor="w", font=self.f_small, fill=P["tx2"],
+                           text=self._clip_text(f"{pg + 1}/{pages}" + ("  · ★ = auf die Live-Knöpfe" if proc is not None else ""),
+                                                xx - tx0, self.f_small))
         self.ed_sig = self._editor_sig()
 
     def _editor_sig(self):
@@ -1408,6 +1466,19 @@ class zynsimple_screen(zynthian_gui_base):
                     _, chain, _, _ = self._editor_params()
                     self.x.keep_fx(chain)
                     self.draw_editor()
+                elif art == "edel":
+                    if getattr(self, "fx_del_armed", 0) > time.monotonic():
+                        self.fx_del_armed = 0
+                        try:
+                            self.bridge.action(self.fxedit["chain"], "fx_remove", self.fxedit["fx"])
+                            self._flash("Effekt entfernt")
+                        except Exception as e:
+                            self._flash(str(e))
+                        self.close_editor()
+                    else:
+                        self.fx_del_armed = time.monotonic() + 3
+                        self.draw_editor()
+                        self.canvas.after(3100, lambda: self.mode == "edit" and self.draw_editor())
                 return
 
     def editor_motion(self, ev):
@@ -1438,6 +1509,401 @@ class zynsimple_screen(zynthian_gui_base):
         except Exception as e:
             self._flash(str(e))
         self.draw_editor()
+
+    # ------------------------------------------------------------------
+    # Systemlast
+    # ------------------------------------------------------------------
+
+    def _paint_sys(self):
+        it = getattr(self, "sys_item", None)
+        if not it:
+            return
+        v = self.data.get("sys") or {}
+        parts, col = [], P["tx2"]
+        load = v.get("dsp") if v.get("dsp") is not None else v.get("cpu")
+        if load is not None:
+            parts.append(f"{'DSP' if v.get('dsp') is not None else 'CPU'} {load}%")
+            col = P["emerald"] if load < 60 else (P["gold2"] if load < 80 else P["rose"])
+        if v.get("temp") is not None:
+            parts.append(f"{v['temp']}°")
+            if v["temp"] >= 75:
+                col = P["rose"]
+        if v.get("xrun"):
+            parts.append("⚠ Aussetzer")
+            col = P["rose"]
+        elif v.get("volt"):
+            parts.append("⚡ Strom")
+            col = P["rose"]
+        try:
+            self.canvas.itemconfig(it, text=" · ".join(parts), fill=col)
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Spuren: Spur-Seite und „＋ Neue Spur“
+    # ------------------------------------------------------------------
+
+    def _run_track(self, fn, ok_text, then=None):
+        """Spur-Aktion im Hintergrund (Zynthian braucht dafür ein paar Sekunden)."""
+        if getattr(self, "track_busy", None):
+            return
+        self.track_busy = ok_text
+        res = {}
+
+        def run():
+            try:
+                res["r"] = fn()
+            except Exception as e:
+                res["e"] = str(e)
+
+        def wait(t):
+            if t.is_alive():
+                self.canvas.after(150, lambda: wait(t))
+                return
+            self.track_busy = None
+            if "e" in res:
+                self._flash(f"Ging nicht: {res['e']}")
+            else:
+                self._flash(ok_text)
+            try:
+                self.data = self.bridge.snapshot()
+                self.strips = self.data["strips"]
+            except Exception:
+                pass
+            r = res.get("r")
+            new = r.get("chain") if isinstance(r, dict) else None
+            if new is not None:
+                idx = self._index_of(new)
+                if idx is not None:
+                    self.selected = idx
+            if then:
+                then(res)
+            self.sig = None
+            self._redraw()
+
+        t = threading.Thread(target=run, daemon=True)
+        t.start()
+        self.canvas.after(150, lambda: wait(t))
+        self._redraw()
+
+    def open_track(self, cid):
+        idx = self._index_of(cid)
+        if idx is not None:
+            self.selected = idx
+        self.mode = "track"
+        self.trk = {"chain": cid, "armed": 0}
+        self.edit_tick = 0
+        self.draw_track()
+
+    def open_newtrack(self):
+        self.mode = "newtrack"
+        try:
+            tp = self.bridge.action(None, "track_templates")
+        except Exception as e:
+            self._flash(str(e))
+            self.mode = "mix"
+            return
+        self.ntrk = {"tpl": tp, "inputs": [tp.get("free", 1)]}
+        self.draw_newtrack()
+
+    def tick_track(self):
+        # Spur weg (z. B. vom Handy gelöscht)? Dann zurück zum Mischer.
+        if self.mode == "track":
+            try:
+                self.bridge._chain(self.trk["chain"])
+            except Exception:
+                if not getattr(self, "track_busy", None):
+                    self.mode = "mix"
+                    self.sig = None
+                return
+            sig = repr(self.bridge.tracks.info(self.trk["chain"]))
+            if sig != getattr(self, "trk_sig", None):
+                self.draw_track()
+
+    def _tbtn(self, x0, y0, x1, y1, label, art, extra=None, sub=None, fill=None, fg=None, outline=None, on=True,
+              font=None):
+        cv = self.canvas
+        self.rrect(x0, y0, x1, y1, 14, fill=fill or P["card2"], outline=outline or P["line"],
+                   width=2 if outline else 1)
+        f = font or self.f_mid
+        if sub:
+            t = cv.create_text((x0 + x1) / 2, 0, text=sub, font=self.f_tiny, width=x1 - x0 - 14, justify="center",
+                               anchor="n", fill=P["tx2"])
+            bb = cv.bbox(t)
+            sub_h = (bb[3] - bb[1]) if bb else self.f_tiny[1] * 1.4
+            total = f[1] * 1.5 + 6 + sub_h
+            ty = (y0 + y1) / 2 - total / 2
+            cv.create_text((x0 + x1) / 2, ty + f[1] * 0.75, text=label, font=f, width=x1 - x0 - 12, justify="center",
+                           fill=(fg or P["champ"]) if on else P["tx2"])
+            cv.coords(t, (x0 + x1) / 2, ty + f[1] * 1.5 + 6)
+            if fg == "#ffffff":
+                cv.itemconfig(t, fill="#ffe9ec")
+        else:
+            cv.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=label, font=f, width=x1 - x0 - 12, justify="center",
+                           fill=(fg or P["champ"]) if on else P["tx2"])
+        if on:
+            self.trk_hits.append((x0, y0, x1, y1, art, extra))
+
+    def draw_track(self):
+        cv = self.canvas
+        try:
+            info = self.bridge.tracks.info(self.trk["chain"])
+        except Exception:
+            self.mode = "mix"
+            self.sig = None
+            return
+        self.trk_sig = repr(info)
+        cv.delete("all")
+        self.trk_hits = []
+        W, H = self._geom()
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        busy = getattr(self, "track_busy", None)
+        kind = {"audio": "Audio-Eingang", "synth": "Synth", "bus": "Bus", "main": "Summe"}.get(info["kind"], "Spur")
+        # Kopf: Name groß, antippen = umbenennen
+        cv.create_text(18, 30, anchor="w", text=self._clip_text(info["name"], W * 0.62, self.f_huge),
+                       font=self.f_huge, fill=P["gold"])
+        cv.create_text(20, 62, anchor="w", text=kind.upper() + ("   · " + ", ".join(info["fx"]) if info["fx"] else ""),
+                       font=self.f_tiny, fill=P["tx2"])
+        if info["kind"] != "main":
+            self._tbtn(W - 190, 10, W - 12, 58, "✎ Umbenennen", "rename", font=self.f_small)
+            self.trk_hits.append((0, 0, W - 200, 60, "rename", None))
+        y = 82
+        # Eingänge oder MIDI-Kanal
+        if info.get("inputs") is not None:
+            cv.create_text(18, y + 22, anchor="w", text="EINGANG", font=self.f_tiny, fill=P["gold"])
+            n = max(2, info["n_inputs"])
+            cw = min(76, (W - 130 - 8 * n) / n)
+            for k in range(1, n + 1):
+                on = k in info["inputs"]
+                x0 = 110 + (k - 1) * (cw + 8)
+                self._tbtn(x0, y, x0 + cw, y + 46, str(k), "inp", k, fill=P["gold"] if on else P["bg"],
+                           fg=P["black"] if on else P["champ"], outline=None if on else P["line"])
+            if not info["inputs"]:
+                cv.create_text(W - 18, y + 23, anchor="e", text="kein Eingang – stumm", font=self.f_tiny, fill=P["rose"])
+            else:
+                dup = [f"{i} auch bei „{', '.join(info['used'][str(i)])}“" for i in info["inputs"] if str(i) in info.get("used", {})]
+                if dup:
+                    cv.create_text(W - 18, y + 23, anchor="e", font=self.f_tiny, fill=P["gold2"], width=W * 0.42,
+                                   text=self._clip_text("Eingang " + "; ".join(dup), W * 0.8, self.f_tiny))
+            y += 62
+        elif info.get("midi_chan") is not None or info.get("midi_all"):
+            cv.create_text(18, y + 22, anchor="w", text="MIDI-KANAL", font=self.f_tiny, fill=P["gold"])
+            mc = info.get("midi_chan")
+            self._tbtn(130, y, 190, y + 46, "‹", "midi", -1, font=self.f_big)
+            cv.create_text(240, y + 23, text="alle" if mc is None else str(mc + 1), font=self.f_big, fill=P["champ"])
+            self._tbtn(290, y, 350, y + 46, "›", "midi", 1, font=self.f_big)
+            cv.create_text(370, y + 23, anchor="w", text="Keyboard auf denselben Kanal stellen", font=self.f_tiny,
+                           fill=P["tx2"])
+            y += 62
+        # Kacheln
+        bar_h = max(40, H // 10)
+        gy0, gy1 = y, H - bar_h - 10
+        gh = (gy1 - gy0) / 2
+        gw = (W - 24) / 4
+        main = info["kind"] == "main"
+        armed = self.trk.get("armed", 0) > time.monotonic()
+        tiles = [
+            ("◀ nach links", "move", -1, "Reihenfolge", info["left"] and not main),
+            ("nach rechts ▶", "move", 1, "Reihenfolge", info["right"] and not main),
+            ("⧉ Verdoppeln", "dup", None, "gleiche Effekte", info["can_dup"] and not main),
+            ("Gain & Pegel", "gain", None, "Übersteuern? hier", True),
+            ("＋ Effekt", "addfx", None, "Hall, Echo, …", not main),
+            ("Effekte", "fxlist", None, f"{len(info['fx'])} in dieser Spur", bool(info["fx"])),
+            ("Zynthian-Optionen", "options", None, "alles Weitere", True),
+            ("Wirklich löschen?" if armed else "Spur löschen", "delete", None,
+             "nochmal tippen" if armed else ("20 s rückgängig" if info.get("can_undo") else "endgültig!"), info["can_delete"]),
+        ]
+        for k, (label, art, extra, sub, on) in enumerate(tiles):
+            x0, y0 = 12 + (k % 4) * gw, gy0 + (k // 4) * gh
+            dele = art == "delete"
+            self._tbtn(x0 + 4, y0 + 4, x0 + gw - 4, y0 + gh - 4, label, art, extra, sub=sub, on=on and not busy,
+                       fill=(P["rose"] if armed else P["bg"]) if dele and on else None,
+                       fg=("#ffffff" if armed else P["rose"]) if dele else None,
+                       outline=P["rose"] if dele and on else None, font=self.f_small)
+        # Leiste
+        yb = H - bar_h
+        cv.create_line(8, yb + 1, W - 8, yb + 1, fill=P["gold_dim"])
+        if busy:
+            cv.create_text(16, (yb + H) / 2, anchor="w", text=busy.replace("ist da", "…") + " – bitte warten",
+                           font=self.f_small, fill=P["gold2"])
+        self._tbtn(W - 170, yb + 4, W - 6, H - 4, "Fertig", "close", fill=P["gold"], fg=P["black"])
+
+    def draw_newtrack(self):
+        cv = self.canvas
+        cv.delete("all")
+        self.trk_hits = []
+        W, H = self._geom()
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        tp = self.ntrk["tpl"]
+        busy = getattr(self, "track_busy", None)
+        cv.create_text(18, 30, anchor="w", text="＋ Neue Spur", font=self.f_huge, fill=P["gold"])
+        cv.create_text(W - 18, 30, anchor="e", text="eigener Fader, Mute und Effekte", font=self.f_tiny, fill=P["tx2"])
+        y = 66
+        cv.create_text(18, y + 22, anchor="w", text="EINGANG", font=self.f_tiny, fill=P["gold"])
+        n = max(2, tp.get("n_inputs", 2))
+        cw = min(76, (W - 130 - 8 * n) / n)
+        for k in range(1, n + 1):
+            on = k in self.ntrk["inputs"]
+            x0 = 110 + (k - 1) * (cw + 8)
+            self._tbtn(x0, y, x0 + cw, y + 46, str(k), "ninp", k, fill=P["gold"] if on else P["bg"],
+                       fg=P["black"] if on else P["champ"], outline=None if on else P["line"])
+        used = tp.get("used") or {}
+        dup = [f"{i} hört schon „{', '.join(used[str(i)])}“" for i in self.ntrk["inputs"] if str(i) in used]
+        cv.create_text(W - 18, y + 23, anchor="e", font=self.f_tiny, width=W * 0.42,
+                       fill=P["gold2"] if dup else P["tx2"],
+                       text=self._clip_text("Eingang " + "; ".join(dup), W * 0.8, self.f_tiny) if dup
+                       else "Stereo: zwei Eingänge wählen")
+        bar_h = max(40, H // 10)
+        gy0, gy1 = y + 62, H - bar_h - 10
+        items = tp.get("templates", [])
+        cols = 3 if len(items) > 4 else len(items) or 1
+        rows = math.ceil(len(items) / cols) or 1
+        gw, gh = (W - 24) / cols, (gy1 - gy0) / rows
+        for k, t in enumerate(items):
+            x0, y0 = 12 + (k % cols) * gw, gy0 + (k // cols) * gh
+            sub = t["sub"]
+            if t.get("plugins"):
+                sub += "\n" + " · ".join(t["plugins"])
+            hot = busy and busy.startswith(t["title"])
+            self._tbtn(x0 + 4, y0 + 4, x0 + gw - 4, y0 + gh - 4, t["title"], "tpl", t["key"], sub=sub,
+                       fill="#2a2014" if hot else None, outline=P["gold"] if hot or t["key"] == "audio" else None,
+                       on=not busy, font=self.f_mid)
+        yb = H - bar_h
+        cv.create_line(8, yb + 1, W - 8, yb + 1, fill=P["gold_dim"])
+        if busy:
+            cv.create_text(16, (yb + H) / 2, anchor="w", text=busy.replace("ist da", "wird angelegt …"),
+                           font=self.f_small, fill=P["gold2"])
+        else:
+            cv.create_text(16, (yb + H) / 2, anchor="w", text="Kachel antippen = Spur ist sofort da",
+                           font=self.f_tiny, fill=P["tx2"])
+        self._tbtn(W - 170, yb + 4, W - 6, H - 4, "Zurück", "close")
+
+    def track_press(self, ev):
+        h = None
+        for hh in reversed(getattr(self, "trk_hits", [])):
+            if hh[0] <= ev.x <= hh[2] and hh[1] <= ev.y <= hh[3]:
+                h = hh
+                break
+        if not h:
+            return
+        art, extra = h[4], h[5]
+        b = self.bridge
+        if art == "close":
+            self.mode = "mix"
+            self.sig = None
+            return
+        if self.mode == "newtrack":
+            if art == "ninp":
+                cur = self.ntrk["inputs"]
+                if extra in cur:
+                    if len(cur) > 1:
+                        cur.remove(extra)
+                else:
+                    cur.append(extra)
+                    if len(cur) > 2:
+                        cur.pop(0)
+                cur.sort()
+                self.draw_newtrack()
+            elif art == "tpl":
+                if extra == "synth":
+                    self.open_synth_browser()
+                    return
+                title = next((t["title"] for t in self.ntrk["tpl"]["templates"] if t["key"] == extra), "Spur")
+                ins = list(self.ntrk["inputs"])
+
+                def done(res):
+                    if "e" not in res:
+                        self.mode = "mix"
+                        self.sig = None
+                self._run_track(lambda: b.action(None, "track_add", {"template": extra, "inputs": ins}),
+                                f"{title} ist da", done)
+            return
+        cid = self.trk["chain"]
+        try:
+            if art == "inp":
+                b.action(cid, "track_inputs", {"toggle": extra})
+                self.draw_track()
+            elif art == "midi":
+                info = b.tracks.info(cid)
+                cur = info.get("midi_chan") or 0
+                b.action(cid, "track_midi", {"chan": (cur + extra) % 16})
+                self.draw_track()
+            elif art == "move":
+                b.action(cid, "track_move", {"dir": extra})
+                self.data = b.snapshot()
+                self.strips = self.data["strips"]
+                idx = self._index_of(cid)
+                if idx is not None:
+                    self.selected = idx
+                self.draw_track()
+            elif art == "rename":
+                self._rename(cid)
+            elif art == "dup":
+                self._run_track(lambda: b.action(cid, "track_dup"), "Verdoppelt", lambda r: self._after_new(r))
+            elif art == "gain":
+                self.open_editor(cid, "chan")
+            elif art == "addfx":
+                self.open_browser(cid)
+            elif art == "fxlist":
+                self.open_fxview()
+                chans = [s_ for s_ in self.strips if s_["kind"] != "main"]
+                idx = next((k for k, s_ in enumerate(chans) if s_["id"] == cid), 0)
+                self.fx_page = idx // 4
+                self.draw_fxview()
+            elif art == "options":
+                self._zyn_options(cid)
+            elif art == "delete":
+                if self.trk.get("armed", 0) > time.monotonic():
+                    self.trk["armed"] = 0
+
+                    def gone(res):
+                        if "e" not in res:
+                            self.mode = "mix"
+                            self.sig = None
+                    self._run_track(lambda: b.action(cid, "track_remove"), "Spur gelöscht – unten zurückholen", gone)
+                else:
+                    self.trk["armed"] = time.monotonic() + 3
+                    self.draw_track()
+                    self.canvas.after(3100, lambda: self.mode == "track" and self.draw_track())
+        except Exception as e:
+            self._flash(str(e))
+
+    def _after_new(self, res):
+        r = res.get("r")
+        if isinstance(r, dict) and r.get("chain") is not None and self.mode == "track":
+            self.trk = {"chain": r["chain"], "armed": 0}
+
+    def _rename(self, cid):
+        cur = ""
+        try:
+            cur = self.bridge.tracks.info(cid)["title"] or self.bridge.tracks.info(cid)["name"]
+        except Exception:
+            pass
+
+        def done(title):
+            try:
+                self.bridge.action(cid, "track_rename", {"title": title})
+            except Exception as e:
+                self._flash(str(e))
+            self.zyngui.show_screen("zynsimple")
+            self.open_track(cid)
+        try:
+            self.zyngui.show_keyboard(done, cur, 32)
+        except TypeError:
+            self.zyngui.show_keyboard(done, cur)
+        except Exception as e:
+            self._flash(f"Tastatur geht nicht: {e}")
+
+    def _zyn_options(self, cid):
+        try:
+            self.zyngui._zs_allow_home = True
+            if cid != 0:
+                self.zyngui.chain_manager.set_active_chain_by_id(cid)
+            self.zyngui.screens["chain_options"].setup(cid)
+            self.zyngui.show_screen("chain_options")
+            self.mode = "mix"
+        except Exception as e:
+            self._flash(f"Zynthian-Optionen: {e}")
 
     # ------------------------------------------------------------------
     # Update-Anzeige
@@ -1671,7 +2137,7 @@ class zynsimple_screen(zynthian_gui_base):
             except Exception as e:
                 log.debug(f"Regler: {e}")
             return True
-        if self.mode in ("more", "xy", "fxview", "update"):
+        if self.mode in ("more", "xy", "fxview", "update", "track", "newtrack"):
             return True
         if self.locked:
             return True
@@ -1815,7 +2281,7 @@ class zynsimple_screen(zynthian_gui_base):
             else:
                 self.close_editor()
             return True
-        if self.mode in ("browse", "more", "xy"):
+        if self.mode in ("browse", "more", "xy", "track", "newtrack"):
             self.mode = "mix"
             self.browser = None
             self.sig = None
@@ -1860,7 +2326,7 @@ class zynsimple_screen(zynthian_gui_base):
             self.close_browser()
         elif self.mode == "edit":
             self.close_editor()
-        elif self.mode in ("more", "xy", "fxview"):
+        elif self.mode in ("more", "xy", "fxview", "track", "newtrack"):
             self.mode = "mix"
             self.sig = None
         return True

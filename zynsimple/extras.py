@@ -32,6 +32,21 @@ HANDPAN_CHAIN = [
     ("reverb", ["JV/Dragonfly Hall Reverb", "JV/Dragonfly Plate Reverb", "JV/Calf Reverb", "JV/GVerb"]),
 ]
 
+# Vorlagen für neue Spuren: Rollen in Signalreihenfolge
+TRACK_TEMPLATES = {
+    "handpan": HANDPAN_CHAIN,
+    "vocal": [
+        ("lowcut", HANDPAN_CHAIN[0][1]),
+        ("comp", HANDPAN_CHAIN[1][1]),
+        ("reverb", ["JV/Dragonfly Plate Reverb", "JV/Dragonfly Room Reverb", "JV/Calf Reverb", "JV/GVerb"]),
+    ],
+    "instrument": [
+        ("lowcut", HANDPAN_CHAIN[0][1]),
+        ("reverb", ["JV/Dragonfly Room Reverb", "JV/Dragonfly Plate Reverb", "JV/Calf Reverb", "JV/GVerb"]),
+    ],
+    "audio": [],
+}
+
 # Effekt-Auswahl: (Gruppe, Name, Symbol, [Plugins in Wunschreihenfolge])
 FX_TILES = [
     ("Hall", "Großer Hall", "🏛", ["JV/Dragonfly Hall Reverb"]),
@@ -813,28 +828,34 @@ class Extras:
         except Exception:
             return 2
 
-    def plan_handpan(self):
+    def plan_handpan(self, template="handpan"):
         info = getattr(self.b.cm, "engine_info", None) or {}
         plan = []
-        for role, names in HANDPAN_CHAIN:
+        for role, names in TRACK_TEMPLATES.get(template, HANDPAN_CHAIN):
             found = next((n for n in names if n in info), None)
             if found:
                 plan.append((role, found))
         return plan
 
-    def create_handpan(self, inputs, title="Handpan"):
-        cm = self.b.cm
-        plan = self.plan_handpan()
-        if not plan:
+    def create_handpan(self, inputs, title="Handpan", template="handpan", wait=False):
+        plan = self.plan_handpan(template)
+        if not plan and template == "handpan":
             raise RuntimeError("Keine passenden Effekte auf diesem Zynthian gefunden")
         inputs = [int(i) for i in inputs if 1 <= int(i) <= 32] or [1]
-        self.b._jobs.put((self._create_handpan, (plan, inputs, title)))
+        done = {"ev": threading.Event()}
+        self.b._jobs.put((self._create_handpan, (plan, inputs, title, done)))
+        if wait:
+            done["ev"].wait(30)
+            if done.get("error"):
+                raise RuntimeError(done["error"])
+            return done.get("chain")
         return [n[3:] for _, n in plan]
 
-    def _create_handpan(self, plan, inputs, title):
+    def _create_handpan(self, plan, inputs, title, done=None):
         import zynautoconnect
         cm, sm = self.b.cm, self.b.sm
-        sm.start_busy("zynsimple_handpan", "Handpan wird angelegt")
+        done = done if done is not None else {"ev": threading.Event()}
+        sm.start_busy("zynsimple_handpan", f"{title} wird angelegt")
         try:
             chain_id = cm.add_chain(None, None, False, True, None, fast_refresh=True)
             if chain_id is None:
@@ -872,12 +893,15 @@ class Extras:
                 self.state["sync"][str(dl.id)] = "1/4."
                 self._save()
                 self._apply_sync(dl)
-            log.info(f"ZynSimple: Handpan-Kette {chain_id} angelegt ({', '.join(e for _, e in plan)})")
+            log.info(f"ZynSimple: Spur {chain_id} „{title}“ angelegt ({', '.join(e for _, e in plan) or 'ohne Effekte'})")
+            done["chain"] = chain_id
             self.autosave(force=True)
         except Exception as e:
-            log.exception(f"ZynSimple: Handpan-Vorlage fehlgeschlagen: {e}")
+            done["error"] = str(e)
+            log.exception(f"ZynSimple: Spur-Vorlage fehlgeschlagen: {e}")
         finally:
             sm.end_busy("zynsimple_handpan")
+            done["ev"].set()
 
     # ------------------------------------------------------------------
     # Automatisches Speichern

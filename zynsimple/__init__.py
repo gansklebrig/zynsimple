@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "2.2"
+VERSION = "2.3"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -70,6 +70,9 @@ def setup(zyngui):
         bridge.extras = Extras(bridge, settings)
         from .perform import Perform
         bridge.perform = Perform(bridge, bridge.extras)
+        from .tracks import Tracks
+        from .extras import HOME_DIR
+        bridge.tracks = Tracks(bridge, HOME_DIR)
         from zyngui import zynthian_gui_config
         bridge.extras.start_autosave(zynthian_gui_config.top)
         _hook_exit(zyngui, bridge.extras)

@@ -73,6 +73,15 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 2.3 – Spuren in Sekunden anlegen und löschen
+
+- **＋ Neue Spur**: rechts neben den Kanälen (Touchscreen) bzw. als letzte Kachel im Mischer (Handy). Eingang wählen (für Stereo zwei), dann eine Kachel tippen – **Audio-Eingang** (leer), **Handpan**, **Gesang**, **Instrument** oder **Synth**. Die Spur ist sofort da, mit Fader, Mute und Effekten. Hört schon eine andere Spur auf diesen Eingang, steht das als Hinweis da.
+- **Namen einer Spur antippen** öffnet die Spur-Seite: umbenennen, Eingänge an/aus, MIDI-Kanal (Synths), nach links/rechts schieben, verdoppeln, Gain, Effekte hinzufügen/entfernen, Zynthian-Optionen – und **Spur löschen** (zweimal tippen).
+- **Versehentlich gelöscht?** 20 Sekunden lang erscheint „↶ Zurückholen“ – die Spur kommt mit allen Effekten an ihre alte Stelle zurück.
+- Im Effekt-Regler gibt es jetzt **Entfernen** (zweimal tippen).
+- **Auslastung** klein oben: am Touchscreen rechts oben im LIVE-Feld, am Handy in der Kopfzeile. *DSP* ist die Audio-Last – ab ca. 80 % drohen Knackser; dazu CPU und Temperatur. Rot = Aussetzer oder zu heiß. Antippen zeigt Details.
+- Behoben: Effekt-Regler und XY-Feld flackern beim Drehen nicht mehr.
+
 ## Neu in Version 2.1 – Synths dazuschalten & große Effekt-Ansicht
 
 - **＋ Synth dazuschalten:** am Gerät **⋯ → „＋ Synth dazuschalten“** oder in der Effekt-Ansicht,
