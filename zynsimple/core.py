@@ -278,6 +278,12 @@ class Bridge:
         if op == "handpan":
             v = value if isinstance(value, dict) else {}
             return {"plugins": self.extras.create_handpan(v.get("inputs") or [1], v.get("title") or "Handpan")}
+        if op == "synth_add":
+            v = value if isinstance(value, dict) else {"eng": value}
+            return {"chain": self.extras.create_synth(str(v["eng"]), int(v.get("midi_chan", 0)), v.get("title"))}
+        if op == "mute_kind":
+            v = value if isinstance(value, dict) else {"kind": value}
+            return self.extras.mute_kind(str(v.get("kind", "synth")), v.get("mute"))
         if op == "learn_cancel":
             return self.extras.cancel_learn()
         if op == "foot_delete":

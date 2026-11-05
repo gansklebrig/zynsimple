@@ -67,6 +67,29 @@ FX_TILES = [
     ("Dynamik", "Kompressor", "🗜", ["JV/Calf Compressor", "JV/Calf Mono Compressor"]),
 ]
 
+# Synths zum Dazuschalten (spielen über den MIDI-Eingang mit)
+SYNTH_TILES = [
+    ("Fläche", "Pad-Synth", "", ["JV/padthv1"]),
+    ("Fläche", "Surge XT", "", ["JV/Surge XT"]),
+    ("Fläche", "Vaporizer", "", ["JV/Vaporizer2"]),
+    ("Fläche", "String-Machine", "", ["JV/String machine"]),
+    ("Fläche", "ZynAddSubFX", "", ["ZY"]),
+    ("Analog", "OB-Xd", "", ["JV/Obxd"]),
+    ("Analog", "Odin 2", "", ["JV/Odin2"]),
+    ("Analog", "Helm", "", ["JV/Helm"]),
+    ("Analog", "KR-106", "", ["JV/Ultramaster KR-106"]),
+    ("Analog", "Monique", "", ["JV/Monique"]),
+    ("Bass", "JC303 Acid", "", ["JV/JC303"]),
+    ("Bass", "Triceratops", "", ["JV/Triceratops"]),
+    ("FM & Glocken", "Dexed (DX7)", "", ["JV/Dexed"]),
+    ("FM & Glocken", "Resonator", "", ["JV/RipplerX"]),
+    ("FM & Glocken", "Gezupft", "", ["JV/Kars"]),
+    ("Tasten", "E-Piano", "", ["JV/MDA ePiano"]),
+    ("Tasten", "Klavier", "", ["PT", "JV/SO-kl5 Piano Synthesizer"]),
+    ("Tasten", "Orgel", "", ["BF", "JV/Foo YC20 Organ"]),
+    ("Tasten", "General-MIDI", "", ["JV/FluidGM", "FS"]),
+]
+
 RE_FREEZE = re.compile(r"freez|infinit|\bhold\b", re.I)
 RE_DECAY = re.compile(r"decay|size|rt60|reverb.?time|length", re.I)
 RE_FEEDBACK = re.compile(r"feed.?back|\bfb\b|repeat|regen", re.I)
@@ -268,6 +291,103 @@ class Extras:
     # ------------------------------------------------------------------
     # Effekt-Auswahl („Probier-Platz“: neuer Effekt ersetzt den letzten Versuch)
     # ------------------------------------------------------------------
+
+    def synth_tiles(self):
+        info = getattr(self.b.cm, "engine_info", None) or {}
+        out = []
+        for group, label, icon, engs in SYNTH_TILES:
+            eng = next((e for e in engs if e in info), None)
+            if eng:
+                out.append({"group": group, "label": label, "icon": icon, "eng": eng})
+        return out
+
+    def all_synths(self):
+        info = getattr(self.b.cm, "engine_info", None) or {}
+        cats = {}
+        for k, v in info.items():
+            if v.get("TYPE") != "MIDI Synth":
+                continue
+            cats.setdefault(str(v.get("CAT") or "Andere"), []).append(
+                {"eng": k, "name": str(v.get("TITLE") or v.get("NAME") or k.replace("JV/", "")), "on": bool(v.get("ENABLED"))})
+        return [{"cat": c, "items": sorted(items, key=lambda x: (not x["on"], x["name"].lower()))}
+                for c, items in sorted(cats.items())]
+
+    def create_synth(self, eng, midi_chan=0, title=None):
+        """Neuer Kanal mit einem Synth, der über den MIDI-Eingang mitspielt."""
+        info = getattr(self.b.cm, "engine_info", None) or {}
+        if eng not in info:
+            raise ValueError("Diesen Synth gibt es auf diesem Zynthian nicht")
+        if not title:
+            title = next((t["label"] for t in self.synth_tiles() if t["eng"] == eng), None) or \
+                str(info[eng].get("TITLE") or eng.replace("JV/", ""))
+        midi_chan = max(0, min(15, int(midi_chan)))
+        done = {}
+        ev = threading.Event()
+
+        def run():
+            import zynautoconnect
+            cm, sm = self.b.cm, self.b.sm
+            try:
+                sm.start_busy("zynsimple_synth", "Synth wird geladen")
+            except Exception:
+                pass
+            try:
+                cid = cm.add_chain(None, midi_chan, False, False, None, fast_refresh=True)
+                if cid is None:
+                    raise RuntimeError("Kanal konnte nicht angelegt werden")
+                proc = cm.add_processor(cid, eng)
+                if proc is None:
+                    raise RuntimeError("Synth konnte nicht geladen werden")
+                cm.add_processor(cid, "MI")
+                try:
+                    cm.set_chain_title(cid, title)
+                except Exception:
+                    cm.chains[cid].title = title
+                try:
+                    cm.rebuild_optimisation_cache()
+                except Exception:
+                    pass
+                zynautoconnect.request_audio_connect(True)
+                zynautoconnect.request_midi_connect(True)
+                # Ersten Klang laden, damit sofort etwas zu hören ist
+                try:
+                    banks = proc.get_bank_list() or []
+                    bi = next((i for i, b in enumerate(banks) if b and b[0] not in ("*FAVS*", None, "")), None)
+                    if bi is not None:
+                        proc.set_bank(bi)
+                    proc.load_preset_list()
+                    pi = next((i for i, p in enumerate(proc.preset_list or []) if len(p) > 2 and p[2]), None)
+                    if pi is not None:
+                        proc.set_preset(pi)
+                except Exception as e:
+                    log.info(f"ZynSimple: Startklang nicht gesetzt ({e})")
+                done["chain"] = cid
+                log.info(f"ZynSimple: Synth {eng} als Kanal {cid} auf MIDI-Kanal {midi_chan + 1}")
+            except Exception as e:
+                done["error"] = str(e)
+                log.exception(f"ZynSimple: Synth fehlgeschlagen: {e}")
+            finally:
+                try:
+                    sm.end_busy("zynsimple_synth")
+                except Exception:
+                    pass
+                ev.set()
+                self.mark_dirty()
+
+        threading.Thread(target=run, name="zynsimple-synth", daemon=True).start()
+        ev.wait(25)
+        if "error" in done:
+            raise RuntimeError(done["error"])
+        return done.get("chain")
+
+    def mute_kind(self, kind, mute=None):
+        """Alle Synth-Kanäle (oder Audio-Kanäle) auf einmal stumm / laut."""
+        chains = [c for c in self.b._chains() if self.b._kind(c) == kind]
+        if mute is None:
+            mute = not all(bool(getattr(self.b._ctrl(c, "mute"), "value", 0)) for c in chains)
+        for c in chains:
+            self.b.set_toggle(c, "mute", 1 if mute else 0)
+        return mute
 
     def fx_tiles(self):
         info = getattr(self.b.cm, "engine_info", None) or {}

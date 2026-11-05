@@ -65,7 +65,7 @@
   .meter i { position: absolute; left: 0; right: 0; top: 0; height: 100%; background: var(--bg); }
   .meter b { position: absolute; left: 0; right: 0; height: 2px; background: #fff; }
   .fx { display: flex; flex-wrap: wrap; gap: 6px; }
-  .fx button { flex: 1 1 100%; min-height: 34px; border-radius: 9px; border: 1px solid var(--line);
+  .fx button { flex: 1 1 100%; min-height: 40px; border-radius: 9px; border: 1px solid var(--line);
     background: var(--bg); color: var(--tx2); font-size: 12px; padding: 0 8px; white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis; text-align: left; }
   .fx button.on { color: var(--bg); background: var(--fxon); border-color: var(--fxon); font-weight: 650; }
@@ -84,6 +84,29 @@
   #upd { height: 34px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line);
     background: var(--panel2); color: var(--accent); font-weight: 650; font-size: 14px; }
   #upd:active { background: var(--accent); color: #111; }
+  #updov { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 40%, #2a1a0c, #0b0908 70%); }
+  #updov.on { display: flex; }
+  #updov .uo { text-align: center; padding: 24px; max-width: 420px; }
+  #updov h2 { margin: 26px 0 6px; font-size: 22px; color: var(--tx); }
+  #updov p { margin: 0 0 18px; color: var(--tx2); font-size: 14px; min-height: 1.3em; }
+  .ring { position: relative; width: 150px; height: 150px; margin: 0 auto; }
+  .ring i { position: absolute; inset: 0; border-radius: 50%; border: 6px solid transparent; border-top-color: var(--accent);
+    animation: spin 1.4s linear infinite; }
+  .ring i:nth-child(2) { inset: 18px; border-width: 4px; border-top-color: transparent; border-right-color: var(--gold2); animation-duration: 2.1s; animation-direction: reverse; }
+  .ring i:nth-child(3) { inset: 36px; border-width: 3px; border-top-color: #c98a2b; animation-duration: .9s; }
+  .ring b { position: absolute; inset: 58px; border-radius: 50%; background: radial-gradient(circle, #ffd98a, #e8b04a 60%, transparent 72%);
+    animation: pulse 1.1s ease-in-out infinite; }
+  #updov.done .ring i { animation: none; border-color: var(--fxon); }
+  #updov.done .ring b { background: radial-gradient(circle, #9ff0c8, #34c78a 60%, transparent 72%); animation: none; }
+  #updov.err .ring i { animation: none; border-color: var(--mute); }
+  #updov.err .ring b { background: radial-gradient(circle, #ffb0bd, #e0445e 60%, transparent 72%); animation: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse { 50% { transform: scale(.75); opacity: .7; } }
+  .steps { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
+  .steps span { font-size: 11px; letter-spacing: .6px; padding: 5px 9px; border-radius: 20px; border: 1px solid var(--line); color: var(--tx2); }
+  .steps span.on { border-color: var(--accent); color: var(--accent); }
+  .steps span.ok { border-color: #5a4524; color: var(--tx); background: #2a2014; }
   #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: 90vw;
     background: var(--panel2); border: 1px solid var(--accent); color: var(--tx); padding: 12px 18px;
     border-radius: 12px; display: none; z-index: 10; text-align: center; }
@@ -176,6 +199,30 @@
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .chips button { min-width: 52px; height: 38px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--tx); font-weight: 650; }
   .chips button.on { background: var(--accent); border-color: var(--accent); color: #111; }
+  #fxall { padding: 12px 16px 30px; display: none; height: calc(100% - 56px); overflow: auto; }
+  #fxall.show { display: block; }
+  .fxtop { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .fxrow { display: grid; grid-template-columns: 120px 1fr; gap: 10px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 10px; margin-bottom: 10px; }
+  .fxrow .who { display: flex; flex-direction: column; gap: 6px; }
+  .fxrow .who b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fxrow .who small { color: var(--tx2); font-size: 11px; text-transform: uppercase; letter-spacing: .8px; }
+  .fxrow .who button { flex: 1; min-height: 52px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg);
+    color: var(--tx); font-weight: 800; font-size: 15px; letter-spacing: .5px; }
+  .fxrow .who button.on { background: var(--mute); border-color: var(--mute); color: #fff; }
+  .fxgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+  .fxgrid button { min-height: 72px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--tx);
+    font-weight: 700; font-size: 14px; padding: 8px; text-align: left; display: flex; flex-direction: column; justify-content: space-between; }
+  .fxgrid button small { font-weight: 500; font-size: 11px; color: var(--tx2); }
+  .fxgrid button.on small { color: #111a; }
+  .fxgrid button.on[data-k=reverb] { background: #e8b04a; color: #111; border-color: #e8b04a; }
+  .fxgrid button.on[data-k=delay] { background: #ffcf5a; color: #111; border-color: #ffcf5a; }
+  .fxgrid button.on[data-k=comp] { background: #c9a27a; color: #111; border-color: #c9a27a; }
+  .fxgrid button.on[data-k=eq] { background: #d98b5f; color: #111; border-color: #d98b5f; }
+  .fxgrid button.on[data-k=other] { background: #a855c9; color: #fff; border-color: #a855c9; }
+  .fxgrid button.add { border-style: dashed; color: var(--accent); align-items: center; justify-content: center; }
+  @media (max-width: 520px) { .fxrow { grid-template-columns: 1fr; } .fxrow .who { flex-direction: row; align-items: center; }
+    .fxrow .who b { flex: 1; } .fxrow .who button { flex: 0 0 110px; min-height: 44px; } }
   #extras { padding: 12px 16px 30px; max-width: 720px; display: none; height: calc(100% - 56px); overflow: auto; }
   #extras.show { display: block; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; margin-bottom: 12px; }
@@ -200,19 +247,26 @@
 <header>
   <span class="dot" id="dot"></span>
   <h1>Zynthian</h1>
-  <nav id="tabs"><button data-tab="mix" class="on">Mischer</button><button data-tab="imres">♫ Imres</button><button data-tab="extras">⚙ Extras</button></nav>
+  <nav id="tabs"><button data-tab="mix" class="on">Mischer</button><button data-tab="imres">♫ Imres</button><button data-tab="fxall">✦ Effekte</button><button data-tab="extras">⚙ Extras</button></nav>
   <span class="sp"></span>
   <small id="info"></small>
   <button id="upd" title="Update einspielen">Update</button>
   <input id="updfile" type="file" accept=".zip,application/zip" hidden>
 </header>
 <div id="toast"></div>
+<div id="updov"><div class="uo">
+  <div class="ring"><i></i><i></i><i></i><b></b></div>
+  <h2 id="uo-t">Update</h2><p id="uo-s"></p>
+  <div class="steps"><span data-st="load">Laden</span><span data-st="install">Installieren</span><span data-st="restart">Neustart</span><span data-st="done">Fertig</span></div>
+  <button class="btn sec" id="uo-close" style="display:none">Schließen</button>
+</div></div>
 <div id="perf">
   <span class="lbl">SZENE</span>
   <span id="scenes"></span>
   <select id="morph" title="Überblenden"><option value="0">hart</option><option value="2">↝ 2 Schläge</option><option value="4">↝ 4</option><option value="8">↝ 8</option><option value="16">↝ 16</option></select>
   <button class="tap" id="tap">TAP</button>
   <button class="panic" id="panic">Panik</button>
+  <button id="perf-synth" style="color:var(--accent)">＋ Synth</button>
 </div>
 <div id="strips"></div>
 <section id="imres" hidden>
@@ -223,6 +277,13 @@
   </div>
   <div id="imres-msg"></div>
   <iframe id="fern" title="Imres Fernbedienung"></iframe>
+</section>
+<section id="fxall">
+  <div class="fxtop">
+    <button class="btn" id="synth-add">＋ Synth dazuschalten</button>
+    <button class="btn sec" id="synth-mute">Alle Synths stumm</button>
+  </div>
+  <div id="fxrows"></div>
 </section>
 <section id="extras">
   <div class="card">
@@ -480,6 +541,33 @@
     }
   }
 
+  // ---- Update-Anzeige ----
+  const $uo = document.getElementById('updov');
+  const UOSTEPS = ['load', 'install', 'restart', 'done'];
+  let uoFrom = null, uoT0 = 0;
+  function uo(step, title, sub, cls) {
+    $uo.classList.add('on'); $uo.classList.remove('done', 'err'); if (cls) $uo.classList.add(cls);
+    document.getElementById('uo-t').textContent = title; document.getElementById('uo-s').textContent = sub || '';
+    const i = UOSTEPS.indexOf(step);
+    document.querySelectorAll('#updov .steps span').forEach((sp, k) => { sp.classList.toggle('on', k === i); sp.classList.toggle('ok', k < i || cls === 'done'); });
+    document.getElementById('uo-close').style.display = cls ? '' : 'none';
+  }
+  document.getElementById('uo-close').onclick = () => { $uo.classList.remove('on'); updating = false; };
+  function uoStart(sub) { uoFrom = lastVersion; uoT0 = Date.now(); uo('load', 'Update wird geladen …', sub); }
+  function uoInstalling() { updating = true; uo('install', 'Update wird installiert …', 'Bitte nicht ausschalten'); }
+  function uoFail(msg) { uo('load', 'Update fehlgeschlagen', msg, 'err'); updating = false; }
+  let lastVersion = null;
+  function uoPoll(ok, d) {
+    if (!updating) return;
+    if (!ok) { uo('restart', 'Zynthian startet neu …', 'Gleich geht es weiter'); return; }
+    if (d && d.app_version && uoFrom && d.app_version !== uoFrom) {
+      uo('done', 'Fertig – Version ' + d.app_version, 'Die Seite lädt sich neu …', 'done');
+      updating = false; setTimeout(() => location.reload(), 1800);
+    } else if (Date.now() - uoT0 > 180000) {
+      uo('done', 'Update abgeschlossen', 'Falls sich nichts geändert hat: Seite neu laden.', 'done'); updating = false;
+    }
+  }
+
   const $toast = document.getElementById('toast');
   let toastTimer = null, updating = false;
   function toast(msg, ms) {
@@ -496,21 +584,20 @@
     const f = $updfile.files[0]; $updfile.value = '';
     if (!f) return;
     if (!confirm('Update „' + f.name + '“ einspielen? Der Zynthian startet danach kurz neu.')) return;
-    toast('Lade Update hoch …');
+    uoStart('Datei ' + f.name + ' wird hochgeladen');
     try {
       const r = await fetch('/api/update', { method: 'POST', body: f,
         headers: { 'X-Zynsimple-Pin': pin, 'Content-Type': 'application/zip' } });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Fehler');
-      updating = true;
-      toast(d.message + ' Diese Seite lädt sich danach von selbst neu.');
-    } catch (e) { toast('Update fehlgeschlagen: ' + e.message, 8000); }
+      uoInstalling();
+    } catch (e) { uoFail(e.message); }
   };
 
   // ---- Tabs & Imres ----
   let tab = 'mix';
   try { tab = localStorage.getItem('zs_tab') || 'mix'; } catch (e) {}
-  if (['#imres', '#mix', '#extras'].includes(location.hash)) tab = location.hash.slice(1);
+  if (['#imres', '#mix', '#extras', '#fxall'].includes(location.hash)) tab = location.hash.slice(1);
   const $imres = document.getElementById('imres'), $fern = document.getElementById('fern'), $imsg = document.getElementById('imres-msg');
   const fernUrl = location.protocol + '//' + location.hostname + ':8790/zyn/fern';
   async function imresCheck() {
@@ -537,6 +624,8 @@
     if (t !== 'mix') $empty.style.display = 'none';
     $imres.hidden = t !== 'imres';
     document.getElementById('extras').classList.toggle('show', t === 'extras');
+    document.getElementById('fxall').classList.toggle('show', t === 'fxall');
+    if (t === 'fxall') { fxSig = ''; fxallRender(lastStrips); }
     if (t === 'imres') imresCheck();
     if (t === 'extras') extrasLoad();
   }
@@ -823,10 +912,10 @@
   }
   async function updGithub() {
     if (!confirm('Version ' + (updState && updState.latest || '') + ' von GitHub installieren? Der Zynthian startet danach kurz neu.')) return;
-    toast('Lade Update von GitHub …');
+    uoStart('Version ' + (updState && updState.latest || '') + ' kommt von GitHub');
     const r = await api('/api/update_github', {}).catch(e => ({ error: e.message }));
-    if (r.error) return toast('Update fehlgeschlagen: ' + r.error, 8000);
-    updating = true; toast(r.message + ' Diese Seite lädt sich danach von selbst neu.');
+    if (r.error) return uoFail(r.error);
+    uoInstalling();
   }
   document.getElementById('up-check').onclick = () => updCheck(true);
   document.getElementById('up-gh').onclick = updGithub;
@@ -834,9 +923,10 @@
   setInterval(() => updCheck(false), 10 * 60 * 1000);
   document.getElementById('up-usb').onclick = async () => {
     if (!confirm('Update vom USB-Stick einspielen? Der Zynthian startet danach kurz neu.')) return;
+    uoStart('vom USB-Stick');
     const r = await api('/api/update_local', {}).catch(e => ({ error: e.message }));
-    if (r.error) return toast(r.error, 6000);
-    updating = true; toast(r.message + ' Diese Seite lädt sich danach von selbst neu.');
+    if (r.error) return uoFail(r.error);
+    uoInstalling();
   };
 
   // ---- Live-Leiste: Szenen, Überblenden, Tap-Tempo, Panik ----
@@ -895,23 +985,108 @@
     $sheet.classList.add('open');
   }
 
+  // ---- Große Effekt-Ansicht ----
+  let fxSig = '';
+  const KN = { reverb: 'Hall', delay: 'Echo', comp: 'Dynamik', eq: 'Filter', other: 'Effekt' };
+  function longPress(btn, onShort, onLong, ms = 550) {
+    let t = null, long = false;
+    btn.addEventListener('pointerdown', () => { long = false; t = setTimeout(() => { long = true; onLong(); }, ms); });
+    btn.addEventListener('pointerup', () => { clearTimeout(t); if (!long) onShort(); });
+    btn.addEventListener('pointerleave', () => clearTimeout(t));
+    btn.addEventListener('contextmenu', e => e.preventDefault());
+  }
+  function fxallRender(strips) {
+    if (tab !== 'fxall') return;
+    const box = document.getElementById('fxrows');
+    const list = strips.filter(s => s.kind !== 'main');
+    const sig = JSON.stringify(list.map(s => [s.id, s.name, s.fx.map(f => f.name)]));
+    if (sig !== fxSig) {
+      fxSig = sig; box.innerHTML = '';
+      if (!list.length) box.innerHTML = '<p style="color:var(--tx2)">Noch keine Kanäle.</p>';
+      for (const s of list) {
+        const row = el('div', 'fxrow', box); row.dataset.id = s.id;
+        const who = el('div', 'who', row);
+        el('b', '', who, s.name); el('small', '', who, KIND[s.kind] || '');
+        const m = el('button', 'mute', who, 'MUTE');
+        m.onclick = () => act(s.id, 'mute', m.classList.contains('on') ? 0 : 1);
+        const g = el('div', 'fxgrid', row);
+        for (const f of s.fx) {
+          const b = el('button', 'fxb', g); b.dataset.k = f.kind || 'other'; b.dataset.i = f.i;
+          el('span', '', b, f.name); el('small', '', b, (KN[f.kind] || 'Effekt') + (f.sync ? ' · ♩' + f.sync : '') + ' · lang = Regler');
+          longPress(b, () => act(s.id, 'fx', f.i), () => openFx(s.id, f.i));
+        }
+        const add = el('button', 'add', g, '＋ Effekt'); add.onclick = () => openBrowser(s.id, s.name);
+      }
+    }
+    for (const s of list) {
+      const row = box.querySelector('.fxrow[data-id="' + s.id + '"]'); if (!row) continue;
+      row.querySelector('.mute').classList.toggle('on', !!s.mute);
+      row.querySelectorAll('.fxb').forEach(b => { const f = s.fx[+b.dataset.i]; if (f) b.classList.toggle('on', f.on === true); });
+    }
+    const synths = list.filter(s => s.kind === 'synth');
+    const sm = document.getElementById('synth-mute');
+    sm.style.display = synths.length ? '' : 'none';
+    sm.textContent = synths.length && synths.every(s => s.mute) ? 'Alle Synths wieder laut' : 'Alle Synths stumm';
+  }
+  document.getElementById('synth-mute').onclick = () => act(null, 'mute_kind', { kind: 'synth' });
+
+  // ---- Synth dazuschalten ----
+  async function openSynths() {
+    clearInterval(sheetTimer); sheetFor = null;
+    document.getElementById('sh-title').textContent = '＋ Synth dazuschalten';
+    $shBody.innerHTML = '<p style="color:var(--tx2)">Lade Synths …</p>';
+    $sheet.classList.add('open');
+    const d = await api('/api/synth_list').catch(() => null);
+    if (!d) { $shBody.textContent = 'Synths konnten nicht geladen werden.'; return; }
+    $shBody.innerHTML = '';
+    el('p', '', $shBody, 'Der Synth bekommt einen eigenen Kanal mit Fader, Mute und Effekten und spielt über den MIDI-Eingang mit.').style.cssText = 'margin:0 0 8px;color:var(--tx2);font-size:13px';
+    const line = el('div', 'line', $shBody); line.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px';
+    el('span', '', line, 'MIDI-Kanal').style.cssText = 'color:var(--tx2);font-size:13px';
+    const ch = el('select', '', line); ch.style.cssText = 'background:var(--bg);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:8px';
+    for (let i = 1; i <= 16; i++) { const o = el('option', '', ch, String(i)); o.value = i - 1; }
+    try { ch.value = localStorage.getItem('zs_midich') || '0'; } catch (e) {}
+    ch.onchange = () => { try { localStorage.setItem('zs_midich', ch.value); } catch (e) {} };
+    const pick = async (btn, eng) => {
+      btn.classList.add('busy'); toast('Synth wird geladen …');
+      const r = await api('/api/action', { op: 'synth_add', value: { eng, midi_chan: +ch.value } }).catch(e => ({ error: e.message }));
+      btn.classList.remove('busy');
+      if (r.error) return toast('Ging nicht: ' + r.error, 6000);
+      toast('Synth ist da – eigener Kanal im Mischer', 3500); closeFx(); showTab('mix');
+    };
+    let group = null, grid = null;
+    for (const t of d.tiles) {
+      if (t.group !== group) { group = t.group; el('h4', '', $shBody, group); grid = el('div', 'tiles', $shBody); }
+      const b = el('button', '', grid, t.label); b.onclick = () => pick(b, t.eng);
+    }
+    const det = el('details', 'allfx', $shBody); el('summary', '', det, 'Alle Synths des Zynthian');
+    for (const c of d.all) {
+      el('div', 'cat', det, c.cat);
+      for (const it of c.items) { const b = el('button', it.on ? '' : 'off', det, it.name); b.onclick = () => pick(b, it.eng); }
+    }
+  }
+  document.getElementById('synth-add').onclick = openSynths;
+  document.getElementById('perf-synth').onclick = openSynths;
+
   showTab(tab);
 
   let fails = 0;
   async function poll() {
     try {
       const d = await api('/api/state');
-      if (updating && fails > 3) { location.reload(); return; }
+      lastVersion = d.app_version || lastVersion;
+      uoPoll(true, d);
       fails = 0;
       $dot.classList.add('ok');
       $info.textContent = d.strips.length + ' Kanäle' + (d.app_version ? ' · v' + d.app_version : '');
       const sig = JSON.stringify(d.strips.map(s => [s.id, s.name, s.kind, !!s.preset, s.solo == null, s.freeze == null, s.gain == null, s.tiefe == null, s.fx.map(f => f.name)]));
       lastStrips = d.strips;
       perfUpdate(d);
+      fxallRender(d.strips);
       if (sig !== signature) { signature = sig; build(d.strips); if (tab === 'extras') fillChains(); }
       $empty.style.display = (d.strips.length || tab !== 'mix') ? 'none' : 'block';
       update(d.strips);
     } catch (e) {
+      if (updating && fails >= 1) uoPoll(false);
       if (++fails > 3) { $dot.classList.remove('ok'); $info.textContent = tab === 'imres' ? 'Zynthian pausiert' : 'keine Verbindung'; }
     }
     setTimeout(poll, document.hidden ? 1000 : 120);

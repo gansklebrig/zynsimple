@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "2.0"
+VERSION = "2.1"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -31,6 +31,7 @@ DEFAULTS = {
     "update_check": True,
     "idle_seconds": 45,
     "xy_spring": False,
+    "synth_midi_chan": 0,
     "update_repo": "gansklebrig/zynsimple",
     "update_branch": "main",
 }
@@ -160,23 +161,43 @@ def _add_menu_entry(zyngui):
                     _info(zyngui, f"Handpan: {e}")
 
             def update(*a, **k):
+                scr = zyngui.screens.get(SCREEN_NAME)
+
+                def show(text, sub="", done=False, error=False):
+                    if scr is not None:
+                        scr.show_update(text, sub, done, error)
+                    elif done or error:
+                        _info(zyngui, f"{text} {sub}")
+
                 def run():
                     from . import updater, web
+                    show("Suche nach Updates …", "GitHub wird gefragt")
                     st = updater.check(zyngui._zs_settings)
                     if st.get("available"):
                         try:
-                            _info(zyngui, f"Update {st['latest']} wird geladen …")
-                            _info(zyngui, updater.install(zyngui._zs_settings))
+                            show(f"Update {st['latest']} wird geladen …", "von GitHub · bitte nicht ausschalten")
+                            updater.install(zyngui._zs_settings)
+                            show(f"Update {st['latest']} wird installiert …", "Die Oberfläche startet gleich neu")
                             return
                         except Exception as e:
                             log.warning(f"ZynSimple: GitHub-Update: {e}")
                     try:
-                        _info(zyngui, web.install_local_update())
-                    except Exception as e:
+                        local = web.find_local_update()
+                        if local:
+                            show("Update vom USB-Stick …", os.path.basename(local))
+                            web.install_local_update()
+                            show("Update wird installiert …", "Die Oberfläche startet gleich neu")
+                            return
+                        raise FileNotFoundError
+                    except Exception:
                         if st.get("error"):
-                            _info(zyngui, f"{st['error']} – und kein USB-Stick mit Update gefunden.")
+                            show("Kein Update gefunden", f"{st['error']} – und kein USB-Stick mit Update. Antippen zum Schließen.",
+                                 error=True)
                         else:
-                            _info(zyngui, f"ZynSimple {st.get('current')} ist aktuell.")
+                            show(f"ZynSimple {st.get('current')} ist aktuell", "Antippen zum Schließen", done=True)
+
+                if scr is not None:
+                    zyngui.show_screen_reset(SCREEN_NAME)
                 import threading
                 threading.Thread(target=run, daemon=True).start()
 

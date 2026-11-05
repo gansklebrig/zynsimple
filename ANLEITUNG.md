@@ -73,6 +73,23 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 2.1 – Synths dazuschalten & große Effekt-Ansicht
+
+- **＋ Synth dazuschalten:** am Gerät **⋯ → „＋ Synth dazuschalten“** oder in der Effekt-Ansicht,
+  am Handy **„＋ Synth“** oben. Kacheln: Fläche (Pad-Synth, Surge XT …), Analog (OB-Xd, Odin 2 …),
+  Bass, FM & Glocken, Tasten – dahinter alle Synths des Zynthian. Der Synth bekommt einen
+  **eigenen Kanal mit Fader, Mute, Effekten** und spielt über den **MIDI-Eingang mit**
+  (Handy: MIDI-Kanal wählbar; Gerät: `"synth_midi_chan": 0` in `zynsimple.json` = Kanal 1).
+- **Große Effekt-Ansicht:** am Gerät unten **„Effekte“**, am Handy Reiter **„✦ Effekte“**.
+  Pro Kanal eine Zeile: links eine große **MUTE**-Taste, daneben jeder Effekt als große Kachel
+  (tippen = an/aus, lang = Regler) und **＋ Effekt**. Mehrere Effekte pro Kanal gleichzeitig.
+- **Alle Synths stumm:** eine Taste schaltet alle dazugeschalteten Synths auf einmal stumm –
+  und wieder laut.
+- **Größere Effekt-Tasten** im Mischer.
+- **Update mit Animation:** Beim Update zeigt das Gerät eine große goldene Animation
+  (Suchen → Laden → Installieren), am Handy mit den Schritten Laden · Installieren ·
+  Neustart · Fertig – danach lädt die Seite von selbst mit der neuen Version.
+
 ## Version 2.0 – Live-Modus (so bedienst du ZynSimple jetzt)
 
 ### Der Bildschirm am Gerät

@@ -170,6 +170,8 @@ class zynsimple_screen(zynthian_gui_base):
             self.draw_more()
         elif self.mode == "xy":
             self.draw_xy()
+        elif self.mode == "fxview":
+            self.draw_fxview()
 
     # ------------------------------------------------------------------
     # Lebenszyklus
@@ -232,6 +234,14 @@ class zynsimple_screen(zynthian_gui_base):
                 self.edit_tick += 1
                 if self.edit_tick % 4 == 1 and not self.edit_drag:
                     self.draw_xy()
+            elif self.mode == "fxview":
+                sig = self._signature()
+                if sig != getattr(self, "fx_sig", None):
+                    self.fx_sig = sig
+                    self.draw_fxview()
+            elif self.mode == "update":
+                self.draw_update()
+                delay = 40
             elif self.mode == "idle":
                 self.data = self.bridge.snapshot()
                 self.strips = self.data["strips"]
@@ -295,7 +305,7 @@ class zynsimple_screen(zynthian_gui_base):
         # Szenen
         sx = 3 * pad + 2 * bw + 8
         cv.create_text(sx, y + h / 2, anchor="w", text="SZENE", font=self.f_tiny, fill=P["gold"])
-        sx += int(self.f_tiny[1] * 4.8)
+        sx += int(self.f_tiny[1] * 5.8)
         scenes = self.data.get("scenes") or {}
         cur = self.data.get("last_scene")
         alt = False
@@ -322,8 +332,11 @@ class zynsimple_screen(zynthian_gui_base):
         self.tap_btn = (tx, y + pad + 2, int(sbw * 2.1), h - 2 * pad - 2)
         self._button(tx, y + pad + 2, int(sbw * 2.1), h - 2 * pad - 2, f"TAP {bpm:g}" if bpm else "TAP", True, "tap",
                      None, None, fill=P["bg"], fg=P["gold"], outline=P["gold"], font=self.f_small)
-        # rechts: Sperre, Mehr
+        # rechts: Effekte, Sperre, Mehr
         mw = max(54, int(W * 0.08))
+        ew = int(mw * 1.35)
+        self._button(W - 3 * (pad + mw) - (ew - mw), y + pad + 2, ew, h - 2 * pad - 2, "Effekte", True, "fxview",
+                     None, None, fill=P["card2"], fg=P["gold"], outline=P["gold_dim"], font=self.f_small)
         self._button(W - pad - mw, y + pad + 2, mw, h - 2 * pad - 2, "⋯", True, "more", None, None,
                      font=self.f_big, fg=P["gold"])
         self._button(W - 2 * (pad + mw), y + pad + 2, mw, h - 2 * pad - 2,
@@ -332,8 +345,8 @@ class zynsimple_screen(zynthian_gui_base):
         try:
             from . import updater
             if updater.status.get("available"):
-                cv.create_text(W - 2 * (pad + mw) - 8, y + h / 2, anchor="e", font=self.f_tiny, fill=P["gold"],
-                               text=f"Update {updater.status.get('latest')} → ⋯")
+                cv.create_text(W - 3 * (pad + mw) - (ew - mw) - 8, y + h / 2, anchor="e", font=self.f_tiny,
+                               fill=P["gold"], text=f"Update {updater.status.get('latest')} → ⋯")
         except Exception:
             pass
 
@@ -381,7 +394,7 @@ class zynsimple_screen(zynthian_gui_base):
 
         # unten: M/S/❄ und Effekte
         ms_h = max(34, int(h * 0.1))
-        fx_h = max(22, int(h * 0.064))
+        fx_h = max(28, int(h * 0.08))
         prio = {"reverb": 0, "delay": 1, "comp": 2, "eq": 3}
         max_fx = 3 if h > 300 else 2
         fx_list = sorted(sorted(s["fx"], key=lambda f: prio.get(f.get("kind"), 4))[:max_fx], key=lambda f: f["i"])
@@ -552,6 +565,12 @@ class zynsimple_screen(zynthian_gui_base):
         return None
 
     def on_press(self, ev):
+        if self.mode == "update":
+            u = getattr(self, "upd", {})
+            if u.get("done") or u.get("error"):
+                self.mode = "mix"
+                self.sig = None
+            return
         was_idle = self.mode == "idle"
         self._touch()
         if was_idle:
@@ -565,6 +584,8 @@ class zynsimple_screen(zynthian_gui_base):
             return self.more_press(ev)
         if self.mode == "xy":
             return self.xy_press(ev)
+        if self.mode == "fxview":
+            return self.fxview_press(ev)
         h = self._hit(self.hits, ev.x, ev.y)
         if not h:
             return
@@ -632,6 +653,9 @@ class zynsimple_screen(zynthian_gui_base):
             elif art == "tap":
                 self.do_tap()
                 return
+            elif art == "fxview":
+                self.open_fxview()
+                return
         except Exception as e:
             log.warning(f"ZynSimple Touch: {e}")
             self._flash(str(e))
@@ -643,7 +667,7 @@ class zynsimple_screen(zynthian_gui_base):
         art, cid, extra = self.press[0], self.press[1], self.press[2]
         self.press[5] = True
         try:
-            if art == "fx":
+            if art in ("fx", "vfx"):
                 self.press = None
                 self.open_editor(cid, extra)
             elif art == "scene":
@@ -661,6 +685,19 @@ class zynsimple_screen(zynthian_gui_base):
     def on_release(self, ev):
         if self.mode == "xy":
             self.xy_release()
+        if self.mode == "fxview" and self.press and self.press[0] == "vfx":
+            p, self.press = self.press, None
+            try:
+                self.canvas.after_cancel(p[3])
+            except Exception:
+                pass
+            if not p[5]:
+                try:
+                    self.bridge.action(p[1], "fx", p[2])
+                except Exception as e:
+                    self._flash(str(e))
+            self.fx_sig = None
+            return
         self.drag = None
         self.edit_drag = None
         p, self.press = self.press, None
@@ -775,12 +812,13 @@ class zynsimple_screen(zynthian_gui_base):
         items = [("menu", "Zynthian-Menü", "Ketten, Snapshots, Admin"),
                  ("expert", "Profi-Mischer", "der originale Zynthian-Mischer"),
                  ("handpan", "Handpan anlegen", "Mikro-Kanal mit Effekten"),
+                 ("synth", "＋ Synth dazuschalten", "spielt über MIDI mit, eigener Kanal"),
                  ("idle", "Bühnenbild", "Animation jetzt zeigen"),
                  ("update", f"Update {upd} installieren" if upd else "Nach Updates suchen", "GitHub oder USB-Stick"),
                  ("close", "Zurück", "")]
         if self.imres_installed:
             items.insert(0, ("imres", "♫ Imres-Bühne", "Klangwelten im Vollbild"))
-        cols = 3
+        cols = 4 if len(items) > 6 else 3
         rows = math.ceil(len(items) / cols)
         gw, gh = (W - 40) / cols, (H - 70) / rows
         for k, (art, title, sub) in enumerate(items):
@@ -817,6 +855,8 @@ class zynsimple_screen(zynthian_gui_base):
                         self._flash(str(e))
                 elif art == "idle":
                     self.start_idle()
+                elif art == "synth":
+                    self.open_synth_browser()
                 elif art == "update":
                     menu = self.zyngui.screens.get("main_menu")
                     try:
@@ -926,8 +966,133 @@ class zynsimple_screen(zynthian_gui_base):
             self.draw_xy()
 
     # ------------------------------------------------------------------
+    # Große Effekt-Ansicht: alle Kanäle, alle Effekte, große Mute-Tasten
+    # ------------------------------------------------------------------
+
+    def open_fxview(self):
+        self.mode = "fxview"
+        self.fx_page = 0
+        self.fx_sig = None
+        self.draw_fxview()
+
+    def draw_fxview(self):
+        cv = self.canvas
+        cv.delete("all")
+        self.fxv_hits = []
+        W, H = self._geom()
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        bar_h = max(40, H // 10)
+        chans = [s for s in self.strips if s["kind"] != "main"]
+        per = 4
+        pages = max(1, math.ceil(len(chans) / per))
+        self.fx_page = max(0, min(getattr(self, "fx_page", 0), pages - 1))
+        shown = chans[self.fx_page * per:self.fx_page * per + per]
+        rh = (H - bar_h - 8) / per
+        mw = int(W * 0.2)
+        if not chans:
+            cv.create_text(W / 2, (H - bar_h) / 2, text="Noch keine Kanäle", font=self.f_mid, fill=P["tx2"])
+        for r, s in enumerate(shown):
+            y0, y1 = 6 + r * rh, 6 + (r + 1) * rh - 6
+            muted = bool(s.get("mute"))
+            self.rrect(6, y0, 6 + mw, y1, 14, fill=P["rose"] if muted else P["card2"], outline=P["line"])
+            cv.create_text(6 + mw / 2, y0 + (y1 - y0) * 0.36, text=self._clip_text(s["name"], mw - 12, self.f_small),
+                           font=self.f_small, fill="#ffffff" if muted else P["champ"])
+            cv.create_text(6 + mw / 2, y0 + (y1 - y0) * 0.7, text="STUMM" if muted else "MUTE",
+                           font=self.f_mid, fill="#ffffff" if muted else P["tx2"])
+            self.fxv_hits.append((6, y0, 6 + mw, y1, "vmute", s["id"], None))
+            fx = s["fx"]
+            n = max(1, min(6, len(fx) + 1))
+            gx0 = 14 + mw
+            gw = (W - gx0 - 6) / max(4, n)
+            for k, f in enumerate(fx[:5]):
+                x0 = gx0 + k * gw
+                on = f.get("on")
+                col = KIND_COL.get(f.get("kind"), P["emerald"])
+                self.rrect(x0, y0, x0 + gw - 8, y1, 14, fill=col if on else P["card"],
+                           outline=col, width=2 if not on else 1)
+                cv.create_text(x0 + (gw - 8) / 2, y0 + (y1 - y0) * 0.4, width=gw - 20, justify="center",
+                               text=self._clip_text(f["name"], (gw - 16) * 1.8, self.f_small), font=self.f_small,
+                               fill=P["black"] if on else P["champ"])
+                cv.create_text(x0 + (gw - 8) / 2, y0 + (y1 - y0) * 0.78, font=self.f_tiny,
+                               fill="#3a2a10" if on else P["tx2"], text="AN" if on else "aus")
+                self.fxv_hits.append((x0, y0, x0 + gw - 8, y1, "vfx", s["id"], f["i"]))
+            if len(fx) < 5:
+                x0 = gx0 + len(fx) * gw
+                self.rrect(x0, y0, x0 + gw - 8, y1, 14, fill=P["bg"], outline=P["gold_dim"], dash=(4, 4))
+                cv.create_text(x0 + (gw - 8) / 2, (y0 + y1) / 2, text="＋ Effekt", font=self.f_small, fill=P["gold"])
+                self.fxv_hits.append((x0, y0, x0 + gw - 8, y1, "vadd", s["id"], None))
+        yb = H - bar_h
+        cv.create_line(8, yb + 1, W - 8, yb + 1, fill=P["gold_dim"])
+        bw = max(80, W // 7)
+        synths = [s for s in chans if s["kind"] == "synth"]
+
+        def btn(xx, w, label, art, on=True, fill=None, fg=None):
+            self.rrect(xx, yb + 6, xx + w, H - 4, 10, fill=fill or P["card2"], outline="")
+            cv.create_text(xx + w / 2, (yb + H) / 2 + 1, text=label, font=self.f_small,
+                           fill=(fg or P["champ"]) if on else P["tx2"])
+            if on:
+                self.fxv_hits.append((xx, yb + 6, xx + w, H - 4, art, None, None))
+        btn(4, int(bw * 0.6), "◀", "vpage-", self.fx_page > 0)
+        btn(8 + int(bw * 0.6), int(bw * 0.6), "▶", "vpage+", self.fx_page < pages - 1)
+        cv.create_text(16 + int(bw * 1.2), (yb + H) / 2, anchor="w", font=self.f_tiny, fill=P["tx2"],
+                       text="tippen = an/aus · lang = Regler")
+        btn(W - 3 * bw - 12, bw, "＋ Synth", "vsynth", True, fg=P["gold"])
+        if synths:
+            allm = all(s.get("mute") for s in synths)
+            btn(W - 2 * bw - 8, bw, "Synths laut" if allm else "Synths stumm", "vsmute", True,
+                fill=P["rose"] if allm else None)
+        btn(W - bw - 4, bw, "Mischer", "vclose", True, fill=P["gold"], fg=P["black"])
+
+    def fxview_press(self, ev):
+        h = self._hit(self.fxv_hits, ev.x, ev.y)
+        if not h:
+            return
+        art, cid, extra = h[4], h[5], h[6]
+        b = self.bridge
+        try:
+            if art == "vmute":
+                b.action(cid, "mute")
+            elif art == "vfx":
+                aid = self.canvas.after(550, lambda: self._long_press())
+                self.press = ["vfx", cid, extra, aid, time.monotonic(), False]
+                return
+            elif art == "vadd":
+                self.open_browser(cid)
+                return
+            elif art == "vpage-":
+                self.fx_page -= 1
+            elif art == "vpage+":
+                self.fx_page += 1
+            elif art == "vsynth":
+                self.open_synth_browser()
+                return
+            elif art == "vsmute":
+                b.action(None, "mute_kind", {"kind": "synth"})
+            elif art == "vclose":
+                self.mode = "mix"
+                self.sig = None
+                return
+        except Exception as e:
+            self._flash(str(e))
+        self.fx_sig = None
+        self.data = b.snapshot()
+        self.strips = self.data["strips"]
+        self.draw_fxview()
+
+    # ------------------------------------------------------------------
     # Effekt-Auswahl (9 Kacheln pro Seite)
     # ------------------------------------------------------------------
+
+    def open_synth_browser(self):
+        items = [dict(t) for t in self.x.synth_tiles()]
+        known = {t["eng"] for t in items}
+        for c in self.x.all_synths():
+            for it in c["items"]:
+                if it["eng"] not in known:
+                    items.append({"group": c["cat"], "label": it["name"], "icon": "", "eng": it["eng"]})
+        self.browser = {"chain": None, "page": 0, "items": items, "busy": None, "synth": True}
+        self.mode = "browse"
+        self.draw_browser()
 
     def open_browser(self, cid):
         items = [dict(t) for t in self.x.fx_tiles()]
@@ -959,13 +1124,16 @@ class zynsimple_screen(zynthian_gui_base):
         b["page"] = max(0, min(b["page"], pages - 1))
         shown = b["items"][b["page"] * per:b["page"] * per + per]
         try:
-            name = self.bridge._name(self.bridge._chain(b["chain"]))
+            name = self.bridge._name(self.bridge._chain(b["chain"])) if b["chain"] is not None else \
+                f"spielt auf MIDI-Kanal {int(self.settings.get('synth_midi_chan', 0)) + 1} mit"
         except Exception:
             name = ""
-        cv.create_text(16, 8 + self.f_big[1], anchor="w", font=self.f_big, fill=P["gold"], text="＋ Effekt")
+        cv.create_text(16, 8 + self.f_big[1], anchor="w", font=self.f_big, fill=P["gold"],
+                       text="＋ Synth" if b.get("synth") else "＋ Effekt")
         cv.create_text(16 + self.f_big[1] * 6.5, 8 + self.f_big[1], anchor="w", font=self.f_mid, fill=P["champ"], text=name)
         cv.create_text(W - 16, 8 + self.f_big[1], anchor="e", font=self.f_tiny, fill=P["tx2"],
-                       text="antippen = sofort einsetzen · der nächste ersetzt ihn")
+                       text="antippen = eigener Kanal mit Fader & Effekten" if b.get("synth")
+                       else "antippen = sofort einsetzen · der nächste ersetzt ihn")
         y0 = 8 + self.f_big[1] * 2 + 8
         gh = (H - bar_h - 8 - y0) / 3
         gw = (W - 16) / 3
@@ -1015,9 +1183,14 @@ class zynsimple_screen(zynthian_gui_base):
         cid = b["chain"]
         result = {}
 
+        synth = b.get("synth")
+
         def run():
             try:
-                result["fx"] = self.x.try_fx(self.bridge._chain(cid), eng)
+                if synth:
+                    result["chain"] = self.x.create_synth(eng, int(self.settings.get("synth_midi_chan", 0)))
+                else:
+                    result["fx"] = self.x.try_fx(self.bridge._chain(cid), eng)
             except Exception as e:
                 result["error"] = str(e)
 
@@ -1026,7 +1199,15 @@ class zynsimple_screen(zynthian_gui_base):
                 self.canvas.after(200, lambda: wait(t))
                 return
             self.browser = None
-            if "fx" in result:
+            if "chain" in result:
+                self.mode = "mix"
+                self.sig = None
+                self.strips = self.bridge.snapshot()["strips"]
+                idx = self._index_of(result["chain"])
+                if idx is not None:
+                    self.selected = idx
+                self._flash("Synth ist da – eigener Kanal, Mute unten")
+            elif "fx" in result:
                 self.open_editor(cid, result["fx"])
             else:
                 self.mode = "mix"
@@ -1206,6 +1387,52 @@ class zynsimple_screen(zynthian_gui_base):
         except Exception as e:
             self._flash(str(e))
         self.draw_editor()
+
+    # ------------------------------------------------------------------
+    # Update-Anzeige
+    # ------------------------------------------------------------------
+
+    def show_update(self, text, sub="", done=False, error=False):
+        """Zeigt groß und animiert an, dass gerade ein Update läuft."""
+        if self.mode != "update":
+            self.upd_t0 = time.monotonic()
+        self.mode = "update"
+        self.upd = {"text": text, "sub": sub, "done": done, "error": error}
+
+    def draw_update(self):
+        cv = self.canvas
+        cv.delete("all")
+        W, H = self._geom()
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        u = getattr(self, "upd", {"text": "", "sub": ""})
+        t = time.monotonic() - getattr(self, "upd_t0", time.monotonic())
+        cx, cy, R = W / 2, H * 0.42, min(W, H) * 0.2
+        col = P["rose"] if u.get("error") else (P["emerald"] if u.get("done") else P["gold"])
+        # Glut
+        for k in range(5, 0, -1):
+            r = R * (1.2 + k * 0.25) * (1 + 0.04 * math.sin(t * 2))
+            cv.create_oval(cx - r, cy - r, cx + r, cy + r, fill=_mix(P["bg"], "#3a2410", 0.15 * (6 - k)), outline="")
+        if u.get("done") or u.get("error"):
+            cv.create_oval(cx - R, cy - R, cx + R, cy + R, outline=col, width=6)
+            cv.create_text(cx, cy, text="✓" if u.get("done") else "!", font=self.f_huge, fill=col)
+        else:
+            # drei kreisende Bögen + pulsierender Kern
+            for k, (spd, ext, wid) in enumerate(((180, 100, 6), (-120, 60, 4), (260, 40, 3))):
+                rr = R * (1 - k * 0.18)
+                start = (t * spd) % 360
+                cv.create_arc(cx - rr, cy - rr, cx + rr, cy + rr, start=start, extent=ext, style="arc",
+                              outline=_mix(col, P["gold2"], k * 0.4), width=wid)
+            pr = R * 0.28 * (1 + 0.15 * math.sin(t * 5))
+            cv.create_oval(cx - pr, cy - pr, cx + pr, cy + pr, fill=P["gold2"], outline="")
+            # Fortschritts-Punkte
+            n = int(t * 3) % 4
+            for k in range(3):
+                dx = (k - 1) * 22
+                cv.create_oval(cx + dx - 5, H * 0.78 - 5, cx + dx + 5, H * 0.78 + 5,
+                               fill=P["gold"] if k < n else P["line"], outline="")
+        cv.create_text(cx, H * 0.67, text=u.get("text", ""), font=self.f_big, fill=P["champ"])
+        if u.get("sub"):
+            cv.create_text(cx, H * 0.87, text=u["sub"], font=self.f_small, fill=P["tx2"], width=W - 60, justify="center")
 
     # ------------------------------------------------------------------
     # Bühnenbild (Ruhe-Animation)
@@ -1393,7 +1620,7 @@ class zynsimple_screen(zynthian_gui_base):
             except Exception as e:
                 log.debug(f"Regler: {e}")
             return True
-        if self.mode in ("more", "xy"):
+        if self.mode in ("more", "xy", "fxview", "update"):
             return True
         if self.locked:
             return True
@@ -1582,7 +1809,7 @@ class zynsimple_screen(zynthian_gui_base):
             self.close_browser()
         elif self.mode == "edit":
             self.close_editor()
-        elif self.mode in ("more", "xy"):
+        elif self.mode in ("more", "xy", "fxview"):
             self.mode = "mix"
             self.sig = None
         return True

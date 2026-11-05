@@ -86,6 +86,9 @@ def make_handler(bridge, pin):
             elif path == "/api/theme":
                 from . import theme
                 self._send(200, theme.status())
+            elif path == "/api/synth_list":
+                x = bridge.extras
+                self._send(200, {"tiles": x.synth_tiles(), "all": x.all_synths()})
             elif path == "/api/fx_list":
                 x = bridge.extras
                 self._send(200, {"tiles": x.fx_tiles(), "all": x.all_fx()})
