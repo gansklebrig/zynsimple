@@ -3,32 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#0d0f12">
+<meta name="theme-color" content="#0b0908">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Zynthian Mischer</title>
 <style>
   :root {
-    --bg: #0d0f12;
-    --panel: #171a1f;
-    --panel2: #1f242b;
-    --line: #2b313a;
-    --tx: #e8eaed;
-    --tx2: #8b93a0;
-    --accent: #f2a33a;
-    --mute: #e5484d;
-    --solo: #f5d90a;
-    --fxon: #3dd68c;
-    --meter-lo: #3dd68c;
-    --meter-mid: #f5d90a;
-    --meter-hi: #e5484d;
+    --bg: #0b0908;
+    --panel: #16120f;
+    --panel2: #1f1915;
+    --line: #2e261f;
+    --tx: #f3e9d8;
+    --tx2: #a69a8a;
+    --accent: #e8b04a;
+    --gold2: #ffd98a;
+    --mute: #e0445e;
+    --solo: #f5d48a;
+    --fxon: #34c78a;
+    --meter-lo: #34c78a;
+    --meter-mid: #ffd98a;
+    --meter-hi: #e0445e;
     --r: 14px;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--tx);
     font: 15px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     overscroll-behavior: none; user-select: none; -webkit-user-select: none; }
-  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+  header { background: linear-gradient(180deg, #1a140f, var(--bg)); border-bottom-color: #4a3a22 !important;
+    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
     padding-top: max(10px, env(safe-area-inset-top)); border-bottom: 1px solid var(--line); }
   header h1 { font-size: 17px; margin: 0; font-weight: 650; letter-spacing: .2px; }
   .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--mute); flex: none; }
@@ -36,11 +38,11 @@
   header .sp { flex: 1; }
   header small { color: var(--tx2); }
   #strips { display: flex; gap: 10px; padding: 12px 16px 16px; overflow-x: auto;
-    height: calc(100% - 52px); scroll-snap-type: x proximity; }
+    height: calc(100% - 104px); scroll-snap-type: x proximity; }
   .strip { flex: 0 0 auto; width: 148px; min-height: 420px; background: var(--panel);
     border: 1px solid var(--line); border-radius: var(--r); display: flex; flex-direction: column;
     padding: 10px; gap: 8px; scroll-snap-align: start; }
-  .strip.main { background: var(--panel2); border-color: #3a4250; }
+  .strip.main { background: var(--panel2); border-color: #4a3a22; }
   .strip.muted .fader-fill { filter: grayscale(1) brightness(.6); }
   .name { font-weight: 650; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .kind { font-size: 11px; color: var(--tx2); text-transform: uppercase; letter-spacing: .8px; }
@@ -53,7 +55,7 @@
   .preset.none { visibility: hidden; height: 0; margin-top: -8px; }
   .fadewrap { flex: 1; display: flex; gap: 6px; min-height: 200px; }
   .fader { position: relative; flex: 1; background: var(--bg); border-radius: 10px; touch-action: none; overflow: hidden; }
-  .fader-fill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, #b8742a, var(--accent)); border-radius: 0 0 10px 10px; }
+  .fader-fill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, #8a5d1c, var(--accent) 70%, var(--gold2)); border-radius: 0 0 10px 10px; }
   .fader-cap { position: absolute; left: 6px; right: 6px; height: 8px; margin-bottom: -4px; background: #fff; border-radius: 4px; box-shadow: 0 1px 4px #0008; }
   .fader-val { position: absolute; top: 6px; left: 0; right: 0; text-align: center; font-size: 12px; color: var(--tx); font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px #000; }
   .unity { position: absolute; left: 0; right: 0; height: 1px; background: #ffffff33; }
@@ -98,7 +100,40 @@
   #imres-modes button:active { border-color: var(--accent); }
   #imres-msg { color: var(--tx2); font-size: 14px; min-height: 1.2em; }
   #imres-msg code { background: var(--panel); padding: 2px 6px; border-radius: 6px; user-select: text; -webkit-user-select: text; }
-  #fern { flex: 1; width: 100%; border: 1px solid var(--line); border-radius: var(--r); background: #120e18; }
+  #fern { flex: 1; width: 100%; border: 1px solid var(--line); border-radius: var(--r); background: #0b0908; }
+  #perf { display: flex; gap: 8px; align-items: center; padding: 10px 16px 0; overflow-x: auto; }
+  #scenes { display: flex; flex: none; gap: 6px; }
+  #scenes button { margin-right: 0 !important; }
+  #perf .lbl { color: var(--accent); font-size: 11px; letter-spacing: 1.4px; font-weight: 700; }
+  #perf button { flex: none; height: 40px; min-width: 40px; padding: 0 10px; border-radius: 11px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--tx2); font-weight: 700; font-size: 14px; }
+  #perf button.has { color: var(--tx); border-color: #5a4524; }
+  #perf button.cur { background: var(--accent); border-color: var(--accent); color: #111; }
+  #perf button.tap { color: var(--accent); border-color: var(--accent); min-width: 84px; }
+  #perf button.tap.flash { background: var(--accent); color: #111; }
+  #perf button.panic { color: var(--mute); border-color: var(--mute); }
+  #perf select { height: 40px; background: var(--panel); color: var(--tx); border: 1px solid var(--line); border-radius: 11px; padding: 0 8px; }
+  .tiefe { display: flex; align-items: center; gap: 6px; }
+  .tiefe span { font-size: 10px; letter-spacing: 1px; color: var(--accent); font-weight: 700; }
+  .tiefe input { flex: 1; min-width: 0; accent-color: var(--accent); height: 26px; }
+  .tiefe button { flex: none; height: 28px; padding: 0 8px; border-radius: 8px; border: 1px solid #5a4524; background: var(--bg);
+    color: var(--accent); font-size: 11px; font-weight: 700; }
+  .ms2 button { flex: 1 !important; height: 38px !important; font-size: 13px !important; }
+  .ms button.th { font-size: 13px; }
+  .ms button.th.on { background: var(--accent); border-color: var(--accent); color: #111; }
+  .fx button.on[data-k=reverb] { background: #e8b04a; border-color: #e8b04a; color: #111; }
+  .fx button.on[data-k=delay] { background: #ffcf5a; border-color: #ffcf5a; color: #111; }
+  .fx button.on[data-k=comp] { background: #c9a27a; border-color: #c9a27a; color: #111; }
+  .fx button.on[data-k=eq] { background: #d98b5f; border-color: #d98b5f; color: #111; }
+  .fx button.on[data-k=other] { background: #a855c9; border-color: #a855c9; color: #fff; }
+  .strip.sel { border-color: var(--accent); box-shadow: 0 0 0 1px #e8b04a55, 0 10px 30px -18px #e8b04a; }
+  .prm .star { grid-column: 2; justify-self: end; width: 34px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--tx2); font-size: 16px; }
+  .prm .star.on { background: var(--accent); color: #111; border-color: var(--accent); }
+  .xy { position: relative; width: 100%; aspect-ratio: 1.3; max-height: 60vh; border-radius: 16px; border: 1px solid #5a4524;
+    background: radial-gradient(circle at 50% 50%, #1f1712, #0b0908); touch-action: none; overflow: hidden; }
+  .xy .dot { position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%;
+    background: radial-gradient(circle, #ffd98a, #e8b04a 45%, #e8b04a00 70%); box-shadow: 0 0 30px #e8b04a; }
+  .xy .ax { position: absolute; color: var(--tx2); font-size: 12px; }
   .gain { display: flex; align-items: center; gap: 4px; background: var(--bg); border-radius: 10px; }
   .gain button { flex: none; width: 34px; height: 34px; border: 0; background: none; color: var(--accent); font-size: 20px; font-weight: 700; border-radius: 10px; }
   .gain button:active { background: var(--panel2); }
@@ -172,6 +207,13 @@
   <input id="updfile" type="file" accept=".zip,application/zip" hidden>
 </header>
 <div id="toast"></div>
+<div id="perf">
+  <span class="lbl">SZENE</span>
+  <span id="scenes"></span>
+  <select id="morph" title="Überblenden"><option value="0">hart</option><option value="2">↝ 2 Schläge</option><option value="4">↝ 4</option><option value="8">↝ 8</option><option value="16">↝ 16</option></select>
+  <button class="tap" id="tap">TAP</button>
+  <button class="panic" id="panic">Panik</button>
+</div>
 <div id="strips"></div>
 <section id="imres" hidden>
   <div id="imres-modes">
@@ -304,6 +346,14 @@
       prev.onclick = () => act(s.id, 'preset_prev');
       next.onclick = () => act(s.id, 'preset_next');
 
+      if (s.tiefe != null) {
+        const tf = el('div', 'tiefe', root);
+        el('span', '', tf, 'TIEFE');
+        const ti = r.tiefe = el('input', '', tf); ti.type = 'range'; ti.min = 0; ti.max = 1; ti.step = 0.01; ti.value = s.tiefe;
+        let tt = null;
+        ti.oninput = () => { r.tiefeHold = Date.now(); clearTimeout(tt); tt = setTimeout(() => act(s.id, 'tiefe', +ti.value), 40); };
+        const xyb = el('button', '', tf, 'XY'); xyb.onclick = () => openXY(s.id, s.name);
+      }
       const fw = el('div', 'fadewrap', root);
       const meter = el('div', 'meter', fw);
       r.mA = el('div', '', meter); r.iA = el('i', '', r.mA); r.hA = el('b', '', r.mA);
@@ -319,7 +369,7 @@
       r.fxButtons = [];
       for (const f of s.fx) {
         const row = el('div', 'row', r.fx);
-        const b = el('button', '', row, f.name);
+        const b = el('button', '', row, f.name); b.dataset.k = f.kind || 'other';
         b.onclick = () => act(s.id, 'fx', f.i);
         const g = el('button', 'gear', row, '⚙');
         g.title = 'Regler';
@@ -332,12 +382,21 @@
       }
 
       const ms = el('div', 'ms', root);
+      const hasTh = s.kind !== 'main' && s.fx.some(f => f.kind === 'delay');
+      const ms2 = (hasTh || s.freeze != null) ? el('div', 'ms ms2', root) : ms;
+      if (ms2 !== ms) root.insertBefore(ms2, ms);
       r.m = el('button', 'm', ms, 'MUTE');
       r.s = el('button', 's' + (s.solo == null ? ' hide' : ''), ms, 'SOLO');
       r.m.onclick = () => act(s.id, 'mute', r.m.classList.contains('on') ? 0 : 1);
       r.s.onclick = () => act(s.id, 'solo', r.s.classList.contains('on') ? 0 : 1);
+      if (hasTh) {
+        r.th = el('button', 'th', ms2, '↯ Echo'); r.th.title = 'Echo-Wurf (halten)';
+        const on = e => { e.preventDefault(); r.th.setPointerCapture && r.th.setPointerCapture(e.pointerId); act(s.id, 'throw', true); r.th.classList.add('on'); };
+        const off = () => { act(s.id, 'throw', false); r.th.classList.remove('on'); };
+        r.th.addEventListener('pointerdown', on); r.th.addEventListener('pointerup', off); r.th.addEventListener('pointercancel', off);
+      }
       if (s.freeze != null) {
-        r.fz = el('button', 'fz', ms, '❄');
+        r.fz = el('button', 'fz', ms2, '❄ Freeze');
         r.fz.title = 'Freeze';
         r.fz.onclick = () => act(s.id, 'freeze', r.fz.classList.contains('on') ? 0 : 1);
       }
@@ -405,6 +464,7 @@
       r.m.classList.toggle('on', !!s.mute);
       r.s.classList.toggle('on', !!s.solo);
       if (r.fz) r.fz.classList.toggle('on', !!s.freeze);
+      if (r.tiefe && !(r.tiefeHold && Date.now() - r.tiefeHold < 900)) r.tiefe.value = s.tiefe;
       s.fx.forEach((f, i) => {
         const b = r.fxButtons[i]; if (!b) return;
         b.classList.toggle('on', f.on === true);
@@ -473,6 +533,7 @@
     try { localStorage.setItem('zs_tab', t); } catch (e) {}
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
     $strips.style.display = t === 'mix' ? '' : 'none';
+    document.getElementById('perf').style.display = t === 'mix' ? '' : 'none';
     if (t !== 'mix') $empty.style.display = 'none';
     $imres.hidden = t !== 'imres';
     document.getElementById('extras').classList.toggle('show', t === 'extras');
@@ -562,6 +623,13 @@
         const row = el('div', 'prm', $shBody);
         el('label', '', row, p.name);
         const out = el('output', '', row, p.text);
+        if (typeof p.value === 'number' && !p.labels) {
+          const st = el('button', 'star' + (p.pin ? ' on' : ''), row, '★'); st.title = 'Auf die Live-Knöpfe legen';
+          st.onclick = async () => {
+            const r2 = await api('/api/action', { chain: sheetFor.chain, op: 'pin', value: { fx: sheetFor.fx, sym: p.sym } }).catch(() => null);
+            if (r2) { st.classList.toggle('on', !!r2.result); toast(r2.result ? '★ liegt jetzt auf einem Live-Knopf am Gerät' : '★ entfernt', 2500); }
+          };
+        }
         if (p.labels && p.labels.length) {
           out.textContent = '';
           const sel = el('select', '', row); sel.dataset.sym = p.sym;
@@ -771,6 +839,62 @@
     updating = true; toast(r.message + ' Diese Seite lädt sich danach von selbst neu.');
   };
 
+  // ---- Live-Leiste: Szenen, Überblenden, Tap-Tempo, Panik ----
+  const $scenes = document.getElementById('scenes'), $morph = document.getElementById('morph'), $tap = document.getElementById('tap');
+  const sceneBtns = [];
+  for (let n = 1; n <= 8; n++) {
+    const b = el('button', '', $scenes, String(n)); b.style.marginRight = '6px'; sceneBtns.push(b);
+    let t = null, long = false;
+    b.addEventListener('pointerdown', () => { long = false; t = setTimeout(async () => { long = true; await act(null, 'scene_save', n); toast('Szene ' + n + ' gespeichert', 2500); }, 700); });
+    b.addEventListener('pointerup', async () => {
+      clearTimeout(t); if (long) return;
+      const r = await api('/api/action', { op: 'scene_load', value: n }).catch(e => ({ error: e.message }));
+      if (r.error) toast(r.error.includes('leer') ? 'Szene ' + n + ' ist leer – lang drücken speichert' : r.error, 3500);
+    });
+    b.addEventListener('pointerleave', () => clearTimeout(t));
+  }
+  $morph.onchange = () => act(null, 'morph_beats', +$morph.value);
+  $tap.addEventListener('pointerdown', async e => {
+    e.preventDefault(); $tap.classList.add('flash'); setTimeout(() => $tap.classList.remove('flash'), 110);
+    const sel = lastStrips.find(s => s.kind !== 'main' && s.fx.some(f => f.kind === 'delay'));
+    const r = await api('/api/action', { chain: sel ? sel.id : null, op: 'tap' }).catch(() => null);
+    if (r && r.result && r.result.bpm) $tap.textContent = 'TAP ' + r.result.bpm;
+  });
+  document.getElementById('panic').onclick = () => { act(null, 'panic'); toast('Panik – alles beruhigt', 2500); };
+  function perfUpdate(d) {
+    const sc = d.scenes || {};
+    sceneBtns.forEach((b, i) => { const n = String(i + 1); b.classList.toggle('has', !!sc[n]); b.classList.toggle('cur', d.last_scene === n); });
+    if (document.activeElement !== $morph) $morph.value = String(d.morph_beats ?? 4);
+    if (d.tempo && !$tap.classList.contains('flash')) $tap.textContent = 'TAP ' + d.tempo;
+  }
+
+  // ---- XY-Feld ----
+  function openXY(chain, name) {
+    clearInterval(sheetTimer); sheetFor = null;
+    document.getElementById('sh-title').textContent = 'XY · ' + name;
+    $shBody.innerHTML = '';
+    el('p', '', $shBody, 'Finger bewegen: rechts = mehr Echo, oben = mehr Raum.').style.cssText = 'margin:0 0 8px;color:var(--tx2);font-size:13px';
+    const pad = el('div', 'xy', $shBody), dot = el('div', 'dot', pad);
+    const ax1 = el('div', 'ax', pad, 'Echo →'); ax1.style.cssText = 'right:10px;bottom:8px';
+    const ax2 = el('div', 'ax', pad, '↑ Raum'); ax2.style.cssText = 'left:10px;top:8px';
+    const line = el('div', 'line', $shBody);
+    const lb = el('label', '', line); const cb = el('input', '', lb); cb.type = 'checkbox'; lb.appendChild(document.createTextNode(' beim Loslassen zurückfedern'));
+    let start = null, drag = false, t = null;
+    const place = (x, y) => { dot.style.left = (x * 100) + '%'; dot.style.top = ((1 - y) * 100) + '%'; };
+    api('/api/live?chain=' + chain).then(d => { if (d.xy) { place(d.xy[0], d.xy[1]); start = d.xy; } }).catch(() => {});
+    const send = (x, y) => { clearTimeout(t); t = setTimeout(() => act(chain, 'xy', { x, y }), 30); };
+    const mv = e => {
+      const r = pad.getBoundingClientRect();
+      const x = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), y = Math.max(0, Math.min(1, 1 - (e.clientY - r.top) / r.height));
+      place(x, y); send(x, y);
+    };
+    pad.addEventListener('pointerdown', e => { drag = true; pad.setPointerCapture(e.pointerId); mv(e); });
+    pad.addEventListener('pointermove', e => { if (drag) mv(e); });
+    const up = () => { if (!drag) return; drag = false; if (cb.checked && start) { place(start[0], start[1]); send(start[0], start[1]); } };
+    pad.addEventListener('pointerup', up); pad.addEventListener('pointercancel', up);
+    $sheet.classList.add('open');
+  }
+
   showTab(tab);
 
   let fails = 0;
@@ -781,8 +905,9 @@
       fails = 0;
       $dot.classList.add('ok');
       $info.textContent = d.strips.length + ' Kanäle' + (d.app_version ? ' · v' + d.app_version : '');
-      const sig = JSON.stringify(d.strips.map(s => [s.id, s.name, s.kind, !!s.preset, s.solo == null, s.freeze == null, s.gain == null, s.fx.map(f => f.name)]));
+      const sig = JSON.stringify(d.strips.map(s => [s.id, s.name, s.kind, !!s.preset, s.solo == null, s.freeze == null, s.gain == null, s.tiefe == null, s.fx.map(f => f.name)]));
       lastStrips = d.strips;
+      perfUpdate(d);
       if (sig !== signature) { signature = sig; build(d.strips); if (tab === 'extras') fillChains(); }
       $empty.style.display = (d.strips.length || tab !== 'mix') ? 'none' : 'block';
       update(d.strips);

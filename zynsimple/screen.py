@@ -1,8 +1,20 @@
 # -*- coding: utf-8 -*-
-"""ZynSimple – vereinfachter Mischer-Bildschirm für den Zynthian-Touchscreen."""
+"""
+ZynSimple – Live-Mischer für den Zynthian-Touchscreen.
+
+Aufbau (800 × 440):
+  links   Kanalzüge (Name → Pegel-Seite, Gain/Preset, Fader, Effekte, M/S/❄)
+  rechts  LIVE-Leiste: die 4 Drehknöpfe (Tiefe + ★) und Halte-Tasten (Freeze, Echo-Wurf, Panik, XY)
+  unten   Seiten · Szenen 1–4 · Überblenden · Sperre · ⋯
+Überlagerungen: Effekt-Regler, Effekt-Auswahl, XY-Feld, ⋯-Seite, Bühnenbild (Ruhe-Animation).
+"""
 
 import logging
 import math
+import random
+import re
+import threading
+import time
 import tkinter
 
 from zyngui import zynthian_gui_config as cfg
@@ -12,9 +24,21 @@ log = logging.getLogger("zynsimple")
 
 FLOOR = -60.0
 
+# Glamouröse Palette: tiefes Schwarz, Champagner, Gold, Rosé – kein Blau
+P = {
+    "bg": "#0b0908", "card": "#16120f", "card2": "#1f1915", "line": "#2e261f",
+    "gold": "#e8b04a", "gold2": "#ffd98a", "gold_dim": "#7a5a26", "champ": "#f3e9d8", "tx2": "#a69a8a",
+    "rose": "#e0445e", "solo": "#f5d48a", "emerald": "#34c78a", "ice": "#f4efe6", "purple": "#a855c9",
+    "black": "#000000",
+}
+KIND_COL = {"reverb": "#e8b04a", "delay": "#ffcf5a", "comp": "#c9a27a", "eq": "#d98b5f", "other": "#a855c9"}
 
-def _c(name, default):
-    return getattr(cfg, name, default) or default
+
+def _mix(c1, c2, f):
+    f = max(0.0, min(1.0, f))
+    a = [int(c1[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(c2[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#%02x%02x%02x" % tuple(int(a[k] + (b[k] - a[k]) * f) for k in range(3))
 
 
 class zynsimple_screen(zynthian_gui_base):
@@ -26,48 +50,126 @@ class zynsimple_screen(zynthian_gui_base):
         self.bridge = bridge
         self.settings = settings
         self.tts_title = "Einfacher Mischer"
-        self.selected = 0          # Index des ausgewählten Kanals
+        self.selected = 0
         self.page = 0
         self.per_page = 1
         self.strips = []
+        self.data = {}
         self.sig = None
-        self.items = {}            # chain_id -> dict mit Canvas-Item-IDs
-        self.hits = []             # (x0, y0, x1, y1, art, chain_id, extra)
-        self.drag = None           # (chain_id, y_top, y_bottom)
+        self.items = {}
+        self.live_items = []
+        self.hits = []
+        self.drag = None
         self.timer = None
-        self.fxedit = None         # {"chain": id, "fx": i, "page": n} – Effekt-Regler offen
-        self.browser = None        # {"chain": id, "page": n, "items": [...]} – Effekt-Auswahl offen
-        self.fx_press = None       # (chain_id, fx, after-id) für langes Drücken
+        self.mode = "mix"          # mix | edit | browse | more | xy | idle
+        self.fxedit = None
+        self.browser = None
+        self.press = None          # (art, cid, extra, after-id, t0) für langes Drücken
         self.edit_hits = []
         self.edit_tick = 0
+        self.edit_drag = None
+        self.locked = False
+        self.last_input = time.monotonic()
+        self.clip_t = {}
+        self.pad_t = {}
+        self.anim = None
         try:
             from . import imres
             self.imres_installed = imres.installed()
         except Exception:
             self.imres_installed = False
 
-        self.col_bg = _c("color_bg", "#000000")
-        self.col_panel = _c("color_panel_bg", "#3a424d")
-        self.col_tx = _c("color_tx", "#ffffff")
-        self.col_tx2 = _c("color_tx_off", "#a0a0a0")
-        self.col_sel = "#f2a33a"
-        self.col_mute = "#e5484d"
-        self.col_solo = "#f5d90a"
-        self.col_fx = "#3dd68c"
-        family = _c("font_family", "Audiowide")
+        family = getattr(cfg, "font_family", None) or "Audiowide"
         h = max(320, int(self.height))
         self.f_big = (family, max(10, h // 30))
         self.f_mid = (family, max(9, h // 38))
         self.f_small = (family, max(8, h // 48))
+        self.f_tiny = (family, max(7, h // 58))
+        self.f_huge = (family, max(14, h // 16))
 
         self.canvas = tkinter.Canvas(self.main_frame, width=self.width, height=self.height,
-                                     bg=self.col_bg, bd=0, highlightthickness=0)
+                                     bg=P["bg"], bd=0, highlightthickness=0)
         self.canvas.grid(row=0, column=0, sticky="news")
         self.main_frame.rowconfigure(0, weight=1)
         self.main_frame.columnconfigure(0, weight=1)
         self.canvas.bind("<ButtonPress-1>", self.on_press)
         self.canvas.bind("<B1-Motion>", self.on_motion)
         self.canvas.bind("<ButtonRelease-1>", self.on_release)
+        self._hook_leds()
+
+    # ------------------------------------------------------------------
+    # Grundlagen
+    # ------------------------------------------------------------------
+
+    @property
+    def pf(self):
+        return self.bridge.perform
+
+    @property
+    def x(self):
+        return self.bridge.extras
+
+    def _geom(self):
+        W = self.canvas.winfo_width() if self.canvas.winfo_width() > 1 else int(self.width)
+        H = self.canvas.winfo_height() if self.canvas.winfo_height() > 1 else int(self.height)
+        return max(200, W), max(200, H)
+
+    def rrect(self, x0, y0, x1, y1, r=8, **kw):
+        r = max(0, min(r, (x1 - x0) / 2, (y1 - y0) / 2))
+        pts = [x0 + r, y0, x1 - r, y0, x1, y0, x1, y0 + r, x1, y1 - r, x1, y1, x1 - r, y1,
+               x0 + r, y1, x0, y1, x0, y1 - r, x0, y0 + r, x0, y0]
+        return self.canvas.create_polygon(pts, smooth=True, **kw)
+
+    def _button(self, x, y, w, h, text, enabled, art, cid, extra, fill=None, fg=None, font=None, outline=None, r=8):
+        self.rrect(x, y, x + w, y + h, r, fill=fill or P["card2"], outline=outline or "", width=1)
+        self.canvas.create_text(x + w / 2, y + h / 2, text=text, font=font or self.f_mid,
+                                fill=(fg or P["champ"]) if enabled else P["tx2"])
+        if enabled:
+            self.hits.append((x, y, x + w, y + h, art, cid, extra))
+
+    def _clip_text(self, text, width, font):
+        mc = max(3, int(width / (font[1] * 0.78)))
+        return text if len(text) <= mc else text[:mc - 1] + "…"
+
+    def _touch(self):
+        self.last_input = time.monotonic()
+
+    def _save_soon(self):
+        try:
+            self.x.mark_dirty()
+        except Exception:
+            pass
+
+    def _sel_strip(self):
+        if 0 <= self.selected < len(self.strips):
+            return self.strips[self.selected]
+        return None
+
+    def _sel_chain(self):
+        s = self._sel_strip()
+        if s:
+            try:
+                return self.bridge._chain(s["id"])
+            except Exception:
+                return None
+        return None
+
+    def _index_of(self, cid):
+        for i, s in enumerate(self.strips):
+            if s["id"] == cid:
+                return i
+        return None
+
+    def _redraw(self):
+        self.sig = None
+        if self.mode == "edit":
+            self.draw_editor()
+        elif self.mode == "browse":
+            self.draw_browser()
+        elif self.mode == "more":
+            self.draw_more()
+        elif self.mode == "xy":
+            self.draw_xy()
 
     # ------------------------------------------------------------------
     # Lebenszyklus
@@ -80,11 +182,13 @@ class zynsimple_screen(zynthian_gui_base):
     def show(self):
         super().show()
         try:
-            self.set_title("Einfacher Mischer")
+            self.set_title("Live-Mischer")
         except Exception:
             pass
+        self._touch()
         self.sig = None
-        self.tick()
+        if self.timer is None:
+            self.tick()
 
     def hide(self):
         if self.shown:
@@ -95,224 +199,307 @@ class zynsimple_screen(zynthian_gui_base):
             except Exception:
                 pass
             self.timer = None
+        if self.mode == "idle":
+            self.mode = "mix"
         super().hide()
 
     def tick(self):
         self.timer = None
         if not self.shown:
             return
+        delay = 80
         try:
-            if self.browser:
-                self.timer = self.canvas.after(150, self.tick)
-                return
-            if self.fxedit:
+            if self.mode != "idle":
+                self.data = self.bridge.snapshot()
+                self.strips = self.data["strips"]
+                if self.strips:
+                    self.selected = max(0, min(self.selected, len(self.strips) - 1))
+            if self.mode == "mix":
+                idle_s = float(self.settings.get("idle_seconds", 45) or 0)
+                if idle_s and time.monotonic() - self.last_input > idle_s and not self.drag:
+                    self.start_idle()
+                else:
+                    sig = self._signature()
+                    if sig != self.sig:
+                        self.sig = sig
+                        self.draw()
+                    self.update_dynamic()
+            elif self.mode == "edit":
                 self.edit_tick += 1
                 if self.edit_tick % 6 == 1:
                     self.draw_editor()
-                self.timer = self.canvas.after(80, self.tick)
-                return
-            data = self.bridge.snapshot()
-            self.strips = data["strips"]
-            if self.strips:
-                self.selected = max(0, min(self.selected, len(self.strips) - 1))
-            sig = repr([(s["id"], s["name"], s["mute"], s["solo"], s["preset"] and s["preset"]["name"],
-                         s.get("freeze"), [(f["name"], f["on"], f.get("sync")) for f in s["fx"]])
-                        for s in self.strips]) \
-                + f"|{self.selected}|{self.page}|{self.canvas.winfo_width()}x{self.canvas.winfo_height()}"
-            if sig != self.sig:
-                self.sig = sig
-                self.draw()
-            self.update_dynamic()
+            elif self.mode == "xy":
+                self.edit_tick += 1
+                if self.edit_tick % 4 == 1 and not self.edit_drag:
+                    self.draw_xy()
+            elif self.mode == "idle":
+                self.data = self.bridge.snapshot()
+                self.strips = self.data["strips"]
+                self.draw_idle()
+                delay = 50
         except Exception as e:
             log.exception(f"ZynSimple Bildschirm: {e}")
-        self.timer = self.canvas.after(80, self.tick)
+        self.timer = self.canvas.after(delay, self.tick)
+
+    def _signature(self):
+        W, H = self._geom()
+        d = self.data
+        return repr([(s["id"], s["name"], s["mute"], s["solo"], s["preset"] and s["preset"]["name"], s.get("gain"),
+                      s.get("freeze"), s.get("throw"), [(f["name"], f["on"], f.get("sync")) for f in s["fx"]])
+                     for s in self.strips]) + \
+            f"|{self.selected}|{W}x{H}|{d.get('scenes')}|{d.get('last_scene')}|{d.get('morph')}|" \
+            f"{d.get('morph_beats')}|{self.locked}"
 
     # ------------------------------------------------------------------
-    # Zeichnen
+    # Hauptansicht
     # ------------------------------------------------------------------
-
-    def _geom(self):
-        W = max(200, self.canvas.winfo_width() if self.canvas.winfo_width() > 1 else int(self.width))
-        H = max(200, self.canvas.winfo_height() if self.canvas.winfo_height() > 1 else int(self.height))
-        return W, H
 
     def draw(self):
         cv = self.canvas
         cv.delete("all")
         self.items = {}
+        self.live_items = []
         self.hits = []
         W, H = self._geom()
-        bar_h = max(36, H // 10)
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        bar_h = max(40, H // 10)
+        live_w = int(max(170, W * 0.24))
+        mix_w = W - live_w
         strip_h = H - bar_h
         n = len(self.strips)
 
-        min_w = int(self.settings.get("strip_min_width", 130))
-        self.per_page = max(1, min(n if n else 1, W // min_w))
+        min_w = int(self.settings.get("strip_min_width", 124))
+        self.per_page = max(1, min(n if n else 1, mix_w // min_w))
         pages = max(1, math.ceil(n / self.per_page)) if n else 1
-        # Seite so wählen, dass der ausgewählte Kanal sichtbar ist
         self.page = min(self.selected // self.per_page, pages - 1)
         first = self.page * self.per_page
         visible = self.strips[first:first + self.per_page]
-        sw = W / self.per_page
+        sw = mix_w / self.per_page
 
         if not n:
-            cv.create_text(W / 2, strip_h / 2, fill=self.col_tx2, font=self.f_mid, justify="center",
-                           text="Noch keine Kanäle.\nMenü → „Handpan anlegen“")
-
+            cv.create_text(mix_w / 2, strip_h / 2, fill=P["tx2"], font=self.f_mid, justify="center",
+                           text="Noch keine Kanäle.\n⋯ → „Handpan anlegen“")
         for k, s in enumerate(visible):
-            self._draw_strip(s, first + k, k * sw + 3, 3, sw - 6, strip_h - 6)
+            self._draw_strip(s, first + k, k * sw + 4, 4, sw - 6, strip_h - 6)
 
-        # Untere Leiste
-        y0 = strip_h
-        cv.create_rectangle(0, y0, W, H, fill=self.col_bg, outline="")
-        bw = max(60, W // 8)
-        self._button(4, y0 + 4, bw, bar_h - 8, "◀", self.page > 0, "page", None, -1)
-        self._button(8 + bw, y0 + 4, bw, bar_h - 8, "▶", self.page < pages - 1, "page", None, 1)
+        self._draw_live(mix_w + 2, 4, live_w - 6, strip_h - 6)
+        self._draw_bar(0, strip_h, W, bar_h, pages)
+
+    def _draw_bar(self, x, y, W, h, pages):
+        cv = self.canvas
+        cv.create_line(8, y + 1, W - 8, y + 1, fill=P["gold_dim"])
+        pad = 4
+        bw = max(44, int(W * 0.06))
+        self._button(pad, y + pad + 2, bw, h - 2 * pad - 2, "◀", self.page > 0, "page", None, -1)
+        self._button(2 * pad + bw, y + pad + 2, bw, h - 2 * pad - 2, "▶", self.page < pages - 1, "page", None, 1)
+        # Szenen
+        sx = 3 * pad + 2 * bw + 8
+        cv.create_text(sx, y + h / 2, anchor="w", text="SZENE", font=self.f_tiny, fill=P["gold"])
+        sx += int(self.f_tiny[1] * 4.8)
+        scenes = self.data.get("scenes") or {}
+        cur = self.data.get("last_scene")
+        alt = False
+        try:
+            alt = bool(self.zyngui.get_alt_mode())
+        except Exception:
+            pass
+        sbw = max(42, int(W * 0.058))
+        for k in range(1, 5):
+            n = k + 4 if alt else k
+            has = scenes.get(str(n))
+            on = cur == str(n)
+            self._button(sx, y + pad + 2, sbw, h - 2 * pad - 2, str(n), True, "scene", None, n,
+                         fill=P["gold"] if on else (P["card2"] if has else P["bg"]),
+                         fg=P["black"] if on else (P["champ"] if has else P["tx2"]),
+                         outline=P["gold_dim"] if has and not on else P["line"], font=self.f_mid)
+            sx += sbw + pad
+        mb = self.data.get("morph_beats", 4)
+        lbl = "hart" if not mb else f"↝ {int(mb)}"
+        self._button(sx + 4, y + pad + 2, int(sbw * 1.3), h - 2 * pad - 2, lbl, True, "morph", None, None,
+                     fill=P["card2"], fg=P["gold2"] if self.data.get("morph") else P["champ"], font=self.f_small)
+        tx = sx + 12 + int(sbw * 1.3)
+        bpm = self.data.get("tempo")
+        self.tap_btn = (tx, y + pad + 2, int(sbw * 2.1), h - 2 * pad - 2)
+        self._button(tx, y + pad + 2, int(sbw * 2.1), h - 2 * pad - 2, f"TAP {bpm:g}" if bpm else "TAP", True, "tap",
+                     None, None, fill=P["bg"], fg=P["gold"], outline=P["gold"], font=self.f_small)
+        # rechts: Sperre, Mehr
+        mw = max(54, int(W * 0.08))
+        self._button(W - pad - mw, y + pad + 2, mw, h - 2 * pad - 2, "⋯", True, "more", None, None,
+                     font=self.f_big, fg=P["gold"])
+        self._button(W - 2 * (pad + mw), y + pad + 2, mw, h - 2 * pad - 2,
+                     "gesperrt" if self.locked else "Sperre", True, "lock", None, None,
+                     fill=P["rose"] if self.locked else P["card2"], font=self.f_tiny)
         try:
             from . import updater
-            upd = updater.status.get("available") and updater.status.get("latest")
+            if updater.status.get("available"):
+                cv.create_text(W - 2 * (pad + mw) - 8, y + h / 2, anchor="e", font=self.f_tiny, fill=P["gold"],
+                               text=f"Update {updater.status.get('latest')} → ⋯")
         except Exception:
-            upd = None
-        cv.create_text(16 + 2 * bw, y0 + bar_h / 2, anchor="w", font=self.f_small,
-                       fill=self.col_sel if upd else self.col_tx2,
-                       text=f"Update {upd}: Menü" if upd else f"Seite {self.page + 1}/{pages}")
-        pw = max(110, W // 5)
-        self._button(W - pw - 4, y0 + 4, pw, bar_h - 8, "Profi-Mischer", True, "expert", None, None)
-        self._button(W - 2 * pw - 10, y0 + 4, pw, bar_h - 8, "Menü", True, "menu", None, None)
-        if self.imres_installed:
-            self._button(W - 3 * pw - 16, y0 + 4, pw, bar_h - 8, "♫ Imres", True, "imres", None, None,
-                         fill=self.col_sel, fg="#000000")
-
-    def _button(self, x, y, w, h, text, enabled, art, cid, extra, fill=None, fg=None, font=None):
-        cv = self.canvas
-        r = cv.create_rectangle(x, y, x + w, y + h, fill=fill or self.col_panel, outline="", width=0)
-        t = cv.create_text(x + w / 2, y + h / 2, text=text, font=font or self.f_mid,
-                           fill=(fg or self.col_tx) if enabled else self.col_tx2)
-        if enabled:
-            self.hits.append((x, y, x + w, y + h, art, cid, extra))
-        return r, t
+            pass
 
     def _draw_strip(self, s, index, x, y, w, h):
         cv = self.canvas
         cid = s["id"]
         sel = index == self.selected
         it = {}
-        cv.create_rectangle(x, y, x + w, y + h, fill="#15181c", outline=self.col_sel if sel else "#2b313a",
-                            width=3 if sel else 1)
+        self.rrect(x, y, x + w, y + h, 12, fill=P["card2"] if sel else P["card"],
+                   outline=P["gold"] if sel else P["line"], width=2 if sel else 1)
         self.hits.append((x, y, x + w, y + h, "select", cid, index))
         pad = 6
         cx0, cx1 = x + pad, x + w - pad
         cy = y + pad
 
-        # Name
-        name = s["name"]
-        max_chars = max(4, int(w / (self.f_big[1] * 0.9)))
-        if len(name) > max_chars:
-            name = name[:max_chars - 1] + "…"
-        it["name"] = cv.create_text(x + w / 2, cy + self.f_big[1], text=name, font=self.f_big, fill=self.col_tx)
+        # Name (antippen → Gain & Eingang)
+        name = self._clip_text(s["name"], w - 2 * pad, self.f_big)
+        it["name"] = cv.create_text(x + w / 2, cy + self.f_big[1] * 0.95, text=name, font=self.f_big, fill=P["champ"])
         if s["kind"] != "main":
             self.hits.append((x, y, x + w, cy + self.f_big[1] * 2, "chanedit", cid, None))
-        cy += self.f_big[1] * 2 + 4
+        cy += self.f_big[1] * 2
+        cv.create_line(cx0 + 10, cy, cx1 - 10, cy, fill=P["gold_dim"] if sel else P["line"])
+        cy += 4
 
-        # Preset-Zeile
-        row_h = max(30, int(h * 0.09))
+        # Preset- oder Gain-Zeile
+        row_h = max(28, int(h * 0.085))
+        aw = max(26, int(w * 0.22))
         if s["preset"]:
-            aw = max(28, int(w * 0.22))
-            self._button(cx0, cy, aw, row_h, "‹", True, "preset", cid, -1, fill="#000000", fg=self.col_sel,
-                         font=self.f_big)
-            self._button(cx1 - aw, cy, aw, row_h, "›", True, "preset", cid, 1, fill="#000000", fg=self.col_sel,
-                         font=self.f_big)
-            pn = s["preset"]["name"]
-            mc = max(3, int((w - 2 * aw) / (self.f_small[1] * 0.85)))
-            if len(pn) > mc:
-                pn = pn[:mc - 1] + "…"
-            cv.create_text(x + w / 2, cy + row_h / 2, text=pn, font=self.f_small, fill=self.col_tx)
+            self._button(cx0, cy, aw, row_h, "‹", True, "preset", cid, -1, fill=P["bg"], fg=P["gold"], font=self.f_big)
+            self._button(cx1 - aw, cy, aw, row_h, "›", True, "preset", cid, 1, fill=P["bg"], fg=P["gold"], font=self.f_big)
+            cv.create_text(x + w / 2, cy + row_h / 2, font=self.f_small, fill=P["champ"],
+                           text=self._clip_text(s["preset"]["name"], w - 2 * aw - 8, self.f_small))
         elif s.get("gain") is not None:
-            aw = max(28, int(w * 0.22))
-            self._button(cx0, cy, aw, row_h, "−", True, "gain", cid, -1, fill="#000000", fg=self.col_sel, font=self.f_big)
-            self._button(cx1 - aw, cy, aw, row_h, "+", True, "gain", cid, 1, fill="#000000", fg=self.col_sel, font=self.f_big)
+            self._button(cx0, cy, aw, row_h, "−", True, "gain", cid, -1, fill=P["bg"], fg=P["gold"], font=self.f_big)
+            self._button(cx1 - aw, cy, aw, row_h, "+", True, "gain", cid, 1, fill=P["bg"], fg=P["gold"], font=self.f_big)
             g = s["gain"]
-            cv.create_text(x + w / 2, cy + row_h / 2, text=f"Gain {'+' if g > 0 else ''}{g} dB", font=self.f_small,
-                           fill=self.col_tx)
+            cv.create_text(x + w / 2, cy + row_h * 0.3, font=self.f_tiny, fill=P["tx2"], text="GAIN")
+            cv.create_text(x + w / 2, cy + row_h * 0.68, font=self.f_small, fill=P["champ"],
+                           text=f"{'+' if g > 0 else ''}{g} dB")
             self.hits.append((cx0 + aw, cy, cx1 - aw, cy + row_h, "gain0", cid, None))
         else:
             kind = {"audio": "Audio-Eingang", "main": "Hauptausgang", "bus": "Bus"}.get(s["kind"], "")
-            cv.create_text(x + w / 2, cy + row_h / 2, text=kind, font=self.f_small, fill=self.col_tx2)
+            cv.create_text(x + w / 2, cy + row_h / 2, text=kind, font=self.f_small, fill=P["tx2"])
         cy += row_h + 6
 
-        # Unten: Mute/Solo und Effekte
-        ms_h = max(36, int(h * 0.11))
-        fx_h = max(26, int(h * 0.075))
+        # unten: M/S/❄ und Effekte
+        ms_h = max(34, int(h * 0.1))
+        fx_h = max(22, int(h * 0.064))
         prio = {"reverb": 0, "delay": 1, "comp": 2, "eq": 3}
-        max_fx = 4 if h > 330 else 3 if h > 260 else 2
+        max_fx = 3 if h > 300 else 2
         fx_list = sorted(sorted(s["fx"], key=lambda f: prio.get(f.get("kind"), 4))[:max_fx], key=lambda f: f["i"])
-        if len(fx_list) > 2:
-            fx_h = max(22, int(h * 0.062))
+        add_btn = s["kind"] != "main"
         bottom = y + h - pad
         ms_y = bottom - ms_h
-        add_btn = s["kind"] != "main" and len(s["fx"]) < max_fx
         fx_y = ms_y - 6 - (len(fx_list) + (1 if add_btn else 0)) * (fx_h + 4)
 
-        # Fader + Meter
+        # Fader + Pegel
         fy0, fy1 = cy, fx_y - 6
         mw = max(8, int(w * 0.09))
         it["meterA"] = (cx0, fy0, cx0 + mw / 2 - 1, fy1)
         it["meterB"] = (cx0 + mw / 2 + 1, fy0, cx0 + mw, fy1)
         for key in ("meterA", "meterB"):
             a, b, c, d = it[key]
-            cv.create_rectangle(a, b, c, d, fill="#000000", outline="")
-            it[key + "_bar"] = cv.create_rectangle(a, d, c, d, fill=self.col_fx, outline="")
-            it[key + "_hold"] = cv.create_line(a, d, c, d, fill="#ffffff", width=2)
+            cv.create_rectangle(a, b, c, d, fill=P["black"], outline="")
+            it[key + "_bar"] = cv.create_rectangle(a, d, c, d, fill=P["emerald"], outline="")
+            it[key + "_hold"] = cv.create_line(a, d, c, d, fill=P["champ"], width=2)
         fx0 = cx0 + mw + 6
         it["fader"] = (fx0, fy0, cx1, fy1)
-        cv.create_rectangle(fx0, fy0, cx1, fy1, fill="#000000", outline="")
-        it["fill"] = cv.create_rectangle(fx0, fy1, cx1, fy1, fill=self.col_sel, outline="")
-        it["cap"] = cv.create_rectangle(fx0 + 4, fy1 - 4, cx1 - 4, fy1 + 4, fill="#ffffff", outline="")
-        it["val"] = cv.create_text((fx0 + cx1) / 2, fy0 + self.f_small[1] + 4, text="", font=self.f_small,
-                                   fill=self.col_tx)
+        self.rrect(fx0, fy0, cx1, fy1, 8, fill=P["black"], outline=P["line"])
+        it["fill"] = cv.create_rectangle(fx0 + 2, fy1, cx1 - 2, fy1 - 1, fill=P["gold"], outline="")
+        it["glow"] = cv.create_line(fx0 + 2, fy1, cx1 - 2, fy1, fill=P["gold2"], width=2)
+        it["cap"] = cv.create_rectangle(fx0 + 5, fy1 - 4, cx1 - 5, fy1 + 4, fill=P["champ"], outline="")
+        it["val"] = cv.create_text((fx0 + cx1) / 2, fy0 + self.f_small[1] + 4, text="", font=self.f_small, fill=P["champ"])
         if s["level"] is not None:
             self.hits.append((fx0, fy0, cx1, fy1, "fader", cid, (fy0, fy1)))
 
-        # Effekte
+        # Effekte (kurz = an/aus, lang = Regler)
         fy = fx_y
         for f in fx_list:
             on = f["on"]
-            label = ("● " if on else "○ ") + f["name"] + (f" ♩{f['sync']}" if f.get("sync") else "")
-            mc = max(3, int((cx1 - cx0) / (self.f_small[1] * 0.85)))
-            if len(label) > mc:
-                label = label[:mc - 1] + "…"
-            self._button(cx0, fy, cx1 - cx0, fx_h, label, True, "fx", cid, f["i"],
-                         fill=self.col_fx if on else "#000000", fg="#000000" if on else self.col_tx,
-                         font=self.f_small)
+            col = KIND_COL.get(f.get("kind"), P["emerald"])
+            label = f["name"] + (f"  ♩{f['sync']}" if f.get("sync") else "")
+            self._button(cx0, fy, cx1 - cx0, fx_h, self._clip_text(label, cx1 - cx0 - 8, self.f_small), True,
+                         "fx", cid, f["i"], fill=col if on else P["bg"], fg=P["black"] if on else P["champ"],
+                         font=self.f_small, outline=col if not on else "", r=6)
             fy += fx_h + 4
         if add_btn:
-            self._button(cx0, fy, cx1 - cx0, fx_h, "＋ Effekt", True, "browse", cid, None,
-                         fill="#000000", fg=self.col_sel, font=self.f_small)
+            more = len(s["fx"]) - len(fx_list)
+            self._button(cx0, fy, cx1 - cx0, fx_h, f"＋ Effekt" + (f"  (+{more})" if more > 0 else ""), True,
+                         "browse", cid, None, fill=P["bg"], fg=P["gold"], font=self.f_small, outline=P["gold_dim"], r=6)
 
-        # Mute / Solo
+        # Mute / Solo / Freeze
+        bx1 = cx1
         if s.get("freeze") is not None:
-            fw = max(30, int((cx1 - cx0) * 0.3))
+            fw = max(28, int((cx1 - cx0) * 0.3))
             self._button(cx1 - fw, ms_y, fw, ms_h, "❄", True, "freeze", cid, None,
-                         fill="#f5f0e6" if s["freeze"] else "#000000",
-                         fg="#000000" if s["freeze"] else None, font=self.f_big)
-            cx1 = cx1 - fw - 4
+                         fill=P["ice"] if s["freeze"] else P["bg"], fg=P["black"] if s["freeze"] else P["champ"],
+                         font=self.f_big, outline=P["line"])
+            bx1 = cx1 - fw - 4
         if s["solo"] is None:
-            self._button(cx0, ms_y, cx1 - cx0, ms_h, "MUTE", True, "mute", cid, None,
-                         fill=self.col_mute if s["mute"] else "#000000")
+            self._button(cx0, ms_y, bx1 - cx0, ms_h, "MUTE", True, "mute", cid, None,
+                         fill=P["rose"] if s["mute"] else P["bg"], outline=P["line"])
         else:
-            half = (cx1 - cx0 - 4) / 2
+            half = (bx1 - cx0 - 4) / 2
             self._button(cx0, ms_y, half, ms_h, "M", True, "mute", cid, None,
-                         fill=self.col_mute if s["mute"] else "#000000")
+                         fill=P["rose"] if s["mute"] else P["bg"], outline=P["line"])
             self._button(cx0 + half + 4, ms_y, half, ms_h, "S", True, "solo", cid, None,
-                         fill=self.col_solo if s["solo"] else "#000000",
-                         fg="#000000" if s["solo"] else None)
+                         fill=P["solo"] if s["solo"] else P["bg"], fg=P["black"] if s["solo"] else None,
+                         outline=P["line"])
         self.items[cid] = it
 
+    def _draw_live(self, x, y, w, h):
+        cv = self.canvas
+        s = self._sel_strip()
+        self.rrect(x, y, x + w, y + h, 14, fill=P["card"], outline=P["gold_dim"], width=1)
+        cv.create_text(x + 12, y + 14, anchor="w", text="LIVE", font=self.f_small, fill=P["gold"])
+        if not s or s["kind"] == "main":
+            cv.create_text(x + w / 2, y + h / 2, text="Kanal wählen", font=self.f_small, fill=P["tx2"])
+            return
+        cv.create_text(x + w - 12, y + 14, anchor="e", font=self.f_tiny, fill=P["champ"],
+                       text=self._clip_text(s["name"], w - 60, self.f_tiny))
+        chain = self._sel_chain()
+        slots = []
+        if chain is not None:
+            try:
+                slots = [self.pf.slot_info(chain, sl) for sl in self.pf.live_slots(chain)]
+            except Exception as e:
+                log.debug(f"Live: {e}")
+        top = y + 30
+        pads_h = int(h * 0.32)
+        sh = (h - 30 - pads_h - 8) / 4
+        for k, sl in enumerate(slots):
+            sy = top + k * sh
+            star = "★ " if sl.get("pin") else ""
+            label = f"{k + 1}  {star}{sl['name']}"
+            if sl.get("fxname") and not sl.get("pin"):
+                label += f" · {sl['fxname']}"
+            cv.create_text(x + 12, sy + sh * 0.26, anchor="w", font=self.f_tiny, fill=P["champ"],
+                           text=self._clip_text(label, w - 70, self.f_tiny))
+            vt = cv.create_text(x + w - 12, sy + sh * 0.26, anchor="e", font=self.f_tiny, fill=P["gold2"],
+                                text=sl.get("text", ""))
+            bx0, bx1, by0, by1 = x + 12, x + w - 12, sy + sh * 0.5, sy + sh * 0.78
+            self.rrect(bx0, by0, bx1, by1, 5, fill=P["black"], outline=P["line"])
+            bar = cv.create_rectangle(bx0 + 1, by0 + 1, bx0 + 1, by1 - 1, fill=P["gold"], outline="")
+            self.live_items.append((k, bar, vt, (bx0, by0, bx1, by1)))
+            if sl["kind"] != "none":
+                self.hits.append((bx0, sy, bx1, sy + sh, "slot", s["id"], (k, bx0, bx1)))
+        # Halte-Tasten
+        py = y + h - pads_h
+        gw = (w - 30) / 2
+        gh = (pads_h - 16) / 2
+        frz = s.get("freeze")
+        thr = s.get("throw")
+        self._button(x + 10, py, gw, gh, "❄ Freeze", frz is not None, "p_freeze", s["id"], None,
+                     fill=P["ice"] if frz else P["bg"], fg=P["black"] if frz else None, font=self.f_small,
+                     outline=P["line"])
+        self._button(x + 20 + gw, py, gw, gh, "↯ Echo", True, "p_throw", s["id"], None,
+                     fill=P["gold"] if thr else P["bg"], fg=P["black"] if thr else None, font=self.f_small,
+                     outline=P["line"])
+        self._button(x + 10, py + gh + 6, gw, gh, "XY-Feld", True, "xy", s["id"], None, fill=P["bg"],
+                     font=self.f_small, fg=P["gold"], outline=P["gold_dim"])
+        self._button(x + 20 + gw, py + gh + 6, gw, gh, "Panik", True, "panic", None, None, fill=P["bg"],
+                     font=self.f_small, fg=P["rose"], outline=P["rose"])
+
     def update_dynamic(self):
-        import time as _t
-        now = _t.monotonic()
-        if not hasattr(self, "clip_t"):
-            self.clip_t = {}
+        now = time.monotonic()
         cv = self.canvas
         for s in self.strips:
             it = self.items.get(s["id"])
@@ -320,154 +507,442 @@ class zynsimple_screen(zynthian_gui_base):
                 continue
             fx0, fy0, fx1, fy1 = it["fader"]
             lvl = s["level"] if s["level"] is not None else 0.0
-            if self.drag and self.drag[0] == s["id"] and self.drag[3] is not None:
-                lvl = self.drag[3]
-            y = fy1 - (fy1 - fy0) * max(0.0, min(1.0, lvl))
-            cv.coords(it["fill"], fx0, y, fx1, fy1)
-            cv.coords(it["cap"], fx0 + 4, y - 4, fx1 - 4, y + 4)
-            cv.itemconfig(it["fill"], fill="#555555" if s["mute"] else self.col_sel)
+            if self.drag and self.drag[0] == "fader" and self.drag[1] == s["id"] and self.drag[4] is not None:
+                lvl = self.drag[4]
+            yy = fy1 - (fy1 - fy0) * max(0.0, min(1.0, lvl))
+            cv.coords(it["fill"], fx0 + 2, yy, fx1 - 2, fy1 - 1)
+            cv.coords(it["glow"], fx0 + 2, yy, fx1 - 2, yy)
+            cv.coords(it["cap"], fx0 + 5, yy - 4, fx1 - 5, yy + 4)
+            cv.itemconfig(it["fill"], fill="#4a3f33" if s["mute"] else P["gold"])
             db = "−∞" if lvl <= 0.0001 else f"{20 * math.log10(lvl):.1f}"
             cv.itemconfig(it["val"], text=f"{db} dB")
             m = s.get("meter") or [FLOOR] * 4
             if max(m[2], m[3]) >= -0.5:
                 self.clip_t[s["id"]] = now
-            if "name" in it:
-                cv.itemconfig(it["name"], fill=self.col_mute if now - self.clip_t.get(s["id"], -99) < 2.5 else self.col_tx)
+            cv.itemconfig(it["name"], fill=P["rose"] if now - self.clip_t.get(s["id"], -99) < 2.5 else P["champ"])
             for k, key in enumerate(("meterA", "meterB")):
                 a, b, c, d = it[key]
                 frac = max(0.0, min(1.0, (m[k] - FLOOR) / -FLOOR))
                 hold = max(0.0, min(1.0, (m[k + 2] - FLOOR) / -FLOOR))
-                yb = d - (d - b) * frac
-                cv.coords(it[key + "_bar"], a, yb, c, d)
-                col = self.col_fx if m[k] < -12 else (self.col_solo if m[k] < -3 else self.col_mute)
-                cv.itemconfig(it[key + "_bar"], fill=col)
+                cv.coords(it[key + "_bar"], a, d - (d - b) * frac, c, d)
+                cv.itemconfig(it[key + "_bar"], fill=P["emerald"] if m[k] < -12 else (P["gold2"] if m[k] < -3 else P["rose"]))
                 yh = d - (d - b) * hold
                 cv.coords(it[key + "_hold"], a, yh, c, yh)
+        # Live-Leiste
+        chain = self._sel_chain()
+        if chain is not None and self.live_items:
+            try:
+                slots = [self.pf.slot_info(chain, sl) for sl in self.pf.live_slots(chain)]
+                for k, bar, vt, (bx0, by0, bx1, by1) in self.live_items:
+                    if k < len(slots):
+                        v = max(0.0, min(1.0, float(slots[k].get("value") or 0)))
+                        cv.coords(bar, bx0 + 1, by0 + 1, bx0 + 1 + (bx1 - bx0 - 2) * v, by1 - 1)
+                        cv.itemconfig(vt, text=slots[k].get("text", ""))
+            except Exception as e:
+                log.debug(f"Live-Anzeige: {e}")
 
     # ------------------------------------------------------------------
     # Touch
     # ------------------------------------------------------------------
 
-    def _hit(self, x, y, prefer=None):
-        found = None
-        for h in reversed(self.hits):
+    def _hit(self, hits, x, y):
+        for h in reversed(hits):
             if h[0] <= x <= h[2] and h[1] <= y <= h[3]:
-                if prefer is None or h[4] == prefer:
-                    return h
-                if found is None:
-                    found = h
-        return found
-
-    def _index_of(self, cid):
-        for i, s in enumerate(self.strips):
-            if s["id"] == cid:
-                return i
+                return h
         return None
 
     def on_press(self, ev):
-        if self.browser:
+        was_idle = self.mode == "idle"
+        self._touch()
+        if was_idle:
+            self.stop_idle()
+            return
+        if self.mode == "browse":
             return self.browser_press(ev)
-        if self.fxedit:
+        if self.mode == "edit":
             return self.editor_press(ev)
-        h = self._hit(ev.x, ev.y)
+        if self.mode == "more":
+            return self.more_press(ev)
+        if self.mode == "xy":
+            return self.xy_press(ev)
+        h = self._hit(self.hits, ev.x, ev.y)
         if not h:
             return
         art, cid, extra = h[4], h[5], h[6]
-        if cid is not None:
+        if self.locked and art not in ("lock", "select"):
+            return
+        if cid is not None and art != "panic":
             idx = self._index_of(cid)
-            if idx is not None:
+            if idx is not None and idx != self.selected:
                 self.selected = idx
+                self.sig = None
+        b = self.bridge
         try:
             if art == "fader":
-                self.drag = [cid, extra[0], extra[1], None]
-                self._drag_to(ev.y)
+                self.drag = ["fader", cid, extra[0], extra[1], None]
+                self._drag_to(ev.x, ev.y)
+            elif art == "slot":
+                self.drag = ["slot", cid, extra[1], extra[2], extra[0]]
+                self._drag_to(ev.x, ev.y)
             elif art in ("mute", "solo"):
-                self.bridge.action(cid, art)
+                b.action(cid, art)
             elif art == "preset":
-                self.bridge.action(cid, "preset_next" if extra > 0 else "preset_prev")
-            elif art == "fx":
-                # kurz = an/aus, lang (0,6 s) = Regler öffnen
-                aid = self.canvas.after(600, lambda c=cid, i=extra: self.open_editor(c, i))
-                self.fx_press = (cid, extra, aid)
+                b.action(cid, "preset_next" if extra > 0 else "preset_prev")
+            elif art in ("fx", "scene", "lock", "p_freeze"):
+                # kurz/lang unterscheiden
+                delay = {"fx": 550, "scene": 800, "lock": 900, "p_freeze": 350}[art]
+                aid = self.canvas.after(delay, lambda: self._long_press())
+                self.press = [art, cid, extra, aid, time.monotonic(), False]
+                if art == "p_freeze":
+                    chain = b._chain(cid)
+                    self.press.append(self.x.is_frozen(chain))
+                    self.x.set_freeze(chain, True)
+                return
+            elif art == "p_throw":
+                b.action(cid, "throw", True)
+                self.press = ["p_throw", cid, None, None, time.monotonic(), False]
                 return
             elif art == "freeze":
-                self.bridge.action(cid, "freeze")
+                b.action(cid, "freeze")
             elif art == "gain":
-                self.bridge.action(cid, "gain", {"step": extra})
+                b.action(cid, "gain", {"step": extra})
             elif art == "gain0":
-                self.bridge.action(cid, "gain", 0)
+                b.action(cid, "gain", 0)
             elif art == "chanedit":
                 self.open_editor(cid, "chan")
+                return
             elif art == "browse":
                 self.open_browser(cid)
+                return
             elif art == "page":
-                self.selected = max(0, min(len(self.strips) - 1,
-                                           (self.page + extra) * self.per_page))
-            elif art == "expert":
-                self.open_expert()
-            elif art == "menu":
-                self.zyngui.show_screen("main_menu")
-            elif art == "imres":
-                import threading
-                from . import imres
-                threading.Thread(target=imres.system, args=("imres",), daemon=True).start()
-                try:
-                    self.set_title("Imres-Bühne startet …")
-                except Exception:
-                    pass
+                self.selected = max(0, min(len(self.strips) - 1, (self.page + extra) * self.per_page))
+            elif art == "morph":
+                order = [0, 2, 4, 8, 16]
+                cur = int(self.data.get("morph_beats", 4) or 0)
+                b.action(None, "morph_beats", order[(order.index(cur) + 1) % len(order)] if cur in order else 4)
+            elif art == "more":
+                self.open_more()
+                return
+            elif art == "xy":
+                self.open_xy(cid)
+                return
+            elif art == "panic":
+                b.action(None, "panic")
+                self._flash("Panik – alles beruhigt")
+            elif art == "tap":
+                self.do_tap()
+                return
         except Exception as e:
             log.warning(f"ZynSimple Touch: {e}")
+            self._flash(str(e))
         self.sig = None
 
-    def _drag_to(self, y):
-        cid, y0, y1, _ = self.drag
-        v = max(0.0, min(1.0, (y1 - y) / max(1, (y1 - y0))))
-        self.drag[3] = v
+    def _long_press(self):
+        if not self.press:
+            return
+        art, cid, extra = self.press[0], self.press[1], self.press[2]
+        self.press[5] = True
         try:
-            self.bridge.action(cid, "level", v)
-        except Exception:
-            pass
-        self.update_dynamic()
-
-    def on_motion(self, ev):
-        if self.fxedit:
-            return self.editor_motion(ev)
-        if self.drag:
-            self._drag_to(ev.y)
+            if art == "fx":
+                self.press = None
+                self.open_editor(cid, extra)
+            elif art == "scene":
+                self.press = None
+                self.bridge.action(None, "scene_save", extra)
+                self._flash(f"Szene {extra} gespeichert")
+            elif art == "lock":
+                self.press = None
+                self.locked = not self.locked
+                self._flash("Bedienung gesperrt – Sperre lang drücken zum Entsperren" if self.locked else "Entsperrt")
+        except Exception as e:
+            self._flash(str(e))
+        self.sig = None
 
     def on_release(self, ev):
+        if self.mode == "xy":
+            self.xy_release()
         self.drag = None
         self.edit_drag = None
-        if self.fx_press:
-            cid, i, aid = self.fx_press
-            self.fx_press = None
+        p, self.press = self.press, None
+        if not p:
+            return
+        art, cid, extra, aid, t0, long_done = p[:6]
+        if aid:
             try:
                 self.canvas.after_cancel(aid)
             except Exception:
                 pass
+        try:
+            if art == "fx" and not long_done:
+                self.bridge.action(cid, "fx", extra)
+            elif art == "scene" and not long_done:
+                try:
+                    self.bridge.action(None, "scene_load", extra)
+                except KeyError:
+                    self._flash(f"Szene {extra} ist leer – lang drücken speichert")
+            elif art == "lock" and not long_done:
+                if not self.locked:
+                    self.locked = True
+                    self._flash("Gesperrt – lang drücken zum Entsperren")
+                else:
+                    self._flash("Zum Entsperren lang drücken")
+            elif art == "p_throw":
+                self.bridge.action(cid, "throw", False)
+            elif art == "p_freeze":
+                was = p[6] if len(p) > 6 else False
+                chain = self.bridge._chain(cid)
+                held = time.monotonic() - t0 > 0.35
+                # halten = nur solange gedrückt · kurz tippen = umschalten
+                if held or was:
+                    self.x.set_freeze(chain, False)
+        except Exception as e:
+            self._flash(str(e))
+        self.sig = None
+
+    def _drag_to(self, x, y):
+        d = self.drag
+        if not d:
+            return
+        try:
+            if d[0] == "fader":
+                v = max(0.0, min(1.0, (d[3] - y) / max(1, (d[3] - d[2]))))
+                d[4] = v
+                self.bridge.action(d[1], "level", v)
+            elif d[0] == "slot":
+                v = max(0.0, min(1.0, (x - d[2]) / max(1, (d[3] - d[2]))))
+                self.bridge.action(d[1], "slot", {"i": d[4], "frac": v})
+        except Exception as e:
+            log.debug(f"Ziehen: {e}")
+        self.update_dynamic()
+
+    def on_motion(self, ev):
+        self._touch()
+        if self.mode == "edit":
+            return self.editor_motion(ev)
+        if self.mode == "xy":
+            return self.xy_motion(ev)
+        if self.drag:
+            self._drag_to(ev.x, ev.y)
+
+    def do_tap(self):
+        s = self._sel_strip()
+        r = self.bridge.action(s["id"] if s else None, "tap") or {}
+        if r.get("taps", 0) >= 2:
+            self._flash(f"Tempo {r['bpm']:g} BPM – weiter tippen verfeinert")
+        else:
+            self._flash("Im Takt weiter tippen …")
+        # sichtbares Blinken der TAP-Taste
+        try:
+            x, y, w, h = self.tap_btn
+            fl = self.rrect(x, y, x + w, y + h, 8, fill=P["gold"], outline="")
+            tx = self.canvas.create_text(x + w / 2, y + h / 2, text=f"TAP {r.get('bpm') or ''}", font=self.f_small, fill=P["black"])
+            self.canvas.after(120, lambda: (self.canvas.delete(fl), self.canvas.delete(tx)))
+        except Exception:
+            pass
+        self.sig = None
+
+    def _flash(self, text):
+        try:
+            self.set_title(text, timeout=2.5)
+        except TypeError:
             try:
-                self.bridge.action(cid, "fx", i)
-            except Exception as e:
-                log.warning(f"ZynSimple: {e}")
-            self.sig = None
+                self.set_title(text)
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
-    # Effekt-Auswahl auf dem Touchscreen (9 Kacheln pro Seite)
+    # ⋯-Seite (selten Gebrauchtes)
+    # ------------------------------------------------------------------
+
+    def open_more(self):
+        self.mode = "more"
+        self.draw_more()
+
+    def draw_more(self):
+        cv = self.canvas
+        cv.delete("all")
+        self.more_hits = []
+        W, H = self._geom()
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        cv.create_text(20, 26, anchor="w", text="Mehr", font=self.f_big, fill=P["gold"])
+        try:
+            from . import updater
+            upd = updater.status.get("available") and updater.status.get("latest")
+        except Exception:
+            upd = None
+        items = [("menu", "Zynthian-Menü", "Ketten, Snapshots, Admin"),
+                 ("expert", "Profi-Mischer", "der originale Zynthian-Mischer"),
+                 ("handpan", "Handpan anlegen", "Mikro-Kanal mit Effekten"),
+                 ("idle", "Bühnenbild", "Animation jetzt zeigen"),
+                 ("update", f"Update {upd} installieren" if upd else "Nach Updates suchen", "GitHub oder USB-Stick"),
+                 ("close", "Zurück", "")]
+        if self.imres_installed:
+            items.insert(0, ("imres", "♫ Imres-Bühne", "Klangwelten im Vollbild"))
+        cols = 3
+        rows = math.ceil(len(items) / cols)
+        gw, gh = (W - 40) / cols, (H - 70) / rows
+        for k, (art, title, sub) in enumerate(items):
+            cx, cy = 20 + (k % cols) * gw, 52 + (k // cols) * gh
+            gold = art in ("imres",) or (art == "update" and upd)
+            self.rrect(cx + 5, cy + 5, cx + gw - 5, cy + gh - 5, 14, fill=P["card2"] if not gold else "#2a2014",
+                       outline=P["gold"] if gold else P["line"], width=2 if gold else 1)
+            cv.create_text(cx + gw / 2, cy + gh * 0.42, text=title, font=self.f_mid, fill=P["champ"],
+                           width=gw - 24, justify="center")
+            if sub:
+                cv.create_text(cx + gw / 2, cy + gh * 0.68, text=sub, font=self.f_tiny, fill=P["tx2"],
+                               width=gw - 24, justify="center")
+            self.more_hits.append((cx, cy, cx + gw, cy + gh, art))
+
+    def more_press(self, ev):
+        for h in self.more_hits:
+            if h[0] <= ev.x <= h[2] and h[1] <= ev.y <= h[3]:
+                art = h[4]
+                self.mode = "mix"
+                self.sig = None
+                if art == "menu":
+                    self.zyngui.show_screen("main_menu")
+                elif art == "expert":
+                    self.open_expert()
+                elif art == "imres":
+                    from . import imres
+                    threading.Thread(target=imres.system, args=("imres",), daemon=True).start()
+                    self._flash("Imres-Bühne startet …")
+                elif art == "handpan":
+                    try:
+                        self.x.create_handpan(self.settings.get("handpan_inputs") or [1])
+                        self._flash("Handpan wird angelegt …")
+                    except Exception as e:
+                        self._flash(str(e))
+                elif art == "idle":
+                    self.start_idle()
+                elif art == "update":
+                    menu = self.zyngui.screens.get("main_menu")
+                    try:
+                        for c in menu.get_config():
+                            if "Update" in c.get("title", ""):
+                                c["action"]()
+                                break
+                    except Exception as e:
+                        self._flash(str(e))
+                return
+
+    def open_expert(self):
+        self.zyngui._zs_allow_home = True
+        home = "mixer" if self.bridge.vangelis else "audio_mixer"
+        self.zyngui.show_screen(home)
+
+    # ------------------------------------------------------------------
+    # XY-Feld
+    # ------------------------------------------------------------------
+
+    def open_xy(self, cid):
+        self.mode = "xy"
+        self.xy_chain = cid
+        self.xy_spring = bool(self.settings.get("xy_spring", False))
+        self.edit_tick = 0
+        self.draw_xy()
+
+    def draw_xy(self):
+        cv = self.canvas
+        cv.delete("all")
+        self.xy_hits = []
+        W, H = self._geom()
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        try:
+            chain = self.bridge._chain(self.xy_chain)
+            x, y = self.pf.xy_pos(chain)
+            name = self.bridge._name(chain)
+        except Exception:
+            self.mode = "mix"
+            self.sig = None
+            return
+        side = 120
+        bx0, by0, bx1, by1 = 20, 44, W - side - 20, H - 16
+        self.xy_box = (bx0, by0, bx1, by1)
+        self.rrect(bx0, by0, bx1, by1, 16, fill=P["card"], outline=P["gold_dim"], width=1)
+        for k in range(1, 4):
+            gx = bx0 + (bx1 - bx0) * k / 4
+            gy = by0 + (by1 - by0) * k / 4
+            cv.create_line(gx, by0 + 6, gx, by1 - 6, fill=P["line"], dash=(2, 6))
+            cv.create_line(bx0 + 6, gy, bx1 - 6, gy, fill=P["line"], dash=(2, 6))
+        px, py = bx0 + (bx1 - bx0) * x, by1 - (by1 - by0) * y
+        for r, col in ((34, "#2a2014"), (24, "#4a3618"), (15, P["gold_dim"]), (9, P["gold"]), (4, P["gold2"])):
+            cv.create_oval(px - r, py - r, px + r, py + r, fill=col, outline="")
+        cv.create_text(20, 22, anchor="w", text=f"XY · {name}", font=self.f_big, fill=P["gold"])
+        cv.create_text(bx1 - 10, by1 - 12, anchor="e", text="Echo →", font=self.f_small, fill=P["tx2"])
+        cv.create_text(bx0 + 12, by0 + 14, anchor="w", text="↑ Raum", font=self.f_small, fill=P["tx2"])
+        cv.create_text(px, py - 42, text=f"Echo {int(x * 100)} · Raum {int(y * 100)}", font=self.f_tiny, fill=P["champ"])
+        sx = W - side - 4
+        def btn(yy, label, art, on=False):
+            self.rrect(sx, yy, W - 10, yy + 56, 12, fill=P["gold"] if on else P["card2"], outline=P["line"])
+            cv.create_text((sx + W - 10) / 2, yy + 28, text=label, font=self.f_small,
+                           fill=P["black"] if on else P["champ"], width=side - 20, justify="center")
+            self.xy_hits.append((sx, yy, W - 10, yy + 56, art))
+        btn(44, "zurück-\nfedern", "spring", self.xy_spring)
+        btn(110, "Fertig", "close")
+
+    def xy_press(self, ev):
+        for h in self.xy_hits:
+            if h[0] <= ev.x <= h[2] and h[1] <= ev.y <= h[3]:
+                if h[4] == "close":
+                    self.mode = "mix"
+                    self.sig = None
+                    self._save_soon()
+                elif h[4] == "spring":
+                    self.xy_spring = not self.xy_spring
+                    self.draw_xy()
+                return
+        bx0, by0, bx1, by1 = self.xy_box
+        if bx0 <= ev.x <= bx1 and by0 <= ev.y <= by1:
+            try:
+                chain = self.bridge._chain(self.xy_chain)
+                self.xy_start = self.pf.xy_pos(chain)
+            except Exception:
+                self.xy_start = (0, 0)
+            self.edit_drag = "xy"
+            self.xy_motion(ev)
+
+    def xy_motion(self, ev):
+        if self.edit_drag != "xy":
+            return
+        bx0, by0, bx1, by1 = self.xy_box
+        x = (ev.x - bx0) / max(1, bx1 - bx0)
+        y = (by1 - ev.y) / max(1, by1 - by0)
+        try:
+            self.bridge.action(self.xy_chain, "xy", {"x": x, "y": y})
+        except Exception:
+            pass
+        self.draw_xy()
+
+    def xy_release(self):
+        if self.edit_drag == "xy" and getattr(self, "xy_spring", False):
+            x, y = getattr(self, "xy_start", (0, 0))
+            try:
+                self.bridge.action(self.xy_chain, "xy", {"x": x, "y": y})
+            except Exception:
+                pass
+            self.draw_xy()
+
+    # ------------------------------------------------------------------
+    # Effekt-Auswahl (9 Kacheln pro Seite)
     # ------------------------------------------------------------------
 
     def open_browser(self, cid):
-        x = self.bridge.extras
-        items = [dict(t) for t in x.fx_tiles()]
+        items = [dict(t) for t in self.x.fx_tiles()]
         known = {t["eng"] for t in items}
-        for c in x.all_fx():
+        for c in self.x.all_fx():
             for it in c["items"]:
                 if it["eng"] not in known:
                     items.append({"group": c["cat"], "label": it["name"], "icon": "", "eng": it["eng"]})
         self.browser = {"chain": cid, "page": 0, "items": items, "busy": None}
+        self.mode = "browse"
         self.draw_browser()
 
     def close_browser(self):
         self.browser = None
+        self.mode = "mix"
         self.sig = None
         self._save_soon()
 
@@ -477,7 +952,8 @@ class zynsimple_screen(zynthian_gui_base):
         cv.delete("all")
         self.browse_hits = []
         W, H = self._geom()
-        bar_h = max(36, H // 10)
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        bar_h = max(40, H // 10)
         per = 9
         pages = max(1, math.ceil(len(b["items"]) / per))
         b["page"] = max(0, min(b["page"], pages - 1))
@@ -486,35 +962,34 @@ class zynsimple_screen(zynthian_gui_base):
             name = self.bridge._name(self.bridge._chain(b["chain"]))
         except Exception:
             name = ""
-        group = shown[0]["group"] if shown else ""
-        cv.create_text(16, 8 + self.f_big[1], anchor="w", font=self.f_big, fill=self.col_tx,
-                       text=f"＋ Effekt · {name}")
-        cv.create_text(W - 16, 8 + self.f_big[1], anchor="e", font=self.f_small, fill=self.col_tx2, text=group)
+        cv.create_text(16, 8 + self.f_big[1], anchor="w", font=self.f_big, fill=P["gold"], text="＋ Effekt")
+        cv.create_text(16 + self.f_big[1] * 6.5, 8 + self.f_big[1], anchor="w", font=self.f_mid, fill=P["champ"], text=name)
+        cv.create_text(W - 16, 8 + self.f_big[1], anchor="e", font=self.f_tiny, fill=P["tx2"],
+                       text="antippen = sofort einsetzen · der nächste ersetzt ihn")
         y0 = 8 + self.f_big[1] * 2 + 8
         gh = (H - bar_h - 8 - y0) / 3
         gw = (W - 16) / 3
         for k, t in enumerate(shown):
             cx, cy = 8 + (k % 3) * gw, y0 + (k // 3) * gh
             busy = b["busy"] == t["eng"]
-            cv.create_rectangle(cx + 3, cy + 3, cx + gw - 3, cy + gh - 3, outline=self.col_sel if busy else "#2b313a",
-                                width=2 if busy else 1, fill="#2a2116" if busy else "#15181c")
-            label = t["label"] if len(t["label"]) <= 22 else t["label"][:21] + "…"
-            # (keine Emojis: die Schriften des Zynthian zeigen sie oft nicht an)
-            cv.create_text(cx + gw / 2, cy + gh * 0.3, text=t["group"].upper(), font=self.f_small, fill=self.col_sel)
-            cv.create_text(cx + gw / 2, cy + gh * 0.62, text=label, font=self.f_mid if t["icon"] else self.f_small,
-                           fill=self.col_tx, width=gw - 16, justify="center")
+            self.rrect(cx + 4, cy + 4, cx + gw - 4, cy + gh - 4, 14, outline=P["gold"] if busy else P["line"],
+                       width=2 if busy else 1, fill="#2a2014" if busy else P["card"])
+            cv.create_text(cx + gw / 2, cy + gh * 0.32, text=t["group"].upper(), font=self.f_tiny, fill=P["gold"])
+            cv.create_text(cx + gw / 2, cy + gh * 0.62, text=self._clip_text(t["label"], gw * 1.7, self.f_mid),
+                           font=self.f_mid if t["icon"] else self.f_small, fill=P["champ"], width=gw - 18, justify="center")
             self.browse_hits.append((cx, cy, cx + gw, cy + gh, "pick", t["eng"]))
         yb = H - bar_h
         bw = max(90, W // 6)
+
         def btn(xx, label, art, val=None, on=True):
-            cv.create_rectangle(xx, yb + 4, xx + bw, H - 4, fill=self.col_panel, outline="")
-            cv.create_text(xx + bw / 2, (yb + H) / 2, text=label, font=self.f_mid, fill=self.col_tx if on else self.col_tx2)
+            self.rrect(xx, yb + 4, xx + bw, H - 4, 10, fill=P["card2"], outline="")
+            cv.create_text(xx + bw / 2, (yb + H) / 2, text=label, font=self.f_mid, fill=P["champ"] if on else P["tx2"])
             if on:
                 self.browse_hits.append((xx, yb + 4, xx + bw, H - 4, art, val))
         btn(4, "◀", "bpage", -1, b["page"] > 0)
         btn(8 + bw, "▶", "bpage", 1, b["page"] < pages - 1)
-        cv.create_text(16 + 2 * bw, (yb + H) / 2, anchor="w", font=self.f_small, fill=self.col_tx2,
-                       text=f"Seite {b['page'] + 1}/{pages}" + ("  · lädt …" if b["busy"] else ""))
+        cv.create_text(16 + 2 * bw, (yb + H) / 2, anchor="w", font=self.f_small, fill=P["tx2"],
+                       text=f"Seite {b['page'] + 1}/{pages}" + ("  · lädt …" if b["busy"] else "  · Drehknopf blättert"))
         btn(W - bw - 4, "Zurück", "bclose")
 
     def browser_press(self, ev):
@@ -534,7 +1009,6 @@ class zynsimple_screen(zynthian_gui_base):
                 return
 
     def pick_fx(self, eng):
-        import threading
         b = self.browser
         b["busy"] = eng
         self.draw_browser()
@@ -543,8 +1017,7 @@ class zynsimple_screen(zynthian_gui_base):
 
         def run():
             try:
-                chain = self.bridge._chain(cid)
-                result["fx"] = self.bridge.extras.try_fx(chain, eng)
+                result["fx"] = self.x.try_fx(self.bridge._chain(cid), eng)
             except Exception as e:
                 result["error"] = str(e)
 
@@ -556,51 +1029,44 @@ class zynsimple_screen(zynthian_gui_base):
             if "fx" in result:
                 self.open_editor(cid, result["fx"])
             else:
+                self.mode = "mix"
                 self.sig = None
-                try:
-                    self.set_title(f"Effekt: {result.get('error')}")
-                except Exception:
-                    pass
+                self._flash(f"Effekt: {result.get('error')}")
 
         t = threading.Thread(target=run, daemon=True)
         t.start()
         self.canvas.after(200, lambda: wait(t))
 
     # ------------------------------------------------------------------
-    # Effekt-Regler auf dem Touchscreen
+    # Effekt-Regler / Pegel-Seite
     # ------------------------------------------------------------------
 
     def open_editor(self, cid, fx):
-        self.fx_press = None
+        self.press = None
         self.fxedit = {"chain": cid, "fx": fx, "page": 0}
+        self.mode = "edit"
         self.edit_tick = 0
         self.edit_drag = None
         self.draw_editor()
 
     def close_editor(self):
         self.fxedit = None
+        self.mode = "mix"
         self.sig = None
         self._save_soon()
 
-    def _save_soon(self):
-        try:
-            self.bridge.extras.mark_dirty()
-        except Exception:
-            pass
-
     def _editor_params(self):
-        x = self.bridge.extras
         chain = self.bridge._chain(self.fxedit["chain"])
         if self.fxedit["fx"] == "chan":
             flat = []
             g = self.bridge._ctrl(chain, "gain")
             if g is not None:
                 flat.append(g)
-            flat += list(x._input_ctrls().values())
-            return x, chain, None, flat
-        proc = x.find_fx(chain, self.fxedit["fx"])
-        flat = [z for _, items in x.params(proc) for z in items]
-        return x, chain, proc, flat
+            flat += list(self.x._input_ctrls().values())
+            return self.x, chain, None, flat
+        proc = self.x.find_fx(chain, self.fxedit["fx"])
+        flat = [z for _, items in self.x.params(proc) for z in items]
+        return self.x, chain, proc, flat
 
     def draw_editor(self):
         cv = self.canvas
@@ -611,61 +1077,73 @@ class zynsimple_screen(zynthian_gui_base):
         cv.delete("all")
         self.edit_hits = []
         W, H = self._geom()
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
         pages = max(1, math.ceil(len(flat) / 4))
         pg = self.fxedit["page"] = max(0, min(self.fxedit["page"], pages - 1))
         shown = flat[pg * 4:pg * 4 + 4]
         self.edit_shown = shown
-        top = 8
-        cv.create_text(16, top + self.f_big[1], anchor="w", font=self.f_big, fill=self.col_tx,
-                       text=f"{self.bridge._name(chain)} · " + (proc.get_name() if proc else "Gain & Eingang"))
-        bar_h = max(36, H // 10)
-        area_y0, area_y1 = top + self.f_big[1] * 2 + 10, H - bar_h - 8
+        pins = set()
+        if proc is not None:
+            pins = {sym for eng, sym in self.pf.pinned(chain) if eng == proc.eng_code}
+        cv.create_text(16, 8 + self.f_big[1], anchor="w", font=self.f_big, fill=P["gold"],
+                       text=(proc.get_name() if proc else "Gain & Eingang"))
+        cv.create_text(W - 16, 8 + self.f_big[1], anchor="e", font=self.f_small, fill=P["champ"], text=self.bridge._name(chain))
+        bar_h = max(40, H // 10)
+        area_y0, area_y1 = 8 + self.f_big[1] * 2 + 10, H - bar_h - 8
         row = (area_y1 - area_y0) / 4
         for k, z in enumerate(shown):
             y = area_y0 + k * row
             lbl = getattr(z, "short_name", None) or getattr(z, "name", z.symbol)
             if proc is None:
                 lbl = "Gain (Mischer)" if z.symbol == "gain" else f"Eingang Soundkarte: {getattr(z, 'name', z.symbol)}"
-            cv.create_text(16, y + row * 0.28, anchor="w", font=self.f_mid, fill=self.col_tx,
-                           text=f"Knopf {k + 1}:  {lbl}")
+            cv.create_text(16, y + row * 0.28, anchor="w", font=self.f_mid, fill=P["champ"], text=f"{k + 1}   {lbl}")
             try:
                 txt = str(z.get_value2label())
             except Exception:
                 txt = str(z.value)
-            cv.create_text(W - 16, y + row * 0.28, anchor="e", font=self.f_mid, fill=self.col_sel, text=txt)
-            bx0, bx1, by0, by1 = 16, W - 16, y + row * 0.5, y + row * 0.85
-            cv.create_rectangle(bx0, by0, bx1, by1, fill="#000000", outline="#2b313a")
+            star_w = 0
+            if proc is not None:
+                star_w = 44
+                on = z.symbol in pins
+                self.rrect(W - 16 - star_w + 4, y + row * 0.06, W - 16, y + row * 0.46, 8,
+                           fill=P["gold"] if on else P["card2"], outline=P["line"])
+                cv.create_text(W - 16 - star_w / 2 + 2, y + row * 0.26, text="★", font=self.f_mid,
+                               fill=P["black"] if on else P["tx2"])
+                self.edit_hits.append((W - 16 - star_w, y, W - 16, y + row * 0.5, "pin", k, None))
+            cv.create_text(W - 24 - star_w, y + row * 0.28, anchor="e", font=self.f_mid, fill=P["gold2"], text=txt)
+            bx0, bx1, by0, by1 = 16, W - 16, y + row * 0.55, y + row * 0.85
+            self.rrect(bx0, by0, bx1, by1, 6, fill=P["black"], outline=P["line"])
             try:
                 frac = (float(z.value) - float(z.value_min)) / max(1e-9, float(z.value_max) - float(z.value_min))
             except Exception:
                 frac = 0
-            cv.create_rectangle(bx0, by0, bx0 + (bx1 - bx0) * max(0, min(1, frac)), by1, fill=self.col_sel, outline="")
+            cv.create_rectangle(bx0 + 2, by0 + 2, bx0 + 2 + (bx1 - bx0 - 4) * max(0, min(1, frac)), by1 - 2,
+                                fill=P["gold"], outline="")
             self.edit_hits.append((bx0, by0 - 8, bx1, by1 + 8, "param", k, (bx0, bx1)))
         if not shown:
-            cv.create_text(W / 2, (area_y0 + area_y1) / 2, font=self.f_mid, fill=self.col_tx2,
-                           text="Keine Regler vorhanden.")
-        # Untere Leiste
+            cv.create_text(W / 2, (area_y0 + area_y1) / 2, font=self.f_mid, fill=P["tx2"], text="Keine Regler vorhanden.")
         y0 = H - bar_h
         bw = max(90, W // 6)
+
         def btn(xx, label, art, extra=None, on=True, fill=None, fg=None):
-            cv.create_rectangle(xx, y0 + 4, xx + bw, H - 4, fill=fill or self.col_panel, outline="")
+            self.rrect(xx, y0 + 4, xx + bw, H - 4, 10, fill=fill or P["card2"], outline="")
             cv.create_text(xx + bw / 2, (y0 + H) / 2, text=label, font=self.f_mid,
-                           fill=(fg or self.col_tx) if on else self.col_tx2)
+                           fill=(fg or P["champ"]) if on else P["tx2"])
             if on:
                 self.edit_hits.append((xx, y0 + 4, xx + bw, H - 4, art, None, extra))
         btn(4, "◀ Seite", "epage", -1, pg > 0)
         btn(8 + bw, "Seite ▶", "epage", 1, pg < pages - 1)
-        cv.create_text(16 + 2 * bw, (y0 + H) / 2, anchor="w", font=self.f_small, fill=self.col_tx2,
-                       text=f"{pg + 1}/{pages}")
+        cv.create_text(16 + 2 * bw, (y0 + H) / 2, anchor="w", font=self.f_small, fill=P["tx2"],
+                       text=f"{pg + 1}/{pages}" + ("  · ★ = auf die Live-Knöpfe" if proc is not None else ""))
         if proc is not None and x.fx_kind(proc) == "delay" and x._sync_target(proc):
             cur = x.state["sync"].get(str(proc.id))
             btn(W - 2 * bw - 10, f"♩ {cur}" if cur else "♩ aus", "esync", None, True,
-                fill=self.col_sel if cur else None, fg="#000000" if cur else None)
+                fill=P["gold"] if cur else None, fg=P["black"] if cur else None)
         if proc is None:
-            btn(W - 2 * bw - 10, "＋ Effekte", "ebrowse", None, True, fill=self.col_sel, fg="#000000")
+            btn(W - 2 * bw - 10, "＋ Effekte", "ebrowse", None, True, fill=P["gold"], fg=P["black"])
         elif x.is_trial(chain, self.fxedit["fx"]):
             btn(W - 3 * bw - 16, "↺ Andere", "ebrowse")
-            btn(W - 2 * bw - 10, "✓ Behalten", "ekeep", None, True, fill=self.col_fx, fg="#000000")
+            btn(W - 2 * bw - 10, "✓ Behalten", "ekeep", None, True, fill=P["emerald"], fg=P["black"])
         btn(W - bw - 4, "Fertig", "eclose")
 
     def editor_press(self, ev):
@@ -675,6 +1153,14 @@ class zynsimple_screen(zynthian_gui_base):
                 if art == "param":
                     self.edit_drag = (h[5], extra)
                     self.editor_motion(ev)
+                elif art == "pin":
+                    try:
+                        z = self.edit_shown[h[5]]
+                        on = self.pf.toggle_pin(self.bridge._chain(self.fxedit["chain"]), self.fxedit["fx"], z.symbol)
+                        self._flash("★ liegt jetzt auf einem Live-Knopf" if on else "★ entfernt")
+                    except Exception as e:
+                        self._flash(str(e))
+                    self.draw_editor()
                 elif art == "epage":
                     self.fxedit["page"] += extra
                     self.draw_editor()
@@ -687,14 +1173,14 @@ class zynsimple_screen(zynthian_gui_base):
                     self.fxedit = None
                     self.open_browser(cid)
                 elif art == "ekeep":
-                    x, chain, _, _ = self._editor_params()
-                    x.keep_fx(chain)
+                    _, chain, _, _ = self._editor_params()
+                    self.x.keep_fx(chain)
                     self.draw_editor()
                 return
 
     def editor_motion(self, ev):
-        d = getattr(self, "edit_drag", None)
-        if not d:
+        d = self.edit_drag
+        if not d or d == "xy":
             return
         k, (bx0, bx1) = d
         try:
@@ -704,6 +1190,7 @@ class zynsimple_screen(zynthian_gui_base):
             if getattr(z, "is_integer", False) or getattr(z, "is_toggle", False) or getattr(z, "labels", None):
                 v = int(round(v))
             z.set_value(v)
+            self.x.mark_dirty()
         except Exception as e:
             log.debug(f"Regler: {e}")
         self.draw_editor()
@@ -717,34 +1204,187 @@ class zynsimple_screen(zynthian_gui_base):
         try:
             x.set_sync(chain, self.fxedit["fx"], nxt)
         except Exception as e:
-            log.warning(f"ZynSimple: {e}")
+            self._flash(str(e))
         self.draw_editor()
 
-    def open_expert(self):
-        self.zyngui._zs_allow_home = True
-        home = "mixer" if self.bridge.vangelis else "audio_mixer"
-        self.zyngui.show_screen(home)
-
     # ------------------------------------------------------------------
-    # Drehgeber & Tasten
+    # Bühnenbild (Ruhe-Animation)
     # ------------------------------------------------------------------
 
-    def _sel_strip(self):
-        if 0 <= self.selected < len(self.strips):
-            return self.strips[self.selected]
-        return None
+    def start_idle(self):
+        self.mode = "idle"
+        W, H = self._geom()
+        self.anim = {"t0": time.monotonic(), "rings": [], "pulses": [], "sparks": [], "last_ring": 0,
+                     "last_beat": 0, "beat_n": 0, "crystal": 0.0, "glow": 0.0}
+        self.canvas.delete("all")
+
+    def stop_idle(self):
+        self.mode = "mix"
+        self.anim = None
+        self.sig = None
+        self.draw()
+
+    def _active(self):
+        """Welche Effekte klingen gerade (in nicht stummen Kanälen)?"""
+        kinds, names, frozen, tiefe = set(), [], False, 0.0
+        for s in self.strips:
+            if s["kind"] == "main" or s.get("mute"):
+                continue
+            for f in s["fx"]:
+                if f.get("on"):
+                    k = f.get("kind") or "other"
+                    n = f["name"].lower()
+                    if any(w in n for w in ("granul", "argot", "grain")):
+                        k = "grain"
+                    if any(w in n for w in ("chorus", "phaser", "flanger", "pulsator", "tremolo", "rotary", "pan")):
+                        k = "mod"
+                    kinds.add(k)
+                    names.append(f["name"])
+            frozen = frozen or bool(s.get("freeze"))
+            if s.get("tiefe") is not None:
+                tiefe = max(tiefe, s["tiefe"])
+        return kinds, names, frozen, tiefe
+
+    def draw_idle(self):
+        a = self.anim
+        if a is None:
+            return
+        cv = self.canvas
+        cv.delete("all")
+        W, H = self._geom()
+        now = time.monotonic()
+        t = now - a["t0"]
+        cx, cy = W / 2, H * 0.47
+        main = next((s for s in self.strips if s["kind"] == "main"), None)
+        lvl = 0.0
+        if main and main.get("meter"):
+            lvl = max(0.0, min(1.0, (max(main["meter"][0], main["meter"][1]) - FLOOR) / -FLOOR))
+        a["glow"] += (lvl - a["glow"]) * 0.15
+        g = a["glow"]
+        kinds, names, frozen, tiefe = self._active()
+
+        # Glut im Hintergrund – atmet mit der Lautstärke
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        R = min(W, H) * (0.35 + 0.35 * g)
+        for k in range(7, 0, -1):
+            f = k / 7
+            col = _mix(P["bg"], "#5a2a0c", (1 - f) * (0.4 + 0.6 * g))
+            r = R * f
+            cv.create_oval(cx - r * 1.4, cy - r, cx + r * 1.4, cy + r, fill=col, outline="")
+
+        # Hall: Ringe wie auf Wasser
+        if "reverb" in kinds:
+            every = 1.6 - 0.9 * tiefe
+            if now - a["last_ring"] > every:
+                a["last_ring"] = now
+                a["rings"].append([now, 0.6 + 0.8 * tiefe])
+            keep = []
+            for born, life in a["rings"]:
+                age = (now - born) / (4.0 * life)
+                if age < 1:
+                    keep.append([born, life])
+                    r = 20 + age * min(W, H) * 0.75 * life
+                    col = _mix(P["gold"], P["bg"], age)
+                    cv.create_oval(cx - r * 1.3, cy - r, cx + r * 1.3, cy + r, outline=col, width=2)
+            a["rings"] = keep
+
+        # Delay: Lichtpulse im Takt, die verblassen
+        if "delay" in kinds:
+            bpm = self.x.tempo() or 100
+            beat = 60.0 / bpm
+            if now - a["last_beat"] > beat:
+                a["last_beat"] = now
+                a["beat_n"] += 1
+                a["pulses"].append([now, a["beat_n"]])
+            keep = []
+            for born, n in a["pulses"]:
+                for e in range(4):
+                    age = (now - born - e * beat * 0.5) / (beat * 0.9)
+                    if 0 <= age < 1:
+                        side = -1 if (n + e) % 2 else 1
+                        px = cx + side * (60 + e * 70)
+                        r = 6 + age * 26
+                        col = _mix(P["gold2"], P["bg"], age * 0.6 + e * 0.12)
+                        cv.create_oval(px - r, cy - r, px + r, cy + r, outline=col, width=2)
+                if now - born < beat * 3:
+                    keep.append([born, n])
+            a["pulses"] = keep
+
+        # Modulation: schwingende Linien
+        if "mod" in kinds:
+            for k in range(3):
+                pts = []
+                amp = 18 + 10 * k
+                for xx in range(0, W + 20, 20):
+                    pts += [xx, cy + H * 0.28 + math.sin(xx / 70.0 + t * (1.2 + 0.4 * k) + k) * amp]
+                cv.create_line(*pts, fill=_mix(P["purple"], P["bg"], 0.3 + 0.2 * k), width=2, smooth=True)
+
+        # Granular / Textur: aufsteigende Funken
+        if "grain" in kinds or "other" in kinds or not kinds:
+            n_new = 1 + int(4 * g) if kinds else (1 if random.random() < 0.3 else 0)
+            for _ in range(n_new):
+                a["sparks"].append([random.uniform(W * 0.15, W * 0.85), H + 5, random.uniform(-0.6, 0.6),
+                                    random.uniform(1.0, 2.6), random.uniform(0.7, 1.0)])
+            keep = []
+            for sp in a["sparks"]:
+                sp[0] += sp[2] + math.sin(t * 2 + sp[1] / 40) * 0.4
+                sp[1] -= sp[3]
+                sp[4] -= 0.008
+                if sp[1] > -5 and sp[4] > 0:
+                    keep.append(sp)
+                    col = _mix(P["bg"], "#ffb347", sp[4])
+                    cv.create_oval(sp[0] - 2, sp[1] - 2, sp[0] + 2, sp[1] + 2, fill=col, outline="")
+            a["sparks"] = keep[-160:]
+
+        # Freeze: Kristalle wachsen
+        a["crystal"] = min(1.0, a["crystal"] + 0.02) if frozen else max(0.0, a["crystal"] - 0.04)
+        if a["crystal"] > 0:
+            L = a["crystal"]
+            for (ox, oy) in ((0, 0), (W, 0), (0, H), (W, H)):
+                base = math.atan2(cy - oy, cx - ox)
+                for k in range(7):
+                    ang = base + (k - 3) * 0.16
+                    ln = (60 + 24 * (k % 3)) * L * 2.2
+                    ex, ey = ox + math.cos(ang) * ln, oy + math.sin(ang) * ln
+                    col = _mix(P["bg"], P["ice"], 0.18 + 0.32 * L)
+                    cv.create_line(ox, oy, ex, ey, fill=col, width=2)
+                    mx, my = ox + math.cos(ang) * ln * 0.6, oy + math.sin(ang) * ln * 0.6
+                    for s2 in (-0.6, 0.6):
+                        cv.create_line(mx, my, mx + math.cos(ang + s2) * ln * 0.25, my + math.sin(ang + s2) * ln * 0.25,
+                                       fill=col, width=1)
+
+        # Schrift
+        cv.create_text(W / 2, H * 0.47, text="✦", font=self.f_huge, fill=_mix(P["gold_dim"], P["gold2"], g))
+        sc = self.data.get("last_scene")
+        bpm = self.x.tempo()
+        info = "   ·   ".join(v for v in (f"Szene {sc}" if sc else "", f"{bpm:g} BPM" if bpm else "",
+                                          "FREEZE" if frozen else "") if v)
+        if info:
+            cv.create_text(W / 2, 30, text=info, font=self.f_small, fill=P["gold"])
+        if names:
+            cv.create_text(W / 2, H - 46, text="  ·  ".join(dict.fromkeys(names))[:90], font=self.f_small, fill=P["champ"])
+        cv.create_text(W / 2, H - 20, text="antippen oder Knopf drehen, um zurückzukehren", font=self.f_tiny, fill=P["tx2"])
+
+    # ------------------------------------------------------------------
+    # Drehgeber
+    # ------------------------------------------------------------------
 
     def zynpot_cb(self, i, dval):
+        was_idle = self.mode == "idle"
+        self._touch()
+        if was_idle:
+            self.stop_idle()
+            return True
         try:
             role = list(cfg.layout["ctrl_order"]).index(i)
         except Exception:
             role = i
-        if self.browser:
+        if self.mode == "browse":
             if not self.browser["busy"]:
                 self.browser["page"] += 1 if dval > 0 else -1
                 self.draw_browser()
             return True
-        if self.fxedit:
+        if self.mode == "edit":
             try:
                 x, chain, proc, _ = self._editor_params()
                 if role < len(self.edit_shown):
@@ -753,19 +1393,17 @@ class zynsimple_screen(zynthian_gui_base):
             except Exception as e:
                 log.debug(f"Regler: {e}")
             return True
-        s = self._sel_strip()
+        if self.mode in ("more", "xy"):
+            return True
+        if self.locked:
+            return True
+        chain = self._sel_chain()
+        if chain is None:
+            return True
         try:
-            if role == 3 and s:          # SELECT-Knopf: Lautstärke
-                chain = self.bridge._chain(s["id"])
-                self.bridge.nudge_level(chain, dval)
-            elif role == 2 and self.strips:  # SNAPSHOT-Knopf: Kanal wählen
-                self.selected = max(0, min(len(self.strips) - 1, self.selected + (1 if dval > 0 else -1)))
-            elif role == 1 and s and s["preset"]:  # BACK-Knopf: Preset
-                self.bridge.action(s["id"], "preset_next" if dval > 0 else "preset_prev")
-            elif role == 0 and self.strips:  # LAYER-Knopf: Summe
-                main = [x for x in self.strips if x["kind"] == "main"]
-                if main:
-                    self.bridge.nudge_level(self.bridge._chain(main[0]["id"]), dval)
+            # Die vier Knöpfe = die vier Live-Regler rechts
+            self.pf.nudge_slot(chain, role, dval)
+            self.update_dynamic()
         except Exception as e:
             log.warning(f"ZynSimple Drehgeber: {e}")
         return True
@@ -773,9 +1411,124 @@ class zynsimple_screen(zynthian_gui_base):
     def zynpot_abs(self, i, val):
         return True
 
+    # ------------------------------------------------------------------
+    # Tasten: die 20 Pads des V5 (und die klassischen 4 Tasten)
+    # ------------------------------------------------------------------
+
+    def _pad_role(self, i):
+        try:
+            acts = cfg.custom_switch_ui_actions[i - 4]
+        except Exception:
+            return None
+        if not acts:
+            return None
+        txt = " ".join(str(v) for v in acts.values() if v).upper()
+        m = re.search(r"PROGRAM_CHANGE\s+(\d)", txt)
+        if m:
+            return f"F{m.group(1)}"
+        if re.search(r"(^|\s)TEMPO(\s|$)", txt):
+            return "TAP"
+        for key, role in (("TOGGLE_RECORD", "REC"), ("TOGGLE_PLAY", "PLAY"), ("ARROW_UP", "UP"),
+                          ("ARROW_DOWN", "DOWN"), ("ARROW_LEFT", "LEFT"), ("ARROW_RIGHT", "RIGHT")):
+            if key in txt:
+                return role
+        if re.search(r"(^|\s)STOP(\s|$)", txt):
+            return "STOP"
+        return None
+
+    def switch(self, i, t):
+        if i < 4:
+            if self.mode == "idle":
+                self._touch()
+                self.stop_idle()
+                return True
+            return False
+        role = self._pad_role(i)
+        if role is None:
+            return False
+        if self.mode == "idle":
+            if t == "P":
+                self._touch()
+                self.stop_idle()
+            return True
+        if self.mode != "mix":
+            # In den Unterseiten bleiben die Pfeile normale Navigation
+            if role in ("LEFT", "RIGHT") and self.mode == "browse" and t == "P":
+                self.browser["page"] += -1 if role == "LEFT" else 1
+                self.draw_browser()
+                return True
+            if role in ("LEFT", "RIGHT") and self.mode == "edit" and t == "P":
+                self.fxedit["page"] += -1 if role == "LEFT" else 1
+                self.draw_editor()
+                return True
+            return False
+        self._touch()
+        if self.locked:
+            return True
+        chain = self._sel_chain()
+        b = self.bridge
+        try:
+            alt = bool(self.zyngui.get_alt_mode())
+        except Exception:
+            alt = False
+        try:
+            if role.startswith("F"):
+                n = int(role[1:])
+                if alt:                                   # ALT + F1–F4 = Szenen
+                    if t == "P":
+                        self.pad_t[i] = time.monotonic()
+                    elif t in ("B", "L"):
+                        b.action(None, "scene_save", n)
+                        self._flash(f"Szene {n} gespeichert")
+                    elif t == "S":
+                        try:
+                            b.action(None, "scene_load", n)
+                        except KeyError:
+                            self._flash(f"Szene {n} ist leer – ALT + F{n} lang drücken speichert")
+                elif chain is not None:                   # F1–F4 = Effekte 1–4 des Kanals
+                    idx = n - 1
+                    if idx < len(b._fx_procs(chain)):
+                        if t == "S":
+                            b.action(chain.chain_id, "fx", idx)
+                        elif t in ("B", "L"):
+                            self.open_editor(chain.chain_id, idx)
+                    elif t == "S":
+                        self.open_browser(chain.chain_id)
+            elif role == "REC" and chain is not None:     # ❄ Freeze: tippen = an/aus, halten = solange gedrückt
+                if t == "P":
+                    self.pad_t[i] = (time.monotonic(), self.x.is_frozen(chain))
+                    self.x.set_freeze(chain, True)
+                else:
+                    t0, was = self.pad_t.pop(i, (time.monotonic(), False))
+                    if was or time.monotonic() - t0 > 0.35:
+                        self.x.set_freeze(chain, False)
+            elif role == "PLAY" and chain is not None:    # ↯ Echo-Wurf: solange gedrückt
+                b.action(chain.chain_id, "throw", t == "P")
+            elif role == "TAP":                           # Tap-Tempo auf der METRONOM-Taste
+                if t == "P":
+                    self.do_tap()
+            elif role == "STOP":                          # Panik
+                if t == "S":
+                    b.action(None, "panic")
+                    self._flash("Panik – alles beruhigt")
+            elif role in ("LEFT", "RIGHT"):
+                if t == "P" and self.strips:
+                    self.selected = max(0, min(len(self.strips) - 1, self.selected + (-1 if role == "LEFT" else 1)))
+            elif role in ("UP", "DOWN") and chain is not None:
+                if t == "P":
+                    self.pf.nudge_slot(chain, 0, 3 if role == "UP" else -3)   # Tiefe
+        except Exception as e:
+            self._flash(str(e))
+        self.sig = None
+        return True
+
     def switch_select(self, t="S"):
-        if self.fxedit:
-            if t == "S" and hasattr(self, "edit_shown"):
+        self._touch()
+        if self.mode == "idle":
+            self.stop_idle()
+            return True
+        if self.mode == "edit":
+            if t == "S":
                 self.fxedit["page"] += 1
                 pages = max(1, math.ceil(len(self._editor_params()[3]) / 4))
                 if self.fxedit["page"] >= pages:
@@ -784,8 +1537,13 @@ class zynsimple_screen(zynthian_gui_base):
             else:
                 self.close_editor()
             return True
+        if self.mode in ("browse", "more", "xy"):
+            self.mode = "mix"
+            self.browser = None
+            self.sig = None
+            return True
         s = self._sel_strip()
-        if not s:
+        if not s or self.locked:
             return True
         if t == "S":
             self.bridge.action(s["id"], "mute")
@@ -807,24 +1565,28 @@ class zynsimple_screen(zynthian_gui_base):
         self.selected = min(max(0, len(self.strips) - 1), self.selected + 1)
 
     def arrow_up(self, nudge=1):
-        s = self._sel_strip()
-        if s:
-            self.bridge.nudge_level(self.bridge._chain(s["id"]), 2)
+        c = self._sel_chain()
+        if c is not None:
+            self.pf.nudge_slot(c, 0, 3)
 
     def arrow_down(self, nudge=-1):
-        s = self._sel_strip()
-        if s:
-            self.bridge.nudge_level(self.bridge._chain(s["id"]), -2)
+        c = self._sel_chain()
+        if c is not None:
+            self.pf.nudge_slot(c, 0, -3)
 
     def back_action(self):
-        if self.browser:
+        self._touch()
+        if self.mode == "idle":
+            self.stop_idle()
+        elif self.mode == "browse":
             self.close_browser()
-            return True
-        if self.fxedit:
+        elif self.mode == "edit":
             self.close_editor()
-        return True  # Auf dem Startbildschirm tut ZURÜCK nichts
+        elif self.mode in ("more", "xy"):
+            self.mode = "mix"
+            self.sig = None
+        return True
 
-    # Oram fragt diese Methoden auf manchen Bildschirmen ab
     def toggle_midi_learn(self, *a, **k):
         pass
 
@@ -833,3 +1595,68 @@ class zynsimple_screen(zynthian_gui_base):
 
     def midi_unlearn_action(self, *a, **k):
         pass
+
+    # ------------------------------------------------------------------
+    # LEDs der Pads (solange dieser Bildschirm offen ist)
+    # ------------------------------------------------------------------
+
+    LED_INDEX = {"F1": 4, "F2": 11, "F3": 12, "F4": 19, "REC": 8, "STOP": 9, "PLAY": 10,
+                 "UP": 14, "LEFT": 16, "DOWN": 17, "RIGHT": 18}
+
+    def _hook_leds(self):
+        ws = getattr(self.zyngui, "wsleds", None)
+        if ws is None or getattr(ws, "_zs_leds", False) or not hasattr(ws, "update_wsleds"):
+            return
+        orig = ws.update_wsleds
+        screen = self
+
+        def update_wsleds(*a, **k):
+            orig(*a, **k)
+            try:
+                if screen.shown and screen.zyngui.current_screen == "zynsimple":
+                    screen.paint_leds(ws)
+            except Exception as e:
+                log.debug(f"LEDs: {e}")
+
+        ws.update_wsleds = update_wsleds
+        ws._zs_leds = True
+
+    def paint_leds(self, ws):
+        if not getattr(ws, "wsleds", None) or getattr(ws, "num_leds", 0) < 20:
+            return
+        col = lambda r, g, b: ws.create_color(r, g, b)
+        dim = col(28, 12, 2)
+        try:
+            alt = bool(self.zyngui.get_alt_mode())
+        except Exception:
+            alt = False
+        s = self._sel_strip()
+        kinds_rgb = {"reverb": (200, 120, 10), "delay": (220, 170, 10), "comp": (150, 90, 40), "eq": (170, 70, 20),
+                     "other": (120, 0, 120)}
+        for n in range(1, 5):
+            led = self.LED_INDEX[f"F{n}"]
+            if alt:
+                sc = (self.data.get("scenes") or {}).get(str(n + 0))
+                if self.data.get("last_scene") == str(n):
+                    ws.wsleds[led] = col(230, 150, 20)
+                elif sc:
+                    ws.wsleds[led] = col(110, 0, 110)
+                else:
+                    ws.wsleds[led] = dim
+            elif s and n - 1 < len(s["fx"]):
+                f = s["fx"][n - 1]
+                rgb = kinds_rgb.get(f.get("kind"), (0, 160, 60))
+                ws.wsleds[led] = col(*rgb) if f.get("on") else col(rgb[0] // 8, rgb[1] // 8, rgb[2] // 8)
+            else:
+                ws.wsleds[led] = dim
+        ws.wsleds[self.LED_INDEX["REC"]] = col(170, 150, 120) if s and s.get("freeze") else col(40, 30, 20)
+        ws.wsleds[self.LED_INDEX["PLAY"]] = col(230, 170, 20) if s and s.get("throw") else col(40, 26, 4)
+        ws.wsleds[self.LED_INDEX["STOP"]] = col(90, 0, 10)
+        for k in ("UP", "DOWN", "LEFT", "RIGHT"):
+            ws.wsleds[self.LED_INDEX[k]] = col(60, 35, 5)
+        if self.mode == "idle" and self.anim:
+            # Im Bühnenbild glimmen die Pads mit der Lautstärke
+            g = self.anim.get("glow", 0)
+            for k, led in enumerate((4, 11, 12, 19, 8, 9, 10)):
+                f = max(0.0, min(1.0, g * 1.4 - k * 0.08))
+                ws.wsleds[led] = col(int(40 + 190 * f), int(12 + 110 * f * f), int(2 + 30 * f * f * f))

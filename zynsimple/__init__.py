@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "1.7"
+VERSION = "2.0"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -29,6 +29,8 @@ DEFAULTS = {
     "autosave_seconds": 20,
     "handpan_inputs": [1],
     "update_check": True,
+    "idle_seconds": 45,
+    "xy_spring": False,
     "update_repo": "gansklebrig/zynsimple",
     "update_branch": "main",
 }
@@ -65,6 +67,8 @@ def setup(zyngui):
     try:
         from .extras import Extras
         bridge.extras = Extras(bridge, settings)
+        from .perform import Perform
+        bridge.perform = Perform(bridge, bridge.extras)
         from zyngui import zynthian_gui_config
         bridge.extras.start_autosave(zynthian_gui_config.top)
         _hook_exit(zyngui, bridge.extras)

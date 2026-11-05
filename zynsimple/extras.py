@@ -111,6 +111,9 @@ class Extras:
         try:
             with open(STATE_FILE, "r", encoding="utf-8") as f:
                 d = json.load(f)
+            for k, v in d.items():
+                if k not in ("sync", "foot", "inputs"):
+                    self.state[k] = v
             self.state["sync"] = dict(d.get("sync", {}))
             self.state["foot"] = list(d.get("foot", []))
             self.state["inputs"] = dict(d.get("inputs", {}))
@@ -209,8 +212,17 @@ class Extras:
         out = {"name": str(proc.get_name()), "kind": self.fx_kind(proc), "pages": [],
                "sync": self.state["sync"].get(str(proc.id)), "syncable": False,
                "divisions": list(DIVISIONS)}
+        pins = set()
+        pf = getattr(self.b, "perform", None)
+        if pf:
+            pins = {sym for eng, sym in pf.pinned(chain) if eng == proc.eng_code}
         for title, items in self.params(proc):
-            out["pages"].append({"title": title, "params": [self.zctrl_info(z) for z in items]})
+            ps = []
+            for z in items:
+                d = self.zctrl_info(z)
+                d["pin"] = z.symbol in pins
+                ps.append(d)
+            out["pages"].append({"title": title, "params": ps})
         out["syncable"] = out["kind"] == "delay" and self._sync_target(proc) is not None
         out["tempo"] = self.tempo()
         out["trial"] = self.is_trial(chain, index)
@@ -487,9 +499,9 @@ class Extras:
             self._save()
         self._apply_sync(proc)
 
-    def _apply_sync(self, proc):
+    def _apply_sync(self, proc, bpm=None):
         div = self.state["sync"].get(str(proc.id))
-        bpm = self.tempo()
+        bpm = bpm or self.tempo()
         if not div or not bpm:
             return
         tgt = self._sync_target(proc)

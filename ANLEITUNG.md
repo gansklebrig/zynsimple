@@ -73,6 +73,59 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Version 2.0 – Live-Modus (so bedienst du ZynSimple jetzt)
+
+### Der Bildschirm am Gerät
+- **Links die Kanäle:** Name antippen = Gain & Eingangspegel · Fader ziehen ·
+  Effekt **kurz** = an/aus, **lang** = seine Regler · **＋ Effekt** = durchprobieren ·
+  M / S / ❄ unten.
+- **Rechts die LIVE-Leiste** für den gewählten Kanal (goldener Rahmen) – sie zeigt, was die
+  **vier Drehknöpfe** gerade tun:
+  1. **Tiefe** – ein Regler für alles: von trocken bis weit & schwebend (Hall + Echos zusammen)
+  2.–3. deine **★ Lieblingsregler** (im Effekt-Fenster den Stern antippen) – sonst Hall und Echos
+  4. Lautstärke
+  Darunter: **❄ Freeze** (tippen = an/aus, halten = nur solange gedrückt), **↯ Echo**
+  (halten = Echo-Wurf), **XY-Feld**, **Panik**.
+- **Unten:** Seiten ◀ ▶ · **Szenen 1–4** (tippen = laden, lang drücken = speichern) ·
+  **↝** Überblenden (hart / 2 / 4 / 8 / 16 Schläge) · **TAP** (Tempo tippen) · **Sperre** · **⋯**
+  (Zynthian-Menü, Profi-Mischer, Imres, Handpan, Bühnenbild, Update).
+
+### Die Pads
+| Pad | im Live-Mischer |
+|---|---|
+| **F1–F4** | Effekt 1–4 des gewählten Kanals an/aus · lang = seine Regler · Licht = Effektfarbe |
+| **ALT + F1–F4** | Szenen 1–4 (bzw. 5–8 auf dem Bildschirm): tippen = laden, lang = speichern |
+| **REC** | ❄ Freeze (tippen = an/aus, halten = solange gedrückt) |
+| **PLAY** | ↯ Echo-Wurf, solange gedrückt |
+| **STOP** | Panik: Freeze und Echo-Würfe aus, Echos gezähmt |
+| **METRONOM** | Tap-Tempo |
+| **◀ ▶** | Kanal wählen · **▲ ▼** Tiefe |
+Alle anderen Pads (MENU, MIX, ALT …) machen weiter das Gewohnte.
+
+### Tap-Tempo
+**TAP** im Takt tippen (am Gerät auch die Metronom-Taste) – ab dem 2. Tippen läuft das Tempo,
+weiteres Tippen verfeinert es. Delays im Kanal schalten dabei automatisch auf „im Takt“.
+Hinweis: Schickt die TR-8S ihre Clock an den Zynthian, bestimmt sie das Tempo.
+
+### Szenen
+Ein Klangbild speichern (Pegel, Mute, Effekte an/aus, alle Effekt-Regler, Tiefe) und später
+mit einem Tipp zurückholen – **weich überblendet** über die eingestellte Zahl Schläge.
+
+### Sperre
+Einmal tippen sperrt die Bedienung (gegen versehentliches Verrutschen). Entsperren: **lang drücken**.
+
+### Bühnenbild
+Nach **45 Sekunden** ohne Eingabe erscheint eine Animation, die zeigt, was gerade klingt:
+Ringe = Hall · Lichtpulse im Takt = Delay · schwingende Linien = Modulation ·
+Funken = Textur · Eiskristalle = Freeze · die Glut atmet mit der Lautstärke. Die Pads glimmen mit.
+Antippen oder Knopf drehen holt den Mischer zurück (ohne etwas auszulösen).
+Zeit ändern: `"idle_seconds": 45` in `zynsimple.json` (0 = nie).
+
+### Am Handy
+Oben die Live-Leiste: **Szenen 1–8**, Überblenden, **TAP**, **Panik**. In jedem Kanal:
+**TIEFE**-Regler und **XY**, **↯ Echo** (halten) und **❄ Freeze**. Im Effekt-Fenster: **★** legt
+einen Regler auf die Live-Knöpfe am Gerät.
+
 ## Neu in Version 1.7 – Alles bleibt nach dem Neustart erhalten
 
 - **Sofort gespeichert:** Jede Änderung im einfachen Mischer (Gain, Lautstärke, Mute,

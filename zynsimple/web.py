@@ -73,6 +73,16 @@ def make_handler(bridge, pin):
                     from . import VERSION
                     st["current"] = VERSION
                 self._send(200, st)
+            elif path == "/api/live":
+                from urllib.parse import parse_qs
+                q = {k: v[0] for k, v in parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "").items()}
+                try:
+                    chain = bridge._chain(q["chain"])
+                    pf = bridge.perform
+                    x, y = pf.xy_pos(chain)
+                    self._send(200, {"slots": [pf.slot_info(chain, s) for s in pf.live_slots(chain)], "xy": [x, y]})
+                except Exception as e:
+                    self._send(400, {"error": str(e)})
             elif path == "/api/theme":
                 from . import theme
                 self._send(200, theme.status())

@@ -37,6 +37,7 @@ class Bridge:
         self._last_dpm_update = 0
         self._oram_dpm = []
         self.extras = None          # wird in setup() gesetzt
+        self.perform = None
         self.settings = {}
         threading.Thread(target=self._worker, name="zynsimple-worker", daemon=True).start()
         log.info(f"ZynSimple Bridge aktiv (Zynthian {self.version})")
@@ -199,7 +200,15 @@ class Bridge:
                 strips.append(self._strip(chain, meters))
             except Exception as e:
                 log.debug(f"Kanal {getattr(chain, 'chain_id', '?')} nicht lesbar: {e}")
-        return {"version": self.version, "strips": strips}
+        out = {"version": self.version, "strips": strips}
+        if self.perform:
+            pf = self.perform
+            out["scenes"] = pf.scene_list()
+            out["last_scene"] = pf.last_scene
+            out["morph"] = pf.morphing()
+            out["morph_beats"] = pf.x.state.get("morph_beats", 4)
+            out["tempo"] = pf.x.tempo()
+        return out
 
     def _strip(self, chain, meters):
         kind = self._kind(chain)
@@ -244,6 +253,9 @@ class Bridge:
             "fx": fx,
             "freeze": (self.extras.is_frozen(chain) if self.extras.freeze_available(chain) else None)
                       if self.extras and kind != "main" else None,
+            "tiefe": (round(self.perform.get_tiefe(chain), 3) if self.perform.macro_targets(chain) else None)
+                     if self.perform and kind != "main" else None,
+            "throw": self.perform.is_throwing(chain) if self.perform else False,
         }
 
     # ------------------------------------------------------------------
@@ -270,6 +282,23 @@ class Bridge:
             return self.extras.cancel_learn()
         if op == "foot_delete":
             return self.extras.delete_foot(int(value))
+        pf = self.perform
+        if op == "tap":
+            c = None
+            if chain_id is not None:
+                try:
+                    c = self._chain(chain_id)
+                except Exception:
+                    c = None
+            return pf.tap(c)
+        if op == "panic":
+            return pf.panic()
+        if op == "scene_save":
+            return pf.scene_save(int(value))
+        if op == "scene_load":
+            return {"seconds": pf.scene_load(int(value))}
+        if op == "morph_beats":
+            return pf.set_morph_beats(value)
         if op == "input_level":
             return self.extras.set_input_level(str(value["sym"]), value["value"])
         chain = self._chain(chain_id)
@@ -287,6 +316,18 @@ class Bridge:
             return x.keep_fx(chain)
         if op == "fx_remove":
             return x.remove_fx(chain, int(value))
+        if op == "tiefe":
+            return pf.set_tiefe(chain, value)
+        if op == "pin":
+            return pf.toggle_pin(chain, int(value["fx"]), str(value["sym"]))
+        if op == "slot":
+            if "frac" in value:
+                return pf.set_slot(chain, int(value["i"]), float(value["frac"]))
+            return pf.nudge_slot(chain, int(value["i"]), float(value.get("step", 0)))
+        if op == "xy":
+            return pf.xy(chain, float(value["x"]), float(value["y"]))
+        if op == "throw":
+            return pf.echo_throw(chain, bool(value))
         if op == "learn":
             v = value if isinstance(value, dict) else {}
             return x.start_learn(v.get("action", "freeze"), chain.chain_id, v.get("fx"), v.get("mode", "toggle"))
