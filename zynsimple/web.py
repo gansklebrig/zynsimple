@@ -91,6 +91,7 @@ def make_handler(bridge, pin):
                             "inputs": x.available_inputs(),
                             "handpan_plugins": [n[3:] for _, n in x.plan_handpan()],
                             "local_update": os.path.basename(local) if local else None,
+                            "inputs_hw": x.input_levels(),
                         })
                 except Exception as e:
                     self._send(400, {"error": str(e)})

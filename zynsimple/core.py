@@ -205,6 +205,7 @@ class Bridge:
         lvl = self._ctrl(chain, "level")
         mute = self._ctrl(chain, "mute")
         solo = self._ctrl(chain, "solo") if kind != "main" else None
+        gain = self._ctrl(chain, "gain")
 
         preset = None
         sp = self._sound_proc(chain)
@@ -234,6 +235,7 @@ class Bridge:
             "name": self._name(chain),
             "kind": kind,
             "level": round(float(lvl.value), 4) if lvl is not None else None,
+            "gain": int(round(float(gain.value))) if gain is not None else None,
             "mute": bool(mute.value) if mute is not None else None,
             "solo": bool(solo.value) if solo is not None else None,
             "meter": self._dpm(chain) if meters else None,
@@ -261,6 +263,8 @@ class Bridge:
             return self.extras.cancel_learn()
         if op == "foot_delete":
             return self.extras.delete_foot(int(value))
+        if op == "input_level":
+            return self.extras.set_input_level(str(value["sym"]), value["value"])
         chain = self._chain(chain_id)
         x = self.extras
         if op == "fx_param":
@@ -276,6 +280,8 @@ class Bridge:
             self.set_level(chain, float(value))
         elif op == "mute":
             self.set_toggle(chain, "mute", value)
+        elif op == "gain":
+            self.set_gain(chain, value)
         elif op == "solo":
             if chain.chain_id == 0:
                 return
@@ -299,6 +305,16 @@ class Bridge:
                 z.set_value(value)
         else:
             self.sm.zynmixer.set_level(chain.mixer_chan, value, True)
+
+    def set_gain(self, chain, value):
+        """Vorverstärkung des Kanals in dB (−40 … +40). Wert oder {"step": ±n}."""
+        z = self._ctrl(chain, "gain")
+        if z is None:
+            raise ValueError("Diese Zynthian-Version hat keinen Gain-Regler im Mischer")
+        if isinstance(value, dict):
+            value = float(z.value) + float(value.get("step", 0))
+        v = int(round(max(float(z.value_min), min(float(z.value_max), float(value)))))
+        z.set_value(v)
 
     def nudge_level(self, chain, steps):
         z = self._ctrl(chain, "level")

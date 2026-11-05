@@ -73,6 +73,20 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 1.5 – Gain & Eingangspegel (gegen Übersteuern)
+
+- **CLIP-Warnung:** Übersteuert ein Kanal, leuchtet am Handy ein rotes **CLIP**, am Gerät wird
+  der Kanalname rot (2,5 Sekunden lang).
+- **Gain pro Kanal** (−40 … +40 dB): Handy: **− / +** unter dem Namen, auf den Wert tippen = 0 dB.
+  Gerät: **− / +** in der zweiten Zeile (bei Audio-Kanälen) – oder den **Kanalnamen antippen**.
+- **Eingangspegel der Soundkarte:** Gerät: Kanalnamen antippen → Knopf 2 und 3.
+  Handy: ⚙ Extras → „Eingangspegel der Soundkarte“.
+
+**Was hilft gegen Übersteuern?** Zuerst den **Eingangspegel der Soundkarte** runter – der wirkt,
+bevor der Ton digital wird. Leuchtet CLIP trotzdem noch, den **Gain** im Mischer runter.
+Steht der Gain schon im Minus und CLIP leuchtet weiter, ist das Mikro-Signal für den Eingang
+zu stark (Mikro weiter weg, oder Vorverstärker/Pad am Mikro).
+
 ## Neu in Version 1.4 – Updates aus dem Internet
 
 ZynSimple liegt jetzt auf GitHub: **github.com/gansklebrig/zynsimple**.

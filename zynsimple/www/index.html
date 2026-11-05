@@ -99,6 +99,14 @@
   #imres-msg { color: var(--tx2); font-size: 14px; min-height: 1.2em; }
   #imres-msg code { background: var(--panel); padding: 2px 6px; border-radius: 6px; user-select: text; -webkit-user-select: text; }
   #fern { flex: 1; width: 100%; border: 1px solid var(--line); border-radius: var(--r); background: #120e18; }
+  .gain { display: flex; align-items: center; gap: 4px; background: var(--bg); border-radius: 10px; }
+  .gain button { flex: none; width: 34px; height: 34px; border: 0; background: none; color: var(--accent); font-size: 20px; font-weight: 700; border-radius: 10px; }
+  .gain button:active { background: var(--panel2); }
+  .gain span { flex: 1; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .gain span b { color: var(--tx2); font-weight: 600; font-size: 10px; letter-spacing: .6px; margin-right: 4px; }
+  .clip { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 5px; background: var(--mute); color: #fff;
+    font-size: 10px; font-weight: 800; letter-spacing: .5px; visibility: hidden; vertical-align: middle; }
+  .clip.on { visibility: visible; }
   .fx .row { display: flex; gap: 4px; flex: 1 1 100%; }
   .fx .row button:first-child { flex: 1; min-width: 0; }
   .fx .row button.gear { flex: 0 0 34px; padding: 0; text-align: center; font-size: 15px; color: var(--accent); }
@@ -168,6 +176,11 @@
     <div class="line ins" id="hp-ins"></div>
     <div class="line"><input type="text" id="hp-title" value="Handpan" maxlength="24" style="width:150px"><button class="btn" id="hp-go">Anlegen</button></div>
     <p id="hp-plugins"></p>
+  </div>
+  <div class="card">
+    <h2>🎚 Eingangspegel der Soundkarte</h2>
+    <p>Gegen Übersteuern zuerst hier runterdrehen – das wirkt, <b>bevor</b> der Ton digital wird. Der Gain-Regler im Mischer kommt erst danach: Steht „CLIP“ dort trotz Gain im Minus, ist der Eingang hier zu laut.</p>
+    <div id="hw-list"></div>
   </div>
   <div class="card">
     <h2>🦶 Fußschalter</h2>
@@ -253,7 +266,16 @@
       const r = {};
       const root = r.root = el('div', 'strip' + (s.kind === 'main' ? ' main' : ''), $strips);
       r.name = el('div', 'name', root, s.name);
-      el('div', 'kind', root, KIND[s.kind] || '');
+      const kd = el('div', 'kind', root, KIND[s.kind] || '');
+      r.clip = el('span', 'clip', kd, 'CLIP');
+      r.clipT = 0;
+      if (s.gain != null) {
+        const g = el('div', 'gain', root);
+        const gm = el('button', '', g, '−'); r.gval = el('span', '', g, ''); const gp = el('button', '', g, '+');
+        const step = (n) => { r.gainHold = Date.now(); r.gainLocal = Math.max(-40, Math.min(40, (r.gainLocal ?? s.gain) + n)); showGain(r, r.gainLocal); act(s.id, 'gain', { step: n }); };
+        gm.onclick = () => step(-1); gp.onclick = () => step(1);
+        r.gval.onclick = () => { r.gainHold = Date.now(); r.gainLocal = 0; showGain(r, 0); act(s.id, 'gain', 0); };
+      }
 
       const pr = r.preset = el('div', 'preset' + (s.preset ? '' : ' none'), root);
       const prev = el('button', '', pr, '‹');
@@ -298,6 +320,8 @@
       els[s.id] = r;
     }
   }
+
+  function showGain(r, g) { if (r.gval) r.gval.innerHTML = '<b>GAIN</b>' + (g > 0 ? '+' : '') + g + ' dB'; }
 
   function setFader(r, level) {
     const p = Math.max(0, Math.min(1, level)) * 100;
@@ -351,6 +375,9 @@
       r.root.classList.toggle('muted', !!s.mute);
       if (s.preset) r.pname.textContent = s.preset.name;
       if (s.level != null && !dragging[s.id] && pending[s.id] == null) setFader(r, s.level);
+      if (s.gain != null && r.gval && !(r.gainHold && Date.now() - r.gainHold < 800)) { r.gainLocal = s.gain; showGain(r, s.gain); }
+      if (s.meter && Math.max(s.meter[2], s.meter[3]) >= -0.5) r.clipT = Date.now();
+      r.clip.classList.toggle('on', Date.now() - r.clipT < 2500);
       r.m.classList.toggle('on', !!s.mute);
       r.s.classList.toggle('on', !!s.solo);
       if (r.fz) r.fz.classList.toggle('on', !!s.freeze);
@@ -560,7 +587,27 @@
   document.getElementById('ft-action').onchange = fillFx;
   document.getElementById('ft-chain').onchange = fillFx;
   async function extrasRefresh() { const d = await api('/api/extras').catch(() => null); if (d) extrasShow(d); }
+  let hwDrag = null;
+  function hwShow(list) {
+    const box = document.getElementById('hw-list');
+    if (!list || !list.length) { box.innerHTML = '<p>Keine Eingangsregler an der Soundkarte gefunden.</p>'; return; }
+    if (box.dataset.sig !== list.map(x => x.sym).join()) {
+      box.dataset.sig = list.map(x => x.sym).join(); box.innerHTML = '';
+      for (const p of list) {
+        const row = el('div', 'prm', box); el('label', '', row, p.name); const out = el('output', '', row, p.text);
+        const inp = el('input', '', row); inp.type = 'range'; inp.min = p.min; inp.max = p.max; inp.step = 1; inp.value = p.value; inp.dataset.hw = p.sym;
+        let t = null;
+        inp.oninput = () => { hwDrag = p.sym; out.textContent = inp.value; clearTimeout(t); t = setTimeout(() => act(null, 'input_level', { sym: p.sym, value: +inp.value }), 60); };
+        inp.onchange = () => setTimeout(() => { hwDrag = null; }, 1500);
+      }
+    }
+    for (const p of list) {
+      const inp = box.querySelector('[data-hw="' + p.sym + '"]');
+      if (inp && hwDrag !== p.sym) { inp.value = p.value; inp.parentNode.querySelector('output').textContent = p.text; }
+    }
+  }
   function extrasShow(d) {
+    hwShow(d.inputs_hw);
     const ACT = { freeze: '❄ Freeze', fx: 'Effekt', mute: 'Stumm' };
     const list = document.getElementById('foot-list'); list.innerHTML = '';
     d.foot.mappings.forEach((m, i) => {
@@ -645,7 +692,7 @@
       fails = 0;
       $dot.classList.add('ok');
       $info.textContent = d.strips.length + ' Kanäle' + (d.app_version ? ' · v' + d.app_version : '');
-      const sig = JSON.stringify(d.strips.map(s => [s.id, s.name, s.kind, !!s.preset, s.solo == null, s.freeze == null, s.fx.map(f => f.name)]));
+      const sig = JSON.stringify(d.strips.map(s => [s.id, s.name, s.kind, !!s.preset, s.solo == null, s.freeze == null, s.gain == null, s.fx.map(f => f.name)]));
       lastStrips = d.strips;
       if (sig !== signature) { signature = sig; build(d.strips); if (tab === 'extras') fillChains(); }
       $empty.style.display = (d.strips.length || tab !== 'mix') ? 'none' : 'block';

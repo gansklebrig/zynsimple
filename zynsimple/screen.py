@@ -203,7 +203,9 @@ class zynsimple_screen(zynthian_gui_base):
         max_chars = max(4, int(w / (self.f_big[1] * 0.9)))
         if len(name) > max_chars:
             name = name[:max_chars - 1] + "…"
-        cv.create_text(x + w / 2, cy + self.f_big[1], text=name, font=self.f_big, fill=self.col_tx)
+        it["name"] = cv.create_text(x + w / 2, cy + self.f_big[1], text=name, font=self.f_big, fill=self.col_tx)
+        if s["kind"] != "main":
+            self.hits.append((x, y, x + w, cy + self.f_big[1] * 2, "chanedit", cid, None))
         cy += self.f_big[1] * 2 + 4
 
         # Preset-Zeile
@@ -219,6 +221,14 @@ class zynsimple_screen(zynthian_gui_base):
             if len(pn) > mc:
                 pn = pn[:mc - 1] + "…"
             cv.create_text(x + w / 2, cy + row_h / 2, text=pn, font=self.f_small, fill=self.col_tx)
+        elif s.get("gain") is not None:
+            aw = max(28, int(w * 0.22))
+            self._button(cx0, cy, aw, row_h, "−", True, "gain", cid, -1, fill="#000000", fg=self.col_sel, font=self.f_big)
+            self._button(cx1 - aw, cy, aw, row_h, "+", True, "gain", cid, 1, fill="#000000", fg=self.col_sel, font=self.f_big)
+            g = s["gain"]
+            cv.create_text(x + w / 2, cy + row_h / 2, text=f"Gain {'+' if g > 0 else ''}{g} dB", font=self.f_small,
+                           fill=self.col_tx)
+            self.hits.append((cx0 + aw, cy, cx1 - aw, cy + row_h, "gain0", cid, None))
         else:
             kind = {"audio": "Audio-Eingang", "main": "Hauptausgang", "bus": "Bus"}.get(s["kind"], "")
             cv.create_text(x + w / 2, cy + row_h / 2, text=kind, font=self.f_small, fill=self.col_tx2)
@@ -289,6 +299,10 @@ class zynsimple_screen(zynthian_gui_base):
         self.items[cid] = it
 
     def update_dynamic(self):
+        import time as _t
+        now = _t.monotonic()
+        if not hasattr(self, "clip_t"):
+            self.clip_t = {}
         cv = self.canvas
         for s in self.strips:
             it = self.items.get(s["id"])
@@ -305,6 +319,10 @@ class zynsimple_screen(zynthian_gui_base):
             db = "−∞" if lvl <= 0.0001 else f"{20 * math.log10(lvl):.1f}"
             cv.itemconfig(it["val"], text=f"{db} dB")
             m = s.get("meter") or [FLOOR] * 4
+            if max(m[2], m[3]) >= -0.5:
+                self.clip_t[s["id"]] = now
+            if "name" in it:
+                cv.itemconfig(it["name"], fill=self.col_mute if now - self.clip_t.get(s["id"], -99) < 2.5 else self.col_tx)
             for k, key in enumerate(("meterA", "meterB")):
                 a, b, c, d = it[key]
                 frac = max(0.0, min(1.0, (m[k] - FLOOR) / -FLOOR))
@@ -362,6 +380,12 @@ class zynsimple_screen(zynthian_gui_base):
                 return
             elif art == "freeze":
                 self.bridge.action(cid, "freeze")
+            elif art == "gain":
+                self.bridge.action(cid, "gain", {"step": extra})
+            elif art == "gain0":
+                self.bridge.action(cid, "gain", 0)
+            elif art == "chanedit":
+                self.open_editor(cid, "chan")
             elif art == "page":
                 self.selected = max(0, min(len(self.strips) - 1,
                                            (self.page + extra) * self.per_page))
@@ -431,6 +455,13 @@ class zynsimple_screen(zynthian_gui_base):
     def _editor_params(self):
         x = self.bridge.extras
         chain = self.bridge._chain(self.fxedit["chain"])
+        if self.fxedit["fx"] == "chan":
+            flat = []
+            g = self.bridge._ctrl(chain, "gain")
+            if g is not None:
+                flat.append(g)
+            flat += list(x._input_ctrls().values())
+            return x, chain, None, flat
         proc = x.find_fx(chain, self.fxedit["fx"])
         flat = [z for _, items in x.params(proc) for z in items]
         return x, chain, proc, flat
@@ -450,14 +481,17 @@ class zynsimple_screen(zynthian_gui_base):
         self.edit_shown = shown
         top = 8
         cv.create_text(16, top + self.f_big[1], anchor="w", font=self.f_big, fill=self.col_tx,
-                       text=f"{self.bridge._name(chain)} · {proc.get_name()}")
+                       text=f"{self.bridge._name(chain)} · " + (proc.get_name() if proc else "Gain & Eingang"))
         bar_h = max(36, H // 10)
         area_y0, area_y1 = top + self.f_big[1] * 2 + 10, H - bar_h - 8
         row = (area_y1 - area_y0) / 4
         for k, z in enumerate(shown):
             y = area_y0 + k * row
+            lbl = getattr(z, "short_name", None) or getattr(z, "name", z.symbol)
+            if proc is None:
+                lbl = "Gain (Mischer)" if z.symbol == "gain" else f"Eingang Soundkarte: {getattr(z, 'name', z.symbol)}"
             cv.create_text(16, y + row * 0.28, anchor="w", font=self.f_mid, fill=self.col_tx,
-                           text=f"Knopf {k + 1}:  {getattr(z, 'short_name', z.symbol)}")
+                           text=f"Knopf {k + 1}:  {lbl}")
             try:
                 txt = str(z.get_value2label())
             except Exception:
@@ -473,7 +507,7 @@ class zynsimple_screen(zynthian_gui_base):
             self.edit_hits.append((bx0, by0 - 8, bx1, by1 + 8, "param", k, (bx0, bx1)))
         if not shown:
             cv.create_text(W / 2, (area_y0 + area_y1) / 2, font=self.f_mid, fill=self.col_tx2,
-                           text="Dieser Effekt hat keine Regler.")
+                           text="Keine Regler vorhanden.")
         # Untere Leiste
         y0 = H - bar_h
         bw = max(90, W // 6)
@@ -487,7 +521,7 @@ class zynsimple_screen(zynthian_gui_base):
         btn(8 + bw, "Seite ▶", "epage", 1, pg < pages - 1)
         cv.create_text(16 + 2 * bw, (y0 + H) / 2, anchor="w", font=self.f_small, fill=self.col_tx2,
                        text=f"{pg + 1}/{pages}")
-        if x.fx_kind(proc) == "delay" and x._sync_target(proc):
+        if proc is not None and x.fx_kind(proc) == "delay" and x._sync_target(proc):
             cur = x.state["sync"].get(str(proc.id))
             btn(W - 2 * bw - 10, f"♩ {cur}" if cur else "♩ aus", "esync", None, True,
                 fill=self.col_sel if cur else None, fg="#000000" if cur else None)

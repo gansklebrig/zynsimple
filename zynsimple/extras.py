@@ -196,7 +196,7 @@ class Extras:
             self.set_sync(chain, index, None)
 
     def nudge_param(self, proc, z, steps):
-        tgt = self._sync_target(proc) if self.state["sync"].get(str(proc.id)) else None
+        tgt = self._sync_target(proc) if proc is not None and self.state["sync"].get(str(proc.id)) else None
         if tgt and z is tgt[0]:
             with self.lock:
                 self.state["sync"].pop(str(proc.id), None)
@@ -210,6 +210,42 @@ class Extras:
                 z.set_value(max(float(z.value_min), min(float(z.value_max), v)))
         except Exception as e:
             log.debug(f"nudge: {e}")
+
+    # ------------------------------------------------------------------
+    # Eingangspegel der Soundkarte (vor allem anderen – gegen Übersteuern)
+    # ------------------------------------------------------------------
+
+    def _input_ctrls(self):
+        if getattr(self, "_inp", None) is not None:
+            return self._inp
+        self._inp = {}
+        try:
+            from zyngine.zynthian_controller import zynthian_controller
+            proc = self.b.sm.alsa_mixer_processor
+            eng = proc.engine
+            cfgs = eng.get_mixer_zctrls(eng.device_name, None)
+            for sym, cfg in cfgs.items():
+                gp = cfg.get("graph_path")
+                if isinstance(gp, list) and len(gp) > 3 and gp[3] == "capture_level" and not cfg.get("is_toggle"):
+                    self._inp[sym] = zynthian_controller(eng, sym, cfg)
+        except Exception as e:
+            log.info(f"ZynSimple: Eingangspegel nicht lesbar ({e})")
+        return self._inp
+
+    def input_levels(self):
+        out = []
+        for sym, z in self._input_ctrls().items():
+            d = self.zctrl_info(z)
+            out.append(d)
+        return out
+
+    def set_input_level(self, sym, value):
+        z = self._input_ctrls().get(sym)
+        if z is None:
+            raise KeyError("Eingangsregler nicht gefunden")
+        if isinstance(value, dict):
+            value = float(z.value) + float(value.get("step", 0))
+        z.set_value(int(round(max(float(z.value_min), min(float(z.value_max), float(value))))))
 
     # ------------------------------------------------------------------
     # Delay im Takt
