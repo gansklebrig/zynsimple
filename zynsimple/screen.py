@@ -36,6 +36,7 @@ class zynsimple_screen(zynthian_gui_base):
         self.drag = None           # (chain_id, y_top, y_bottom)
         self.timer = None
         self.fxedit = None         # {"chain": id, "fx": i, "page": n} – Effekt-Regler offen
+        self.browser = None        # {"chain": id, "page": n, "items": [...]} – Effekt-Auswahl offen
         self.fx_press = None       # (chain_id, fx, after-id) für langes Drücken
         self.edit_hits = []
         self.edit_tick = 0
@@ -99,6 +100,9 @@ class zynsimple_screen(zynthian_gui_base):
         if not self.shown:
             return
         try:
+            if self.browser:
+                self.timer = self.canvas.after(150, self.tick)
+                return
             if self.fxedit:
                 self.edit_tick += 1
                 if self.edit_tick % 6 == 1:
@@ -244,7 +248,8 @@ class zynsimple_screen(zynthian_gui_base):
             fx_h = max(22, int(h * 0.062))
         bottom = y + h - pad
         ms_y = bottom - ms_h
-        fx_y = ms_y - 6 - len(fx_list) * (fx_h + 4)
+        add_btn = s["kind"] != "main" and len(s["fx"]) < max_fx
+        fx_y = ms_y - 6 - (len(fx_list) + (1 if add_btn else 0)) * (fx_h + 4)
 
         # Fader + Meter
         fy0, fy1 = cy, fx_y - 6
@@ -278,6 +283,9 @@ class zynsimple_screen(zynthian_gui_base):
                          fill=self.col_fx if on else "#000000", fg="#000000" if on else self.col_tx,
                          font=self.f_small)
             fy += fx_h + 4
+        if add_btn:
+            self._button(cx0, fy, cx1 - cx0, fx_h, "＋ Effekt", True, "browse", cid, None,
+                         fill="#000000", fg=self.col_sel, font=self.f_small)
 
         # Mute / Solo
         if s.get("freeze") is not None:
@@ -355,6 +363,8 @@ class zynsimple_screen(zynthian_gui_base):
         return None
 
     def on_press(self, ev):
+        if self.browser:
+            return self.browser_press(ev)
         if self.fxedit:
             return self.editor_press(ev)
         h = self._hit(ev.x, ev.y)
@@ -386,6 +396,8 @@ class zynsimple_screen(zynthian_gui_base):
                 self.bridge.action(cid, "gain", 0)
             elif art == "chanedit":
                 self.open_editor(cid, "chan")
+            elif art == "browse":
+                self.open_browser(cid)
             elif art == "page":
                 self.selected = max(0, min(len(self.strips) - 1,
                                            (self.page + extra) * self.per_page))
@@ -436,6 +448,120 @@ class zynsimple_screen(zynthian_gui_base):
             except Exception as e:
                 log.warning(f"ZynSimple: {e}")
             self.sig = None
+
+    # ------------------------------------------------------------------
+    # Effekt-Auswahl auf dem Touchscreen (9 Kacheln pro Seite)
+    # ------------------------------------------------------------------
+
+    def open_browser(self, cid):
+        x = self.bridge.extras
+        items = [dict(t) for t in x.fx_tiles()]
+        known = {t["eng"] for t in items}
+        for c in x.all_fx():
+            for it in c["items"]:
+                if it["eng"] not in known:
+                    items.append({"group": c["cat"], "label": it["name"], "icon": "", "eng": it["eng"]})
+        self.browser = {"chain": cid, "page": 0, "items": items, "busy": None}
+        self.draw_browser()
+
+    def close_browser(self):
+        self.browser = None
+        self.sig = None
+
+    def draw_browser(self):
+        cv = self.canvas
+        b = self.browser
+        cv.delete("all")
+        self.browse_hits = []
+        W, H = self._geom()
+        bar_h = max(36, H // 10)
+        per = 9
+        pages = max(1, math.ceil(len(b["items"]) / per))
+        b["page"] = max(0, min(b["page"], pages - 1))
+        shown = b["items"][b["page"] * per:b["page"] * per + per]
+        try:
+            name = self.bridge._name(self.bridge._chain(b["chain"]))
+        except Exception:
+            name = ""
+        group = shown[0]["group"] if shown else ""
+        cv.create_text(16, 8 + self.f_big[1], anchor="w", font=self.f_big, fill=self.col_tx,
+                       text=f"＋ Effekt · {name}")
+        cv.create_text(W - 16, 8 + self.f_big[1], anchor="e", font=self.f_small, fill=self.col_tx2, text=group)
+        y0 = 8 + self.f_big[1] * 2 + 8
+        gh = (H - bar_h - 8 - y0) / 3
+        gw = (W - 16) / 3
+        for k, t in enumerate(shown):
+            cx, cy = 8 + (k % 3) * gw, y0 + (k // 3) * gh
+            busy = b["busy"] == t["eng"]
+            cv.create_rectangle(cx + 3, cy + 3, cx + gw - 3, cy + gh - 3, outline=self.col_sel if busy else "#2b313a",
+                                width=2 if busy else 1, fill="#2a2116" if busy else "#15181c")
+            label = t["label"] if len(t["label"]) <= 22 else t["label"][:21] + "…"
+            # (keine Emojis: die Schriften des Zynthian zeigen sie oft nicht an)
+            cv.create_text(cx + gw / 2, cy + gh * 0.3, text=t["group"].upper(), font=self.f_small, fill=self.col_sel)
+            cv.create_text(cx + gw / 2, cy + gh * 0.62, text=label, font=self.f_mid if t["icon"] else self.f_small,
+                           fill=self.col_tx, width=gw - 16, justify="center")
+            self.browse_hits.append((cx, cy, cx + gw, cy + gh, "pick", t["eng"]))
+        yb = H - bar_h
+        bw = max(90, W // 6)
+        def btn(xx, label, art, val=None, on=True):
+            cv.create_rectangle(xx, yb + 4, xx + bw, H - 4, fill=self.col_panel, outline="")
+            cv.create_text(xx + bw / 2, (yb + H) / 2, text=label, font=self.f_mid, fill=self.col_tx if on else self.col_tx2)
+            if on:
+                self.browse_hits.append((xx, yb + 4, xx + bw, H - 4, art, val))
+        btn(4, "◀", "bpage", -1, b["page"] > 0)
+        btn(8 + bw, "▶", "bpage", 1, b["page"] < pages - 1)
+        cv.create_text(16 + 2 * bw, (yb + H) / 2, anchor="w", font=self.f_small, fill=self.col_tx2,
+                       text=f"Seite {b['page'] + 1}/{pages}" + ("  · lädt …" if b["busy"] else ""))
+        btn(W - bw - 4, "Zurück", "bclose")
+
+    def browser_press(self, ev):
+        b = self.browser
+        if b["busy"]:
+            return
+        for h in self.browse_hits:
+            if h[0] <= ev.x <= h[2] and h[1] <= ev.y <= h[3]:
+                art, val = h[4], h[5]
+                if art == "bpage":
+                    b["page"] += val
+                    self.draw_browser()
+                elif art == "bclose":
+                    self.close_browser()
+                elif art == "pick":
+                    self.pick_fx(val)
+                return
+
+    def pick_fx(self, eng):
+        import threading
+        b = self.browser
+        b["busy"] = eng
+        self.draw_browser()
+        cid = b["chain"]
+        result = {}
+
+        def run():
+            try:
+                chain = self.bridge._chain(cid)
+                result["fx"] = self.bridge.extras.try_fx(chain, eng)
+            except Exception as e:
+                result["error"] = str(e)
+
+        def wait(t):
+            if t.is_alive():
+                self.canvas.after(200, lambda: wait(t))
+                return
+            self.browser = None
+            if "fx" in result:
+                self.open_editor(cid, result["fx"])
+            else:
+                self.sig = None
+                try:
+                    self.set_title(f"Effekt: {result.get('error')}")
+                except Exception:
+                    pass
+
+        t = threading.Thread(target=run, daemon=True)
+        t.start()
+        self.canvas.after(200, lambda: wait(t))
 
     # ------------------------------------------------------------------
     # Effekt-Regler auf dem Touchscreen
@@ -525,6 +651,11 @@ class zynsimple_screen(zynthian_gui_base):
             cur = x.state["sync"].get(str(proc.id))
             btn(W - 2 * bw - 10, f"♩ {cur}" if cur else "♩ aus", "esync", None, True,
                 fill=self.col_sel if cur else None, fg="#000000" if cur else None)
+        if proc is None:
+            btn(W - 2 * bw - 10, "＋ Effekte", "ebrowse", None, True, fill=self.col_sel, fg="#000000")
+        elif x.is_trial(chain, self.fxedit["fx"]):
+            btn(W - 3 * bw - 16, "↺ Andere", "ebrowse")
+            btn(W - 2 * bw - 10, "✓ Behalten", "ekeep", None, True, fill=self.col_fx, fg="#000000")
         btn(W - bw - 4, "Fertig", "eclose")
 
     def editor_press(self, ev):
@@ -541,6 +672,14 @@ class zynsimple_screen(zynthian_gui_base):
                     self.cycle_sync()
                 elif art == "eclose":
                     self.close_editor()
+                elif art == "ebrowse":
+                    cid = self.fxedit["chain"]
+                    self.fxedit = None
+                    self.open_browser(cid)
+                elif art == "ekeep":
+                    x, chain, _, _ = self._editor_params()
+                    x.keep_fx(chain)
+                    self.draw_editor()
                 return
 
     def editor_motion(self, ev):
@@ -590,6 +729,11 @@ class zynsimple_screen(zynthian_gui_base):
             role = list(cfg.layout["ctrl_order"]).index(i)
         except Exception:
             role = i
+        if self.browser:
+            if not self.browser["busy"]:
+                self.browser["page"] += 1 if dval > 0 else -1
+                self.draw_browser()
+            return True
         if self.fxedit:
             try:
                 x, chain, proc, _ = self._editor_params()
@@ -663,6 +807,9 @@ class zynsimple_screen(zynthian_gui_base):
             self.bridge.nudge_level(self.bridge._chain(s["id"]), -2)
 
     def back_action(self):
+        if self.browser:
+            self.close_browser()
+            return True
         if self.fxedit:
             self.close_editor()
         return True  # Auf dem Startbildschirm tut ZURÜCK nichts

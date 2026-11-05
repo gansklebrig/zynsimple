@@ -73,6 +73,23 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 1.6 – Effekte durchprobieren & neues Design
+
+**＋ Effekt – viele Effekte durchschalten**
+- Handy: in jedem Kanal **„＋ Effekt“** tippen. Gerät: **„＋ Effekt“** im Kanal (wenn Platz ist)
+  oder Kanalnamen antippen → **„＋ Effekte“**.
+- Es erscheinen Kacheln nach Gruppen: Hall, Echo, Textur, Bewegung, Farbe, Dynamik
+  (am Gerät 9 pro Seite, blättern mit ◀ ▶ oder Drehknopf). Dahinter: **alle** Effekte des Zynthian.
+- **Antippen setzt den Effekt sofort in den Kanal** und öffnet direkt seine Regler.
+- Wählst du danach einen anderen, **ersetzt** er den letzten Versuch – so schaltest du
+  schnell durch, ohne dass sich Effekte stapeln. **✓ Behalten** macht ihn fest; der
+  nächste kommt dann dazu. **🗑 Entfernen** (Handy) nimmt ihn wieder raus.
+
+**🎨 Design der ganzen Zynthian-Oberfläche**
+- Handy → ⚙ Extras → „Design der Zynthian-Oberfläche“ → **Design übernehmen**.
+  Färbt alle Zynthian-Menüs warm im Stil des einfachen Mischers – ohne Blau.
+  Optional andere Schrift. **Altes Design zurück** stellt alles wieder her.
+
 ## Neu in Version 1.5 – Gain & Eingangspegel (gegen Übersteuern)
 
 - **CLIP-Warnung:** Übersteuert ein Kanal, leuchtet am Handy ein rotes **CLIP**, am Gerät wird

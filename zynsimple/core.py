@@ -112,7 +112,8 @@ class Bridge:
 
     def _fx_procs(self, chain):
         try:
-            return list(chain.get_processors("Audio Effect"))
+            return [p for p in chain.get_processors("Audio Effect")
+                    if getattr(p, "eng_code", None) not in ("MI", "MR")]
         except Exception:
             return []
 
@@ -273,6 +274,13 @@ class Bridge:
             return x.set_sync(chain, int(value["fx"]), value.get("div"))
         if op == "freeze":
             return x.set_freeze(chain, None if value is None else bool(value))
+        if op == "fx_try":
+            v = value if isinstance(value, dict) else {"eng": value}
+            return {"fx": x.try_fx(chain, str(v["eng"]), bool(v.get("keep")))}
+        if op == "fx_keep":
+            return x.keep_fx(chain)
+        if op == "fx_remove":
+            return x.remove_fx(chain, int(value))
         if op == "learn":
             v = value if isinstance(value, dict) else {}
             return x.start_learn(v.get("action", "freeze"), chain.chain_id, v.get("fx"), v.get("mode", "toggle"))

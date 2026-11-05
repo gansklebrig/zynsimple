@@ -73,6 +73,12 @@ def make_handler(bridge, pin):
                     from . import VERSION
                     st["current"] = VERSION
                 self._send(200, st)
+            elif path == "/api/theme":
+                from . import theme
+                self._send(200, theme.status())
+            elif path == "/api/fx_list":
+                x = bridge.extras
+                self._send(200, {"tiles": x.fx_tiles(), "all": x.all_fx()})
             elif path in ("/api/fx", "/api/extras"):
                 if not self._authorized():
                     return self._send(401, {"error": "pin"})
@@ -108,6 +114,18 @@ def make_handler(bridge, pin):
                     req = json.loads(self.rfile.read(n) or b"{}")
                     imres.system(str(req.get("aktion", "")))
                     self._send(200, {"ok": True})
+                except Exception as e:
+                    self._send(400, {"error": str(e)})
+                return
+            if self.path.split("?", 1)[0] == "/api/theme":
+                if not self._authorized():
+                    return self._send(401, {"error": "pin"})
+                try:
+                    from . import theme
+                    n = min(int(self.headers.get("Content-Length", 0)), 1024)
+                    req = json.loads(self.rfile.read(n) or b"{}")
+                    msg = theme.revert() if req.get("action") == "revert" else theme.apply(req.get("font"))
+                    self._send(200, {"ok": True, "message": msg})
                 except Exception as e:
                     self._send(400, {"error": str(e)})
                 return

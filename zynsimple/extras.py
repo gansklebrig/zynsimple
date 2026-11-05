@@ -32,6 +32,41 @@ HANDPAN_CHAIN = [
     ("reverb", ["JV/Dragonfly Hall Reverb", "JV/Dragonfly Plate Reverb", "JV/Calf Reverb", "JV/GVerb"]),
 ]
 
+# Effekt-Auswahl: (Gruppe, Name, Symbol, [Plugins in Wunschreihenfolge])
+FX_TILES = [
+    ("Hall", "Großer Hall", "🏛", ["JV/Dragonfly Hall Reverb"]),
+    ("Hall", "Platte", "✨", ["JV/Dragonfly Plate Reverb"]),
+    ("Hall", "Raum", "🚪", ["JV/Dragonfly Room Reverb"]),
+    ("Hall", "Wolken-Hall", "☁", ["JV/Aether", "JV/CloudReverb"]),
+    ("Hall", "Shimmer", "🌟", ["JV/Shiroverb", "JV/Gxshimmizita"]),
+    ("Hall", "Weicher Hall", "🌫", ["JV/MVerb", "JV/DuskVerb", "JV/GxReverb-Stereo"]),
+    ("Echo", "Delay", "🔁", ["JV/Bollie Delay"]),
+    ("Echo", "Echo", "〰", ["JV/GxEcho-Stereo"]),
+    ("Echo", "Röhren-Echo", "📼", ["JV/GxTubeDelay", "JV/Calf Vintage Delay"]),
+    ("Echo", "Digital-Delay", "⏱", ["JV/Gxdigital_delay_st"]),
+    ("Echo", "Rückwärts", "⏪", ["JV/Calf Reverse Delay"]),
+    ("Echo", "Pingpong", "↔", ["JV/Ping Pong Pan"]),
+    ("Textur", "Granular", "🌾", ["JV/Granulator"]),
+    ("Textur", "Glitzer-Körner", "💫", ["JV/Argotlunar2"]),
+    ("Textur", "Harmonizer", "🎶", ["JV/Harmonizer", "JV/Harmonizer2"]),
+    ("Textur", "Tonhöhe", "🎚", ["JV/MDA RePsycho!", "JV/Super Capo", "JV/Capo"]),
+    ("Bewegung", "Chorus", "🌊", ["JV/Calf Multi Chorus", "JV/GxChorus-Stereo"]),
+    ("Bewegung", "Flanger", "🌀", ["JV/Calf Flanger"]),
+    ("Bewegung", "Phaser", "🌗", ["JV/Calf Phaser"]),
+    ("Bewegung", "Tremolo", "💓", ["JV/Calf Pulsator"]),
+    ("Bewegung", "Auto-Pan", "🎧", ["JV/TAP AutoPanner"]),
+    ("Bewegung", "Rotor", "🎡", ["JV/Calf Rotary Speaker"]),
+    ("Farbe", "Filter", "🎛", ["JV/Calf Filter"]),
+    ("Farbe", "Wah / Hüllkurve", "👄", ["JV/Calf Envelope Filter"]),
+    ("Farbe", "Sättigung", "🔥", ["JV/Calf Saturator"]),
+    ("Farbe", "Tonband", "🎞", ["JV/CHOWTapeModel", "JV/Calf Tape Simulator"]),
+    ("Farbe", "Vinyl", "💿", ["JV/Calf Vinyl"]),
+    ("Farbe", "Bitcrusher", "👾", ["JV/Calf Crusher"]),
+    ("Farbe", "Ringmodulator", "🔔", ["JV/Calf Ring Modulator"]),
+    ("Farbe", "Stereo-Breite", "↹", ["JV/Calf Multi Spread"]),
+    ("Dynamik", "Kompressor", "🗜", ["JV/Calf Compressor", "JV/Calf Mono Compressor"]),
+]
+
 RE_FREEZE = re.compile(r"freez|infinit|\bhold\b", re.I)
 RE_DECAY = re.compile(r"decay|size|rt60|reverb.?time|length", re.I)
 RE_FEEDBACK = re.compile(r"feed.?back|\bfb\b|repeat|regen", re.I)
@@ -176,6 +211,7 @@ class Extras:
             out["pages"].append({"title": title, "params": [self.zctrl_info(z) for z in items]})
         out["syncable"] = out["kind"] == "delay" and self._sync_target(proc) is not None
         out["tempo"] = self.tempo()
+        out["trial"] = self.is_trial(chain, index)
         return out
 
     def set_param(self, chain, index, sym, value):
@@ -210,6 +246,113 @@ class Extras:
                 z.set_value(max(float(z.value_min), min(float(z.value_max), v)))
         except Exception as e:
             log.debug(f"nudge: {e}")
+
+    # ------------------------------------------------------------------
+    # Effekt-Auswahl („Probier-Platz“: neuer Effekt ersetzt den letzten Versuch)
+    # ------------------------------------------------------------------
+
+    def fx_tiles(self):
+        info = getattr(self.b.cm, "engine_info", None) or {}
+        out = []
+        for group, label, icon, engs in FX_TILES:
+            eng = next((e for e in engs if e in info), None)
+            if eng:
+                out.append({"group": group, "label": label, "icon": icon, "eng": eng})
+        return out
+
+    def all_fx(self):
+        info = getattr(self.b.cm, "engine_info", None) or {}
+        cats = {}
+        for k, v in info.items():
+            if v.get("TYPE") != "Audio Effect" or k in ("MI", "MR") or not str(k).startswith("JV/"):
+                continue
+            cats.setdefault(str(v.get("CAT") or "Andere"), []).append(
+                {"eng": k, "name": str(v.get("TITLE") or v.get("NAME") or k[3:]), "on": bool(v.get("ENABLED"))})
+        return [{"cat": c, "items": sorted(items, key=lambda x: (not x["on"], x["name"].lower()))}
+                for c, items in sorted(cats.items())]
+
+    def _trial(self, chain):
+        if not hasattr(self, "trials"):
+            self.trials = {}
+        pid = self.trials.get(chain.chain_id)
+        for p in self.b._fx_procs(chain):
+            if p.id == pid:
+                return p
+        return None
+
+    def try_fx(self, chain, eng, keep=False):
+        """Setzt einen Effekt in den Kanal. Gibt den Index des neuen Effekts zurück."""
+        import zynautoconnect
+        cm, sm = self.b.cm, self.b.sm
+        info = getattr(cm, "engine_info", None) or {}
+        if eng not in info:
+            raise ValueError("Diesen Effekt gibt es auf diesem Zynthian nicht")
+        if not hasattr(self, "trials"):
+            self.trials = {}
+        old = None if keep else self._trial(chain)
+        try:
+            sm.start_busy("zynsimple_fx", "Effekt wird geladen")
+        except Exception:
+            pass
+        try:
+            if old is not None:
+                new = cm.add_processor(chain.chain_id, eng, chain.get_slot(old))
+                if new:
+                    cm.remove_processor(chain.chain_id, old)
+            else:
+                slot = None
+                for i, sl in enumerate(getattr(chain, "audio_slots", []) or []):
+                    if sl and getattr(sl[0], "eng_code", None) in ("MI", "MR"):
+                        slot = i
+                        break
+                new = cm.add_processor(chain.chain_id, eng, slot)
+            if not new:
+                raise RuntimeError("Effekt konnte nicht geladen werden")
+            try:
+                chain.rebuild_graph()
+            except Exception:
+                pass
+            try:
+                zynautoconnect.autoconnect()
+            except Exception:
+                zynautoconnect.request_audio_connect(True)
+            if keep:
+                self.trials.pop(chain.chain_id, None)
+            else:
+                self.trials[chain.chain_id] = new.id
+        finally:
+            try:
+                sm.end_busy("zynsimple_fx")
+            except Exception:
+                pass
+        procs = self.b._fx_procs(chain)
+        return procs.index(new) if new in procs else len(procs) - 1
+
+    def keep_fx(self, chain):
+        if hasattr(self, "trials"):
+            self.trials.pop(chain.chain_id, None)
+        self.autosave(force=True)
+
+    def remove_fx(self, chain, index):
+        import zynautoconnect
+        proc = self.find_fx(chain, index)
+        self.b.cm.remove_processor(chain.chain_id, proc)
+        try:
+            chain.rebuild_graph()
+        except Exception:
+            pass
+        zynautoconnect.request_audio_connect(True)
+        if hasattr(self, "trials") and self.trials.get(chain.chain_id) == proc.id:
+            self.trials.pop(chain.chain_id, None)
+        self.state["sync"].pop(str(proc.id), None)
+        self._save()
+
+    def is_trial(self, chain, index):
+        p = self._trial(chain)
+        try:
+            return p is not None and self.find_fx(chain, index) is p
+        except Exception:
+            return False
 
     # ------------------------------------------------------------------
     # Eingangspegel der Soundkarte (vor allem anderen – gegen Übersteuern)

@@ -102,11 +102,24 @@
   .gain { display: flex; align-items: center; gap: 4px; background: var(--bg); border-radius: 10px; }
   .gain button { flex: none; width: 34px; height: 34px; border: 0; background: none; color: var(--accent); font-size: 20px; font-weight: 700; border-radius: 10px; }
   .gain button:active { background: var(--panel2); }
-  .gain span { flex: 1; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; }
-  .gain span b { color: var(--tx2); font-weight: 600; font-size: 10px; letter-spacing: .6px; margin-right: 4px; }
+  .gain span { flex: 1; min-width: 0; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+  .gain span b { color: var(--tx2); font-weight: 600; font-size: 9px; letter-spacing: .4px; margin-right: 3px; }
+  @media (max-width: 520px) { .gain span b { display: none; } }
   .clip { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 5px; background: var(--mute); color: #fff;
     font-size: 10px; font-weight: 800; letter-spacing: .5px; visibility: hidden; vertical-align: middle; }
   .clip.on { visibility: visible; }
+  .fx button.add { color: var(--accent); border-style: dashed; text-align: center; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tiles button { min-height: 74px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--tx);
+    font-size: 13px; font-weight: 650; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 6px; }
+  .tiles button i { font-style: normal; font-size: 24px; }
+  .tiles button:active, .tiles button.busy { border-color: var(--accent); background: #2a2116; }
+  details.allfx summary { cursor: pointer; color: var(--accent); font-weight: 650; margin: 16px 0 8px; }
+  .allfx .cat { color: var(--tx2); font-size: 12px; text-transform: uppercase; letter-spacing: .8px; margin: 12px 0 4px; }
+  .allfx button { display: block; width: 100%; text-align: left; padding: 10px; margin: 3px 0; border-radius: 9px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--tx); font-size: 14px; }
+  .allfx button.off { color: var(--tx2); }
+  .trialbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 8px; }
   .fx .row { display: flex; gap: 4px; flex: 1 1 100%; }
   .fx .row button:first-child { flex: 1; min-width: 0; }
   .fx .row button.gear { flex: 0 0 34px; padding: 0; text-align: center; font-size: 15px; color: var(--accent); }
@@ -197,6 +210,13 @@
   <div class="card">
     <h2>💾 Automatisch speichern</h2>
     <p id="as-status">…</p>
+  </div>
+  <div class="card">
+    <h2>🎨 Design der Zynthian-Oberfläche</h2>
+    <p>Färbt die gesamte Zynthian-Oberfläche (Menüs, Listen, Regler) im warmen Stil dieses Mischers – ohne Blau. Lässt sich jederzeit zurückstellen.</p>
+    <div class="line"><span style="color:var(--tx2);font-size:13px">Schrift:</span><select id="th-font"></select></div>
+    <div class="line"><button class="btn" id="th-apply">Design übernehmen</button><button class="btn sec" id="th-revert">Altes Design zurück</button></div>
+    <p id="th-status"></p>
   </div>
   <div class="card">
     <h2>⬇ Update</h2>
@@ -305,6 +325,10 @@
         g.title = 'Regler';
         g.onclick = () => openFx(s.id, f.i);
         r.fxButtons.push(b);
+      }
+      if (s.kind !== 'main') {
+        const add = el('button', 'add', r.fx, '＋ Effekt');
+        add.onclick = () => openBrowser(s.id, s.name);
       }
 
       const ms = el('div', 'ms', root);
@@ -509,6 +533,19 @@
       return;
     }
     $shBody.innerHTML = '';
+    const tb = el('div', 'trialbar', $shBody);
+    if (d.trial) {
+      const keep = el('button', 'btn', tb, '✓ Behalten');
+      keep.onclick = async () => { await act(sheetFor.chain, 'fx_keep'); toast('Effekt bleibt im Kanal.', 2500); renderFx(true); };
+      const other = el('button', 'btn sec', tb, '↺ Anderen probieren');
+      other.onclick = () => openBrowser(sheetFor.chain, '');
+    }
+    const rm = el('button', 'btn sec', tb, '🗑 Entfernen');
+    rm.onclick = async () => {
+      if (!confirm('„' + d.name + '“ aus dem Kanal entfernen?')) return;
+      await act(sheetFor.chain, 'fx_remove', sheetFor.fx); closeFx();
+    };
+    if (d.trial) el('p', '', $shBody, 'Zum Ausprobieren eingesetzt: Wählst du einen anderen Effekt, ersetzt er diesen.').style.cssText = 'margin:0 0 6px;color:var(--tx2);font-size:13px';
     if (d.syncable) {
       el('h4', '', $shBody, '♩ Im Takt');
       const info = el('p', '', $shBody); info.style.cssText = 'margin:0 0 6px;color:var(--tx2);font-size:13px';
@@ -552,6 +589,39 @@
     renderFx(false);
   }
 
+  // ---- Effekt-Auswahl ----
+  let fxListCache = null;
+  async function openBrowser(chain, name) {
+    clearInterval(sheetTimer); sheetFor = null;
+    document.getElementById('sh-title').textContent = '＋ Effekt' + (name ? ' · ' + name : '');
+    $shBody.innerHTML = '<p style="color:var(--tx2)">Lade Effekte …</p>';
+    $sheet.classList.add('open');
+    if (!fxListCache) fxListCache = await api('/api/fx_list').catch(() => null);
+    const d = fxListCache;
+    if (!d) { $shBody.textContent = 'Effekte konnten nicht geladen werden.'; return; }
+    $shBody.innerHTML = '';
+    el('p', '', $shBody, 'Antippen setzt den Effekt sofort ein. Der nächste ersetzt ihn – bis du „Behalten“ tippst.').style.cssText = 'margin:0 0 6px;color:var(--tx2);font-size:13px';
+    const pick = async (btn, eng) => {
+      btn.classList.add('busy'); toast('Effekt wird geladen …');
+      const r = await api('/api/action', { chain, op: 'fx_try', value: { eng } }).catch(e => ({ error: e.message }));
+      btn.classList.remove('busy');
+      if (r.error) return toast('Ging nicht: ' + r.error, 6000);
+      $toast.style.display = 'none';
+      openFx(chain, r.result.fx);
+    };
+    let group = null, grid = null;
+    for (const t of d.tiles) {
+      if (t.group !== group) { group = t.group; el('h4', '', $shBody, group); grid = el('div', 'tiles', $shBody); }
+      const b = el('button', '', grid); el('i', '', b, t.icon); b.appendChild(document.createTextNode(t.label));
+      b.onclick = () => pick(b, t.eng);
+    }
+    const det = el('details', 'allfx', $shBody); el('summary', '', det, 'Alle Effekte des Zynthian (' + d.all.reduce((n, c) => n + c.items.length, 0) + ')');
+    for (const c of d.all) {
+      el('div', 'cat', det, c.cat);
+      for (const it of c.items) { const b = el('button', it.on ? '' : 'off', det, it.name); b.onclick = () => pick(b, it.eng); }
+    }
+  }
+
   // ---- Extras ----
   let lastStrips = [], extrasTimer = null;
   async function extrasLoad() {
@@ -569,6 +639,7 @@
       ? 'Effekte: ' + d.handpan_plugins.join(' → ') : 'Auf diesem Zynthian wurden keine passenden Effekte gefunden.';
     fillChains();
     extrasShow(d);
+    themeLoad();
   }
   function fillChains() {
     const sel = document.getElementById('ft-chain'), cur = sel.value;
@@ -606,6 +677,24 @@
       if (inp && hwDrag !== p.sym) { inp.value = p.value; inp.parentNode.querySelector('output').textContent = p.text; }
     }
   }
+  async function themeLoad() {
+    const t = await api('/api/theme').catch(() => null); if (!t) return;
+    const sel = document.getElementById('th-font');
+    if (!sel.options.length) t.fonts.forEach(f => { const o = el('option', '', sel, f); o.value = f; });
+    sel.value = t.font || 'Audiowide';
+    document.getElementById('th-revert').style.display = t.backup ? '' : 'none';
+    document.getElementById('th-status').textContent = t.active ? '✓ Das warme Design ist aktiv.' : '';
+  }
+  document.getElementById('th-apply').onclick = async () => {
+    if (!confirm('Design übernehmen? Die Zynthian-Oberfläche startet dafür kurz neu.')) return;
+    const r = await api('/api/theme', { action: 'apply', font: document.getElementById('th-font').value }).catch(e => ({ error: e.message }));
+    toast(r.error ? 'Ging nicht: ' + r.error : r.message, 6000);
+  };
+  document.getElementById('th-revert').onclick = async () => {
+    if (!confirm('Altes Design wiederherstellen? Die Zynthian-Oberfläche startet dafür kurz neu.')) return;
+    const r = await api('/api/theme', { action: 'revert' }).catch(e => ({ error: e.message }));
+    toast(r.error ? 'Ging nicht: ' + r.error : r.message, 6000);
+  };
   function extrasShow(d) {
     hwShow(d.inputs_hw);
     const ACT = { freeze: '❄ Freeze', fx: 'Effekt', mute: 'Stumm' };
