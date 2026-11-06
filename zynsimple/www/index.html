@@ -361,6 +361,11 @@
     <p id="th-status"></p>
   </div>
   <div class="card">
+    <h2>⚙ Einstellungen</h2>
+    <p>Wirken sofort und bleiben gespeichert. Dieselben Einstellungen gibt es am Zynthian im Hauptmenü unter „Einstellungen &amp; Update“.</p>
+    <div id="set-list"></div>
+  </div>
+  <div class="card">
     <h2>⬇ Update</h2>
     <p id="up-gh-info">Mit Internet holt sich der Zynthian neue Versionen selbst von GitHub.</p>
     <div class="line"><button class="btn" id="up-check">Nach Updates suchen</button><button class="btn" id="up-gh" style="display:none">Jetzt installieren</button></div>
@@ -842,7 +847,7 @@
       ? 'Effekte: ' + d.handpan_plugins.join(' → ') : 'Auf diesem Zynthian wurden keine passenden Effekte gefunden.';
     fillChains();
     extrasShow(d);
-    themeLoad();
+    themeLoad(); settingsLoad();
   }
   function fillChains() {
     const sel = document.getElementById('ft-chain'), cur = sel.value;
@@ -880,6 +885,27 @@
       if (inp && hwDrag !== p.sym) { inp.value = p.value; inp.parentNode.querySelector('output').textContent = p.text; }
     }
   }
+  async function settingsLoad() {
+    const d = await api('/api/settings').catch(() => null);
+    const box = document.getElementById('set-list');
+    if (!d) { box.textContent = 'nicht erreichbar'; return; }
+    box.innerHTML = '';
+    for (const it of d.items) {
+      const row = el('div', 'line'); box.appendChild(row);
+      row.style.cssText = 'justify-content:space-between;border-bottom:1px solid var(--line);padding:6px 0;margin:0';
+      const lab = el('span', '', row); el('span', '', lab, it.title);
+      if (it.hint) { const h = el('small', '', lab, it.hint); h.style.cssText = 'display:block;color:var(--tx2);font-size:11px'; }
+      let inp;
+      if (it.kind === 'bool') { inp = el('input', '', row); inp.type = 'checkbox'; inp.checked = !!it.value; inp.style.cssText = 'width:24px;height:24px;accent-color:var(--accent)'; }
+      else { inp = el('select', '', row); for (const c of it.choices) { const o = el('option', '', inp, c.t); o.value = JSON.stringify(c.v); } inp.value = JSON.stringify(it.value); }
+      inp.onchange = async () => {
+        const v = it.kind === 'bool' ? inp.checked : JSON.parse(inp.value);
+        const r = await api('/api/settings', { [it.key]: v }).catch(e => ({ error: e.message }));
+        toast(r.error ? 'Ging nicht: ' + r.error : 'Gespeichert', 1500);
+      };
+    }
+  }
+
   async function themeLoad() {
     const t = await api('/api/theme').catch(() => null); if (!t) return;
     const sel = document.getElementById('th-font');

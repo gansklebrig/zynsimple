@@ -177,6 +177,8 @@ class zynsimple_screen(zynthian_gui_base):
             self.draw_track()
         elif self.mode == "newtrack":
             self.draw_newtrack()
+        elif self.mode == "settings":
+            self.draw_settings()
 
     # ------------------------------------------------------------------
     # Lebenszyklus
@@ -256,6 +258,10 @@ class zynsimple_screen(zynthian_gui_base):
             elif self.mode == "splash":
                 self.draw_splash()
                 delay = 33
+            elif self.mode == "settings":
+                self.edit_tick += 1
+                if self.edit_tick % 12 == 1:
+                    self.tick_settings()
             elif self.mode == "update":
                 self.draw_update()
                 delay = 40
@@ -636,6 +642,8 @@ class zynsimple_screen(zynthian_gui_base):
             return self.fxview_press(ev)
         if self.mode in ("track", "newtrack"):
             return self.track_press(ev)
+        if self.mode == "settings":
+            return self.settings_press(ev)
         h = self._hit(self.hits, ev.x, ev.y)
         if not h:
             return
@@ -876,7 +884,7 @@ class zynsimple_screen(zynthian_gui_base):
                  ("expert", "Profi-Mischer", "der originale Zynthian-Mischer"),
                  ("newtrack", "＋ Neue Spur", "Eingang, Handpan, Gesang, Synth …"),
                  ("idle", "Bühnenbild", "Animation jetzt zeigen"),
-                 ("update", f"Update {upd} installieren" if upd else "Nach Updates suchen", "GitHub oder USB-Stick"),
+                 ("settings", f"Update {upd} bereit" if upd else "Einstellungen", "Update, Start-Logo, Bühnenbild …"),
                  ("close", "Zurück", "")]
         if self.imres_installed:
             items.insert(0, ("imres", "♫ Imres-Bühne", "Klangwelten im Vollbild"))
@@ -885,7 +893,7 @@ class zynsimple_screen(zynthian_gui_base):
         gw, gh = (W - 40) / cols, (H - 70) / rows
         for k, (art, title, sub) in enumerate(items):
             cx, cy = 20 + (k % cols) * gw, 52 + (k // cols) * gh
-            gold = art in ("imres",) or (art == "update" and upd)
+            gold = art in ("imres",) or (art == "settings" and upd)
             self.rrect(cx + 5, cy + 5, cx + gw - 5, cy + gh - 5, 14, fill=P["card2"] if not gold else "#2a2014",
                        outline=P["gold"] if gold else P["line"], width=2 if gold else 1)
             cv.create_text(cx + gw / 2, cy + gh * 0.42, text=title, font=self.f_mid, fill=P["champ"],
@@ -915,15 +923,8 @@ class zynsimple_screen(zynthian_gui_base):
                     self.start_idle()
                 elif art == "synth":
                     self.open_synth_browser()
-                elif art == "update":
-                    menu = self.zyngui.screens.get("main_menu")
-                    try:
-                        for c in menu.get_config():
-                            if "Update" in c.get("title", ""):
-                                c["action"]()
-                                break
-                    except Exception as e:
-                        self._flash(str(e))
+                elif art == "settings":
+                    self.open_settings()
                 return
 
     def open_expert(self):
@@ -1914,6 +1915,162 @@ class zynsimple_screen(zynthian_gui_base):
             self._flash(f"Zynthian-Optionen: {e}")
 
     # ------------------------------------------------------------------
+    # Einstellungen & Update
+    # ------------------------------------------------------------------
+
+    def open_settings(self):
+        self.mode = "settings"
+        self.edit_tick = 0
+        self.set_armed = {}
+        try:
+            from . import settings as st
+            self.set_addr = st.address(self.settings)
+        except Exception:
+            self.set_addr = {}
+        self.draw_settings()
+
+    def tick_settings(self):
+        try:
+            from . import updater
+            sig = repr(updater.status)
+        except Exception:
+            sig = None
+        if sig != getattr(self, "set_sig", None):
+            self.draw_settings()
+
+    def draw_settings(self):
+        from . import settings as st
+        from . import VERSION
+        cv = self.canvas
+        cv.delete("all")
+        self.trk_hits = []
+        W, H = self._geom()
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        try:
+            from . import updater
+            us = dict(updater.status)
+            self.set_sig = repr(updater.status)
+        except Exception:
+            us = {}
+        now = time.monotonic()
+        cv.create_text(18, 26, anchor="w", text="Einstellungen", font=self.f_huge, fill=P["gold"])
+        a = getattr(self, "set_addr", {}) or {}
+        cv.create_text(W - 18, 18, anchor="e", font=self.f_tiny, fill=P["tx2"], text="Handy / Tablet:")
+        cv.create_text(W - 18, 36, anchor="e", font=self.f_small, fill=P["champ"],
+                       text=(a.get("url") or a.get("name") or "–") + ("  · PIN" if a.get("pin") else ""))
+        # Update-Leiste
+        y0, y1 = 54, 54 + max(54, int(H * 0.13))
+        avail = us.get("available")
+        self.rrect(12, y0, W - 12, y1, 14, fill="#2a2014" if avail else P["card"],
+                   outline=P["gold"] if avail else P["line"], width=2 if avail else 1)
+        if avail:
+            line = f"Update {us.get('latest')} ist da  ·  installiert: {VERSION}"
+        elif us.get("error"):
+            line = f"ZynSimple {VERSION}  ·  GitHub nicht erreichbar"
+        elif us.get("latest"):
+            line = f"ZynSimple {VERSION}  ·  aktuell"
+        else:
+            line = f"ZynSimple {VERSION}"
+        cv.create_text(28, (y0 + y1) / 2, anchor="w", text=line, font=self.f_mid, fill=P["champ"])
+        bw = max(150, int(W * 0.24))
+        self._tbtn(W - 20 - bw, y0 + 7, W - 20, y1 - 7, "Jetzt installieren" if avail else "Update suchen", "s_update",
+                   fill=P["gold"] if avail else None, fg=P["black"] if avail else P["gold"], font=self.f_small,
+                   outline=None if avail else P["gold_dim"])
+        # Einstellungen als Kacheln: antippen = nächster Wert
+        bar_h = max(40, H // 10)
+        items = st.items(self.settings)
+        cols = 3
+        rows = math.ceil(len(items) / cols)
+        gy0, gy1 = y1 + 10, H - bar_h - 8
+        gw, gh = (W - 24) / cols, (gy1 - gy0) / rows
+        for k, it in enumerate(items):
+            x0, yy = 12 + (k % cols) * gw, gy0 + (k // cols) * gh
+            on = it["value"] not in (False, 0, None) if it["kind"] == "bool" else True
+            self.rrect(x0 + 4, yy + 4, x0 + gw - 4, yy + gh - 4, 12, fill=P["card2"], outline=P["line"])
+            cv.create_text(x0 + 16, yy + 6 + gh * 0.2, anchor="w", text=self._clip_text(it["title"], gw - 30, self.f_tiny),
+                           font=self.f_tiny, fill=P["tx2"])
+            if it["kind"] == "bool":
+                pw = gw * 0.28
+                px0, py0 = x0 + gw - 16 - pw, yy + gh * 0.36
+                self.rrect(px0, py0, px0 + pw, py0 + gh * 0.32, 99, fill=P["gold"] if on else P["bg"], outline=P["line"])
+                kr = gh * 0.13
+                kx = px0 + pw - kr - 5 if on else px0 + kr + 5
+                cv.create_oval(kx - kr, py0 + gh * 0.16 - kr, kx + kr, py0 + gh * 0.16 + kr,
+                               fill=P["black"] if on else P["tx2"], outline="")
+                cv.create_text(x0 + 16, yy + gh * 0.52, anchor="w", text="an" if on else "aus", font=self.f_mid,
+                               fill=P["gold"] if on else P["tx2"])
+            else:
+                cv.create_text(x0 + 16, yy + gh * 0.52, anchor="w", font=self.f_mid, fill=P["gold"],
+                               text=self._clip_text(it["text"], gw - 40, self.f_mid))
+                cv.create_text(x0 + gw - 18, yy + gh * 0.52, anchor="e", text="›", font=self.f_big, fill=P["gold_dim"])
+            if it["hint"] and gh > 70:
+                cv.create_text(x0 + 16, yy + gh * 0.8, anchor="w", font=self.f_tiny, fill=P["tx2"],
+                               text=self._clip_text(it["hint"], gw - 30, self.f_tiny))
+            self.trk_hits.append((x0 + 4, yy + 4, x0 + gw - 4, yy + gh - 4, "s_cycle", it["key"]))
+        # Leiste unten
+        yb = H - bar_h
+        cv.create_line(8, yb + 1, W - 8, yb + 1, fill=P["gold_dim"])
+        try:
+            from . import theme
+            th = theme.status()
+        except Exception:
+            th = {"active": False}
+        armed = self.set_armed.get("theme", 0) > now
+        bw2 = max(150, int(W * 0.22))
+        self._tbtn(6, yb + 4, 6 + bw2, H - 4,
+                   "Wirklich? Neustart" if armed else ("Altes Design" if th.get("active") else "Design „Glut“"), "s_theme",
+                   fill=P["rose"] if armed else None, fg="#ffffff" if armed else None, font=self.f_small)
+        self._tbtn(12 + bw2, yb + 4, 12 + bw2 * 2, H - 4, "Zynthian-Admin", "s_admin", font=self.f_small)
+        armed_s = self.set_armed.get("save", 0) > now
+        self._tbtn(18 + bw2 * 2, yb + 4, 18 + bw2 * 3, H - 4, "✓ gespeichert" if armed_s else "Jetzt speichern",
+                   "s_save", font=self.f_small, fg=P["emerald"] if armed_s else None)
+        self._tbtn(W - 150, yb + 4, W - 6, H - 4, "Fertig", "close", fill=P["gold"], fg=P["black"])
+
+    def settings_press(self, ev):
+        h = None
+        for hh in reversed(getattr(self, "trk_hits", [])):
+            if hh[0] <= ev.x <= hh[2] and hh[1] <= ev.y <= hh[3]:
+                h = hh
+                break
+        if not h:
+            return
+        art, extra = h[4], h[5]
+        try:
+            if art == "close":
+                self.mode = "mix"
+                self.sig = None
+                return
+            if art == "s_cycle":
+                from . import settings as st
+                st.save(self.settings, {extra: st.cycle(self.settings, extra)})
+                st.apply_live(self.bridge, extra)
+                if extra == "strip_min_width":
+                    self.sig = None
+            elif art == "s_update":
+                from . import start_update
+                start_update(self.zyngui)
+                return
+            elif art == "s_admin":
+                self.mode = "mix"
+                self.zyngui.show_screen("admin")
+                return
+            elif art == "s_save":
+                self.x.save_now("Einstellungen")
+                self.set_armed["save"] = time.monotonic() + 2
+                self.canvas.after(2100, lambda: self.mode == "settings" and self.draw_settings())
+            elif art == "s_theme":
+                if self.set_armed.get("theme", 0) > time.monotonic():
+                    from . import theme
+                    msg = theme.revert() if theme.status().get("active") else theme.apply()
+                    self._flash(msg)
+                else:
+                    self.set_armed["theme"] = time.monotonic() + 3
+                    self.canvas.after(3100, lambda: self.mode == "settings" and self.draw_settings())
+        except Exception as e:
+            self._flash(str(e))
+        self.draw_settings()
+
+    # ------------------------------------------------------------------
     # Start-Logo: TheAlmightyGoose aus dem Heldensturm
     # ------------------------------------------------------------------
 
@@ -2230,7 +2387,7 @@ class zynsimple_screen(zynthian_gui_base):
             except Exception as e:
                 log.debug(f"Regler: {e}")
             return True
-        if self.mode in ("more", "xy", "fxview", "update", "track", "newtrack"):
+        if self.mode in ("more", "xy", "fxview", "update", "track", "newtrack", "settings"):
             return True
         if self.locked:
             return True
@@ -2378,7 +2535,7 @@ class zynsimple_screen(zynthian_gui_base):
             else:
                 self.close_editor()
             return True
-        if self.mode in ("browse", "more", "xy", "track", "newtrack"):
+        if self.mode in ("browse", "more", "xy", "track", "newtrack", "settings"):
             self.mode = "mix"
             self.browser = None
             self.sig = None
@@ -2425,7 +2582,7 @@ class zynsimple_screen(zynthian_gui_base):
             self.close_browser()
         elif self.mode == "edit":
             self.close_editor()
-        elif self.mode in ("more", "xy", "fxview", "track", "newtrack"):
+        elif self.mode in ("more", "xy", "fxview", "track", "newtrack", "settings"):
             self.mode = "mix"
             self.sig = None
         return True

@@ -83,6 +83,9 @@ def make_handler(bridge, pin):
                     self._send(200, {"slots": [pf.slot_info(chain, s) for s in pf.live_slots(chain)], "xy": [x, y]})
                 except Exception as e:
                     self._send(400, {"error": str(e)})
+            elif path == "/api/settings":
+                from . import settings as st
+                self._send(200, {"items": st.items(bridge.settings), "address": st.address(bridge.settings)})
             elif path == "/api/theme":
                 from . import theme
                 self._send(200, theme.status())
@@ -127,6 +130,20 @@ def make_handler(bridge, pin):
                     req = json.loads(self.rfile.read(n) or b"{}")
                     imres.system(str(req.get("aktion", "")))
                     self._send(200, {"ok": True})
+                except Exception as e:
+                    self._send(400, {"error": str(e)})
+                return
+            if self.path.split("?", 1)[0] == "/api/settings":
+                if not self._authorized():
+                    return self._send(401, {"error": "pin"})
+                try:
+                    from . import settings as st
+                    n = min(int(self.headers.get("Content-Length", 0)), 2048)
+                    req = json.loads(self.rfile.read(n) or b"{}")
+                    st.save(bridge.settings, req)
+                    for k in req:
+                        st.apply_live(bridge, k)
+                    self._send(200, {"ok": True, "items": st.items(bridge.settings)})
                 except Exception as e:
                     self._send(400, {"error": str(e)})
                 return

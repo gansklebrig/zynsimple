@@ -73,6 +73,14 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 2.5 – Einstellungen im Hauptmenü
+
+- Im Zynthian-Hauptmenü gibt es jetzt **„Einstellungen & Update“** (ersetzt „Handpan anlegen“ und „ZynSimple Update“ – die Handpan steckt jetzt in „＋ Neue Spur“).
+- Oben: Version, **Update suchen / Jetzt installieren** (GitHub, sonst USB-Stick) und die Adresse fürs Handy.
+- Kacheln antippen schaltet weiter: Startbildschirm, Start-Logo, Bühnenbild nach …, Automatisch speichern, Kanalbreite, XY-Feld federt zurück, MIDI-Kanal für neue Synths, Tasten-Farben, Update-Suche beim Start.
+- Unten: Design „Glut“ an/aus (zweimal tippen, Oberfläche startet neu), Zynthian-Admin, Jetzt speichern.
+- Dieselben Einstellungen am Handy unter „⚙ Extras“.
+
 ## Neu in Version 2.4 – Start-Logo
 
 - Beim Hochfahren erscheint gut drei Sekunden lang **TheAlmightyGoose** aus dem Heldensturm, darunter „ZynSimple“ und die Versionsnummer. Antippen oder eine Taste überspringt es. Abschalten: in `zynsimple.json` `"splash": false` setzen.
