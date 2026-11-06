@@ -73,6 +73,7 @@ class zynsimple_screen(zynthian_gui_base):
         self.clip_t = {}
         self.pad_t = {}
         self.anim = None
+        self.splash_done = not settings.get("splash", True)
         try:
             from . import imres
             self.imres_installed = imres.installed()
@@ -193,6 +194,8 @@ class zynsimple_screen(zynthian_gui_base):
             pass
         self._touch()
         self.sig = None
+        if not self.splash_done:
+            self.start_splash()
         if self.timer is None:
             self.tick()
 
@@ -250,6 +253,9 @@ class zynsimple_screen(zynthian_gui_base):
                 self.edit_tick += 1
                 if self.edit_tick % 6 == 1:
                     self.tick_track()
+            elif self.mode == "splash":
+                self.draw_splash()
+                delay = 33
             elif self.mode == "update":
                 self.draw_update()
                 delay = 40
@@ -605,6 +611,8 @@ class zynsimple_screen(zynthian_gui_base):
         return None
 
     def on_press(self, ev):
+        if self.mode == "splash":
+            return self.stop_splash()
         if self.mode == "update":
             u = getattr(self, "upd", {})
             if u.get("done") or u.get("error"):
@@ -1906,6 +1914,88 @@ class zynsimple_screen(zynthian_gui_base):
             self._flash(f"Zynthian-Optionen: {e}")
 
     # ------------------------------------------------------------------
+    # Start-Logo: TheAlmightyGoose aus dem Heldensturm
+    # ------------------------------------------------------------------
+
+    SPLASH_SECONDS = 3.2
+
+    def start_splash(self):
+        self.splash_done = True
+        W, H = self._geom()
+        img = None
+        try:
+            import os
+            d = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img")
+            for h in (380, 300, 220):
+                if h <= H * 0.66 or h == 220:
+                    img = tkinter.PhotoImage(file=os.path.join(d, f"gans_{h}.png"))
+                    break
+        except Exception as e:
+            log.warning(f"ZynSimple: Logo nicht ladbar ({e})")
+        self.splash = {"t0": time.monotonic(), "img": img, "items": None}
+        self.mode = "splash"
+        self.draw_splash()
+
+    def stop_splash(self):
+        if self.mode != "splash":
+            return
+        self.mode = "mix"
+        self.splash = None
+        self._touch()
+        self.sig = None
+        self.canvas.delete("all")
+
+    def draw_splash(self):
+        sp = getattr(self, "splash", None)
+        if not sp:
+            return
+        cv = self.canvas
+        W, H = self._geom()
+        t = time.monotonic() - sp["t0"]
+        if t >= self.SPLASH_SECONDS:
+            return self.stop_splash()
+        img = sp["img"]
+        ih = img.height() if img else 0
+        text_h = self.f_huge[1] * 2 + self.f_small[1] * 2.2
+        top = max(6, (H - ih - text_h) / 2)
+        cx, cy = W / 2, top + ih * 0.5
+        if sp["items"] is None:
+            cv.delete("all")
+            cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+            glow = [cv.create_oval(0, 0, 0, 0, fill=P["bg"], outline="") for _ in range(4)]
+            rings = [cv.create_oval(0, 0, 0, 0, outline=P["bg"], width=3) for _ in range(4)]
+            pic = cv.create_image(cx, cy + 30, image=img) if img else None
+            name = cv.create_text(cx, top + ih + self.f_huge[1] * 1.0, text="ZynSimple", font=self.f_huge, fill=P["bg"])
+            try:
+                from . import VERSION
+            except Exception:
+                VERSION = "?"
+            ver = cv.create_text(cx, top + ih + self.f_huge[1] * 1.9 + self.f_small[1], font=self.f_small,
+                                 fill=P["bg"], text=f"Version {VERSION}  ·  TheAlmightyGoose")
+            sp["items"] = {"rings": rings, "glow": glow, "pic": pic, "name": name, "ver": ver}
+        it = sp["items"]
+        ease = lambda x: 1 - (1 - max(0.0, min(1.0, x))) ** 3
+        # Gans gleitet sanft nach oben
+        if it["pic"]:
+            cv.coords(it["pic"], cx, cy + 30 * (1 - ease(t / 0.7)))
+        # warmes Glühen hinter der Gans
+        R = max(ih, 120) * 0.42
+        for k, g in enumerate(it["glow"]):
+            r = R * (1.5 - k * 0.25) * (1 + 0.03 * math.sin(t * 3 + k))
+            cv.coords(g, cx - r, cy - r, cx + r, cy + r)
+            cv.itemconfig(g, fill=_mix(P["bg"], "#3a2410", ease(t / 0.8) * (0.25 + 0.18 * k)))
+        # goldene Ringe laufen nach außen
+        for k, rg in enumerate(it["rings"]):
+            ph = (t * 0.55 + k / 4) % 1
+            r = R * (0.9 + ph * 1.6)
+            cv.coords(rg, cx - r, cy - r, cx + r, cy + r)
+            cv.itemconfig(rg, outline=_mix(P["bg"], P["gold"], (1 - ph) * 0.55 * ease(t / 0.6)))
+        # Schrift blendet ein, am Ende alles aus
+        out = ease((t - (self.SPLASH_SECONDS - 0.5)) / 0.5) if t > self.SPLASH_SECONDS - 0.5 else 0
+        cv.itemconfig(it["name"], fill=_mix(_mix(P["bg"], P["gold"], ease((t - 0.35) / 0.6)), P["bg"], out))
+        cv.itemconfig(it["ver"], fill=_mix(_mix(P["bg"], P["champ"], ease((t - 0.7) / 0.6)), P["bg"], out))
+
+    # ------------------------------------------------------------------
     # Update-Anzeige
     # ------------------------------------------------------------------
 
@@ -2114,6 +2204,9 @@ class zynsimple_screen(zynthian_gui_base):
     # ------------------------------------------------------------------
 
     def zynpot_cb(self, i, dval):
+        if self.mode == "splash":
+            self.stop_splash()
+            return True
         was_idle = self.mode == "idle"
         self._touch()
         if was_idle:
@@ -2181,6 +2274,10 @@ class zynsimple_screen(zynthian_gui_base):
         return None
 
     def switch(self, i, t):
+        if self.mode == "splash":
+            if t == "P":
+                self.stop_splash()
+            return True
         if i < 4:
             if self.mode == "idle":
                 self._touch()
@@ -2320,7 +2417,9 @@ class zynsimple_screen(zynthian_gui_base):
 
     def back_action(self):
         self._touch()
-        if self.mode == "idle":
+        if self.mode == "splash":
+            self.stop_splash()
+        elif self.mode == "idle":
             self.stop_idle()
         elif self.mode == "browse":
             self.close_browser()

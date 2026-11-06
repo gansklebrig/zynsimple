@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "2.3"
+VERSION = "2.4"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -30,6 +30,7 @@ DEFAULTS = {
     "handpan_inputs": [1],
     "update_check": True,
     "idle_seconds": 45,
+    "splash": True,
     "xy_spring": False,
     "synth_midi_chan": 0,
     "update_repo": "gansklebrig/zynsimple",

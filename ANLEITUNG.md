@@ -73,6 +73,10 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 2.4 – Start-Logo
+
+- Beim Hochfahren erscheint gut drei Sekunden lang **TheAlmightyGoose** aus dem Heldensturm, darunter „ZynSimple“ und die Versionsnummer. Antippen oder eine Taste überspringt es. Abschalten: in `zynsimple.json` `"splash": false` setzen.
+
 ## Neu in Version 2.3 – Spuren in Sekunden anlegen und löschen
 
 - **＋ Neue Spur**: rechts neben den Kanälen (Touchscreen) bzw. als letzte Kachel im Mischer (Handy). Eingang wählen (für Stereo zwei), dann eine Kachel tippen – **Audio-Eingang** (leer), **Handpan**, **Gesang**, **Instrument** oder **Synth**. Die Spur ist sofort da, mit Fader, Mute und Effekten. Hört schon eine andere Spur auf diesen Eingang, steht das als Hinweis da.
