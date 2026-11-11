@@ -76,6 +76,9 @@ def make_handler(bridge, pin):
                 st["import"] = dj.import_stand()
                 st["samba"] = dj.samba_an()
                 self._send(200, st)
+            elif path == "/api/fortschritt":
+                from . import fortschritt as fs
+                self._send(200, fs.als_dict())
             elif path == "/api/aufnahmen":
                 if not self._authorized():
                     return self._send(401, {"error": "pin"})
@@ -279,6 +282,11 @@ def make_handler(bridge, pin):
 
 def install_update(data):
     """Entpackt eine neue zynsimple.zip und startet die Installation im Hintergrund."""
+    from . import fortschritt as fs
+    from .updater import UPDATE_SCHRITTE
+    if not fs.STAND.get("aktiv"):
+        fs.start("ZynSimple-Update", UPDATE_SCHRITTE)
+    fs.schritt(2, "Dateien werden ausgepackt")
     tmp = tempfile.mkdtemp(prefix="zynsimple-update-")
     try:
         zpath = os.path.join(tmp, "update.zip")
@@ -287,10 +295,14 @@ def install_update(data):
         if not zipfile.is_zipfile(zpath):
             raise ValueError("Das ist keine ZIP-Datei")
         with zipfile.ZipFile(zpath) as z:
-            for name in z.namelist():
+            namen = z.namelist()
+            for name in namen:
                 if name.startswith("/") or ".." in name.split("/"):
                     raise ValueError("Ungültige ZIP-Datei")
-            z.extractall(tmp)
+            for k, name in enumerate(namen, 1):
+                z.extract(name, tmp)
+                fs.teil(anteil=k / len(namen), detail=f"{k} von {len(namen)} Dateien ausgepackt",
+                        zeile=name.split("/", 1)[-1])
         src = None
         cands = [os.path.join(tmp, "zynsimple"), tmp] + \
             [os.path.join(tmp, d) for d in sorted(os.listdir(tmp)) if os.path.isdir(os.path.join(tmp, d))]
@@ -301,9 +313,16 @@ def install_update(data):
                 break
         if not src:
             raise ValueError("In der ZIP fehlt install.sh – ist das wirklich ZynSimple?")
-    except Exception:
+    except Exception as e:
+        fs.fehler(str(e))
         shutil.rmtree(tmp, ignore_errors=True)
         raise
+    try:
+        with open(os.path.join(src, "VERSION"), encoding="utf-8") as f:
+            neu = f.read().strip()
+        fs.teil(detail=f"Version {neu} ausgepackt")
+    except OSError:
+        neu = "?"
 
     script = os.path.join(src, "install.sh")
     logf = os.path.join(tempfile.gettempdir(), "zynsimple-update.log")
@@ -317,7 +336,45 @@ def install_update(data):
         subprocess.Popen(["/bin/bash", "-c", cmd], start_new_session=True,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     log.info("ZynSimple: Update wird installiert")
+    threading.Thread(target=_installation_verfolgen, args=(logf, neu), daemon=True).start()
     return "Update wird installiert. Der Zynthian startet gleich neu."
+
+
+def _installation_verfolgen(logf, version):
+    """Liest das Protokoll von install.sh mit („SCHRITT n/m …“) – bis die Oberfläche neu startet."""
+    import re
+    import time
+    from . import fortschritt as fs
+    fs.schritt(3, "Installation startet …")
+    t0 = time.monotonic()
+    gesehen = 0
+    while time.monotonic() - t0 < 300:
+        time.sleep(0.3)
+        try:
+            with open(logf, encoding="utf-8", errors="replace") as f:
+                zeilen = [z.strip() for z in f if z.strip()]
+        except OSError:
+            continue
+        if len(zeilen) == gesehen:
+            continue
+        gesehen = len(zeilen)
+        letzte = ""
+        for z in zeilen:
+            m = re.match(r"SCHRITT (\d+)/(\d+) (.*)", z)
+            if m:
+                n, von, text = int(m.group(1)), int(m.group(2)), m.group(3)
+                if n >= von:
+                    fs.schritt(4, text)
+                    fs.teil(anteil=0.5)
+                else:
+                    fs.teil(anteil=(n - 1) / max(1, von - 1), detail=text)
+            elif not z.startswith("=="):
+                letzte = z
+        if letzte:
+            fs.teil(zeile=letzte)
+        if any("Fertig!" in z for z in zeilen):
+            fs.fertig(f"Version {version} ist installiert")
+            return
 
 
 UPDATE_DIRS = ["/media/root", "/media", "/root", "/zynthian/zynthian-my-data"]
@@ -344,11 +401,23 @@ def find_local_update():
 
 
 def install_local_update():
+    from . import fortschritt as fs
+    from .updater import UPDATE_SCHRITTE
     p = find_local_update()
     if not p:
         raise ValueError("Keine zynsimple-ZIP gefunden (USB-Stick eingesteckt?)")
+    fs.start("ZynSimple-Update vom USB-Stick", UPDATE_SCHRITTE)
+    fs.schritt(1, os.path.basename(p))
+    total, teile, n = os.path.getsize(p), [], 0
     with open(p, "rb") as f:
-        return install_update(f.read())
+        while True:
+            b = f.read(64 * 1024)
+            if not b:
+                break
+            teile.append(b)
+            n += len(b)
+            fs.teil(bytes_=n, total=total)
+    return install_update(b"".join(teile))
 
 
 def start(bridge, port=8090, pin=""):

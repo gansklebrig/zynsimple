@@ -1042,7 +1042,9 @@ class zynsimple_screen(zynthian_gui_base):
             return self.stop_splash()
         if self.mode == "update":
             u = getattr(self, "upd", {})
-            if u.get("done") or u.get("error"):
+            from . import fortschritt as fs
+            if u.get("done") or u.get("error") or fs.STAND.get("fertig") or fs.STAND.get("fehler"):
+                fs.ende()
                 self.mode = "mix"
                 self.sig = None
             return
@@ -2836,6 +2838,9 @@ class zynsimple_screen(zynthian_gui_base):
         self.upd = {"text": text, "sub": sub, "done": done, "error": error}
 
     def draw_update(self):
+        from . import fortschritt as fs
+        if fs.STAND.get("aktiv"):
+            return self.draw_fortschritt(fs)
         cv = self.canvas
         cv.delete("all")
         W, H = self._geom()
@@ -2869,6 +2874,86 @@ class zynsimple_screen(zynthian_gui_base):
         cv.create_text(cx, H * 0.67, text=u.get("text", ""), font=self.f_big, fill=P["champ"])
         if u.get("sub"):
             cv.create_text(cx, H * 0.87, text=u["sub"], font=self.f_small, fill=P["tx2"], width=W - 60, justify="center")
+
+    def draw_fortschritt(self, fs):
+        """Echter Fortschritt: Ring mit Prozent, Schritte mit Haken, Daten (MB, Tempo, Restzeit), letzte Meldung."""
+        cv = self.canvas
+        cv.delete("all")
+        W, H = self._geom()
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        d = fs.als_dict()
+        u = getattr(self, "upd", {})
+        t = time.monotonic() - getattr(self, "upd_t0", time.monotonic())
+        fehler = d.get("fehler") or (u.get("error") and u.get("sub"))
+        fertig = d.get("fertig") or u.get("done")
+        p = 100.0 if fertig else d.get("prozent", 0.0)
+        col = P["rose"] if fehler else (P["emerald"] if fertig else P["gold"])
+        # Ring links
+        R = min(W * 0.17, H * 0.27)
+        cx, cy = 26 + R + 10, 66 + R + 14
+        for k in range(4, 0, -1):
+            rr = R * (1.02 + k * 0.06) * (1 + (0.02 * math.sin(t * 2.4) if not (fertig or fehler) else 0))
+            cv.create_oval(cx - rr, cy - rr, cx + rr, cy + rr, fill=_mix(P["bg"], "#3a2410", 0.14 * (5 - k)), outline="")
+        cv.create_oval(cx - R, cy - R, cx + R, cy + R, outline=P["line"], width=10)
+        if p > 0.2:
+            cv.create_arc(cx - R, cy - R, cx + R, cy + R, start=90, extent=-min(359.9, 3.6 * p), style="arc",
+                          outline=col, width=10)
+        if not (fertig or fehler):
+            # kleiner Lichtpunkt an der Spitze des Rings – bewegt sich nur mit dem echten Fortschritt
+            a = math.radians(90 - 3.6 * p)
+            px, py = cx + R * math.cos(a), cy - R * math.sin(a)
+            gl = 7 + 2 * math.sin(t * 6)
+            cv.create_oval(px - gl, py - gl, px + gl, py + gl, fill=P["gold2"], outline="")
+        cv.create_text(cx, cy - 6, text="✓" if fertig else ("!" if fehler else f"{int(p)} %"),
+                       font=(self.f_huge[0], int(self.f_huge[1] * (1.6 if (fertig or fehler) else 1.15))), fill=col)
+        if not (fertig or fehler):
+            cv.create_text(cx, cy + self.f_huge[1] * 0.95, text=f"{d.get('dauer', 0)} s", font=self.f_tiny, fill=P["tx2"])
+        # Schritte rechts
+        sx0, sy = cx + R + 40, 70
+        schritte = d.get("schritte", [])
+        sh = min(44, (H * 0.62 - sy) / max(1, len(schritte)) + 10)
+        for k, name in enumerate(schritte):
+            yy = sy + k * sh
+            erledigt = fertig or k < d.get("schritt", 0)
+            jetzt = not fertig and k == d.get("schritt", 0)
+            farbe = P["emerald"] if erledigt else (col if jetzt else P["line"])
+            self.rrect(sx0, yy, sx0 + 30, yy + 30, 99, fill=farbe if erledigt else P["bg"], outline=farbe, width=2)
+            cv.create_text(sx0 + 15, yy + 15, text="✓" if erledigt else str(k + 1), font=self.f_small,
+                           fill=P["black"] if erledigt else (col if jetzt else P["tx2"]))
+            cv.create_text(sx0 + 42, yy + 15, anchor="w", text=name, font=self.f_mid if jetzt else self.f_small,
+                           fill=P["champ"] if (jetzt or erledigt) else P["tx2"])
+            if jetzt and d.get("detail"):
+                cv.create_text(sx0 + 42 + len(name) * self.f_mid[1] * 0.75 + 12, yy + 15, anchor="w",
+                               text=self._clip_text(d["detail"], W - sx0 - 70 - len(name) * self.f_mid[1] * 0.75, self.f_tiny),
+                               font=self.f_tiny, fill=P["tx2"])
+        # Balken unten
+        bx0, bx1, by = 20, W - 20, H - 86
+        self.rrect(bx0, by, bx1, by + 18, 9, fill=P["black"], outline=P["line"])
+        if p > 0.5:
+            fx = bx0 + 2 + (bx1 - bx0 - 4) * p / 100
+            self.rrect(bx0 + 2, by + 2, max(bx0 + 16, fx), by + 16, 7, fill=col, outline="")
+            if not (fertig or fehler):
+                gx = bx0 + ((t * 140) % max(1, fx - bx0 + 30)) - 15
+                cv.create_rectangle(max(bx0 + 4, gx), by + 4, min(fx - 2, gx + 24), by + 7, fill=P["gold2"], outline="")
+        # Daten und letzte Meldung
+        if fehler:
+            info = str(fehler)
+        elif fertig:
+            info = d.get("detail") or "Fertig"
+        else:
+            info = d.get("daten") or d.get("detail") or ""
+        cv.create_text(20, by + 38, anchor="w", text=self._clip_text(info, W - 40, self.f_small), font=self.f_small,
+                       fill=P["rose"] if fehler else P["champ"])
+        if d.get("zeile") and not fertig:
+            cv.create_text(20, by + 62, anchor="w", text=self._clip_text(d["zeile"], W - 40, self.f_tiny), font=self.f_tiny,
+                           fill=P["tx2"])
+        if fertig or fehler:
+            cv.create_text(W - 20, by + 62, anchor="e", text="Antippen zum Schließen", font=self.f_tiny, fill=P["tx2"])
+        # Kopf zuletzt, damit nichts darüber liegt
+        cv.create_rectangle(0, 0, W, 50, fill=P["bg"], outline="")
+        cv.create_text(20, 28, anchor="w", text=d.get("titel", "Update"), font=self.f_big, fill=P["gold"])
+        if not fertig and not fehler:
+            cv.create_text(W - 20, 28, anchor="e", text="bitte nicht ausschalten", font=self.f_tiny, fill=P["rose"])
 
     # ------------------------------------------------------------------
     # Bühnenbild (Ruhe-Animation)

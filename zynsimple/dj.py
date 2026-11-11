@@ -38,23 +38,99 @@ def _losgeloest(args, wait=False):
     return 0
 
 
+def _deutsch(text):
+    """apt-Meldungen kurz auf Deutsch."""
+    import re
+    for rx, ers in ((r"^Retrieving file (\d+) of (\d+)", r"Lade Datei \1 von \2"), (r"^Unpacking ", "Packe aus: "),
+                    (r"^Preparing to unpack ", "Bereite vor: "), (r"^Setting up ", "Richte ein: "),
+                    (r"^Installing ", "Installiere: "), (r"^Installed ", "Installiert: "),
+                    (r"^Running dpkg", "Pakete werden eingetragen"), (r"^Processing triggers for ", "Abschluss: ")):
+        text = re.sub(rx, ers, text)
+    return text
+
+
+INSTALL_SCHRITTE = [("Paketliste", 6), ("Herunterladen", 56), ("Installieren", 33), ("Einrichten", 5)]
+
+
 def installieren():
-    """Mixxx einmalig installieren (blockiert, dauert einige Minuten). Gibt (ok, meldung) zurück."""
+    """Mixxx einmalig installieren – mit echtem Fortschritt aus apt (Download-MB, Pakete). (ok, meldung)"""
+    import re
+    import time
+    from . import fortschritt as fs
     if mixxx_da():
         return True, "Mixxx ist schon da"
-    rc = _losgeloest(["installieren"], wait=True)
-    if rc == 0 and mixxx_da():
-        return True, "Mixxx ist installiert"
+    fs.start("DJ-Pult wird eingerichtet (einmalig)", INSTALL_SCHRITTE)
+    fs.schritt(0, "Paketquellen werden geprüft")
+    try:
+        os.remove(INSTALL_LOG)
+    except OSError:
+        pass
+    _losgeloest(["installieren"])
+    total = 0
+    pos = 0
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 40 * 60:
+        time.sleep(0.4)
+        try:
+            with open(INSTALL_LOG, encoding="utf-8", errors="replace") as f:
+                f.seek(pos)
+                neu = f.read()
+                pos = f.tell()
+        except OSError:
+            continue
+        for z in neu.splitlines():
+            z = z.strip()
+            if not z:
+                continue
+            if z == "PHASE paketliste":
+                fs.schritt(0, "Paketquellen werden aktualisiert")
+            elif z == "PHASE laden":
+                fs.schritt(1, "Mixxx und Helfer werden geladen")
+            elif z == "PHASE einrichten":
+                fs.schritt(3, "WLAN-Ordner und Mixxx werden eingerichtet")
+            elif z == "FERTIG":
+                fs.fertig("Mixxx ist installiert")
+                return True, "Mixxx ist installiert"
+            elif z == "FEHLER":
+                break
+            m = re.search(r"Need to get ([\d.,]+)\s*([kMG]?B)", z)
+            if m:
+                faktor = {"B": 1, "kB": 1e3, "MB": 1e6, "GB": 1e9}.get(m.group(2), 1)
+                total = int(float(m.group(1).replace(",", "")) * faktor)
+                fs.teil(total=total, detail=f"{fs.groesse(total)} zu laden")
+            m = re.match(r"dlstatus:(\d+):([\d.]+):(.*)", z)
+            if m:
+                pct = float(m.group(2)) / 100
+                if fs.STAND.get("schritt", 0) < 1:
+                    fs.schritt(1)
+                if total:
+                    fs.teil(bytes_=int(total * pct), total=total, detail=_deutsch(m.group(3)))
+                else:
+                    fs.teil(anteil=pct, detail=_deutsch(m.group(3)))
+            m = re.match(r"pmstatus:([^:]+):([\d.]+):(.*)", z)
+            if m:
+                if fs.STAND.get("schritt", 0) < 2:
+                    fs.schritt(2)
+                fs.teil(anteil=float(m.group(2)) / 100, detail=_deutsch(m.group(3)), zeile=f"Paket: {m.group(1)}")
+            m = re.match(r"(?:Get|Hit|Holen|OK):\d+\s+(\S+)\s+.*?(\S+)\s+\S+\s+\S+(?:\s+\[([\d.,]+\s*[kMG]?B)\])?", z)
+            if m and not z.startswith(("dlstatus", "pmstatus")):
+                fs.teil(zeile=z)
+        else:
+            continue
+        break
     letzte = ""
     try:
         with open(INSTALL_LOG, encoding="utf-8", errors="replace") as f:
-            zeilen = [z.strip() for z in f if z.strip() and z.strip() not in ("FEHLER",)]
+            zeilen = [z.strip() for z in f if z.strip() and z.strip() not in ("FEHLER",) and not z.startswith(("dlstatus", "pmstatus", "PHASE"))]
         letzte = zeilen[-1] if zeilen else ""
     except OSError:
         pass
     if "resolve" in letzte or "Temporary failure" in letzte or "Could not" in letzte:
-        return False, "Kein Internet – der Zynthian braucht für die einmalige Installation WLAN oder Kabel."
-    return False, "Installation fehlgeschlagen" + (f": {letzte[:120]}" if letzte else "")
+        meldung = "Kein Internet – der Zynthian braucht für die einmalige Installation WLAN oder Kabel."
+    else:
+        meldung = "Installation fehlgeschlagen" + (f": {letzte[:120]}" if letzte else "")
+    fs.fehler(meldung)
+    return False, meldung
 
 
 IMPORT_LOG = "/tmp/zynsimple-dj-import.log"
@@ -92,7 +168,7 @@ def import_starten():
 
 
 def import_stand():
-    """{"phase": "laeuft"|"fertig"|"fehler"|None, "n", "gesamt", "datei", "text"}"""
+    """{"phase": "laeuft"|"fertig"|"fehler"|None, "n", "gesamt", "bytes", "gesamt_b", "datei", "text"}"""
     try:
         with open(IMPORT_LOG, encoding="utf-8", errors="replace") as f:
             zeilen = [z.rstrip("\n") for z in f if z.strip()]
@@ -104,10 +180,13 @@ def import_stand():
     if letzte.startswith("FEHLER"):
         return {"phase": "fehler", "text": letzte[7:]}
     if letzte.startswith("FERTIG"):
-        return {"phase": "fertig", "text": f"{letzte.split()[1]} Dateien sind jetzt auf dem Zynthian"}
-    teile = letzte.split(" ", 3)
-    if teile[0] == "STAND" and len(teile) >= 3:
-        return {"phase": "laeuft", "n": int(teile[1]), "gesamt": int(teile[2]), "datei": teile[3] if len(teile) > 3 else ""}
+        t = letzte.split()
+        neu = t[2] if len(t) > 2 else t[1]
+        return {"phase": "fertig", "text": f"{t[1]} Dateien geprüft, {neu} neu auf den Zynthian kopiert"}
+    teile = letzte.split(" ", 5)
+    if teile[0] in ("STAND", "DATEI") and len(teile) >= 5:
+        return {"phase": "laeuft", "n": int(teile[1]), "gesamt": int(teile[2]), "bytes": int(teile[3]),
+                "gesamt_b": int(teile[4] or 0), "datei": teile[5] if len(teile) > 5 else "", "kopiert": teile[0] == "DATEI"}
     return {"phase": "laeuft", "n": 0, "gesamt": 0, "datei": ""}
 
 

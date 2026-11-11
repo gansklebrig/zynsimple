@@ -101,6 +101,14 @@
   #updov.done .ring b { background: radial-gradient(circle, #9ff0c8, #34c78a 60%, transparent 72%); animation: none; }
   #updov.err .ring i { animation: none; border-color: var(--mute); }
   #updov.err .ring b { background: radial-gradient(circle, #ffb0bd, #e0445e 60%, transparent 72%); animation: none; }
+  #uo-pz { margin-top: -96px; height: 96px; line-height: 40px; font-size: 26px; font-weight: 800; color: var(--accent);
+    font-variant-numeric: tabular-nums; position: relative; z-index: 2; }
+  #updov.done #uo-pz { color: var(--fxon); } #updov.err #uo-pz { color: var(--mute); }
+  .uo-bar { height: 14px; border-radius: 7px; background: #000; border: 1px solid var(--line); overflow: hidden; margin: 4px 0 8px; }
+  .uo-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #c98a2b, var(--accent), #ffd98a); transition: width .4s; }
+  #updov.done .uo-bar i { background: var(--fxon); } #updov.err .uo-bar i { background: var(--mute); }
+  #uo-d { margin: 0 0 4px !important; color: var(--tx) !important; font-variant-numeric: tabular-nums; }
+  #uo-z { margin: 0 0 12px !important; font-size: 11px !important; min-height: 1.2em; word-break: break-all; }
   @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes pulse { 50% { transform: scale(.75); opacity: .7; } }
   .steps { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
@@ -298,7 +306,9 @@
 <div id="undo"><span id="undo-t"></span><button class="btn" id="undo-b">↶ Zurückholen</button></div>
 <div id="updov"><div class="uo">
   <div class="ring"><i></i><i></i><i></i><b></b></div>
+  <div id="uo-pz">0 %</div>
   <h2 id="uo-t">Update</h2><p id="uo-s"></p>
+  <div class="uo-bar"><i id="uo-bar"></i></div><p id="uo-d"></p><p id="uo-z"></p>
   <div class="steps"><span data-st="load">Laden</span><span data-st="install">Installieren</span><span data-st="restart">Neustart</span><span data-st="done">Fertig</span></div>
   <button class="btn sec" id="uo-close" style="display:none">Schließen</button>
 </div></div>
@@ -628,15 +638,38 @@
     document.getElementById('uo-close').style.display = cls ? '' : 'none';
   }
   document.getElementById('uo-close').onclick = () => { $uo.classList.remove('on'); updating = false; };
-  function uoStart(sub) { uoFrom = lastVersion; uoT0 = Date.now(); uo('load', 'Update wird geladen …', sub); }
-  function uoInstalling() { updating = true; uo('install', 'Update wird installiert …', 'Bitte nicht ausschalten'); }
+  function uoStart(sub) { uoFrom = lastVersion; uoT0 = Date.now(); uo('load', 'Update wird geladen …', sub); uoFolgen(); }
+  // Echter Fortschritt vom Zynthian (Bytes, Schritte, Meldungen) – kein Timer
+  let uoTimer = null;
+  function uoFolgen() {
+    clearInterval(uoTimer);
+    uoTimer = setInterval(async () => {
+      if (!$uo.classList.contains('on')) { clearInterval(uoTimer); return; }
+      const d = await api('/api/fortschritt').catch(() => null);
+      if (!d || !d.aktiv) return;
+      document.getElementById('uo-pz').textContent = d.fehler ? '!' : (d.fertig ? '✓' : Math.floor(d.prozent) + ' %');
+      document.getElementById('uo-bar').style.width = (d.fertig ? 100 : d.prozent) + '%';
+      document.getElementById('uo-d').textContent = d.fehler || d.daten || d.detail || '';
+      document.getElementById('uo-z').textContent = d.zeile || '';
+      const st = document.querySelector('#updov .steps');
+      st.innerHTML = '';
+      d.schritte.forEach((n, k) => { const sp = el('span', '', st, (d.fertig || k < d.schritt ? '✓ ' : '') + n);
+        sp.classList.toggle('ok', d.fertig || k < d.schritt); sp.classList.toggle('on', !d.fertig && k === d.schritt); });
+      if (d.titel) document.getElementById('uo-t').textContent = d.titel;
+      if (d.fehler) { uo('load', 'Update fehlgeschlagen', d.fehler, 'err'); updating = false; clearInterval(uoTimer); }
+    }, 600);
+  }
+  function uoInstalling() { updating = true; uo('install', 'Update wird installiert …', 'Bitte nicht ausschalten'); uoFolgen(); }
   function uoFail(msg) { uo('load', 'Update fehlgeschlagen', msg, 'err'); updating = false; }
   let lastVersion = null;
   function uoPoll(ok, d) {
     if (!updating) return;
-    if (!ok) { uo('restart', 'Zynthian startet neu …', 'Gleich geht es weiter'); return; }
+    if (!ok) { uo('restart', 'Zynthian startet neu …', 'Gleich geht es weiter');
+      document.getElementById('uo-pz').textContent = '↻'; document.getElementById('uo-bar').style.width = '97%';
+      document.getElementById('uo-d').textContent = 'Die Oberfläche startet mit der neuen Version …'; return; }
     if (d && d.app_version && uoFrom && d.app_version !== uoFrom) {
       uo('done', 'Fertig – Version ' + d.app_version, 'Die Seite lädt sich neu …', 'done');
+      document.getElementById('uo-pz').textContent = '✓'; document.getElementById('uo-bar').style.width = '100%';
       updating = false; setTimeout(() => location.reload(), 1800);
     } else if (Date.now() - uoT0 > 180000) {
       uo('done', 'Update abgeschlossen', 'Falls sich nichts geändert hat: Seite neu laden.', 'done'); updating = false;

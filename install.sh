@@ -8,6 +8,7 @@ DEST="${ZS_DIR:-/zynthian/zynthian-my-data/zynsimple}"
 
 echo "== ZynSimple wird installiert =="
 
+echo "SCHRITT 1/6 Suche die Python-Umgebung der Zynthian-Oberfläche"
 # 1) Python finden, mit dem die Zynthian-Oberfläche läuft
 #    (Zynthian nutzt ein venv; dessen python3 ist nur ein Link aufs System-Python,
 #     darum zuerst das venv nehmen und den Link NICHT auflösen)
@@ -33,6 +34,7 @@ SITE=$("$PY" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
 echo "Python:        $PY"
 echo "site-packages: $SITE"
 
+echo "SCHRITT 2/6 Kopiere die neuen Dateien"
 # 2) Dateien kopieren (Einstellungen bleiben erhalten)
 mkdir -p "$DEST"
 if [ "$SRC" != "$DEST" ]; then
@@ -59,11 +61,13 @@ fi
 rm -f "$DEST/zynsimple.disabled"
 find "$DEST" -name "__pycache__" -type d -prune -exec rm -rf {} + 2>/dev/null || true
 
+echo "SCHRITT 3/6 Richte das DJ-Pult und den WLAN-Ordner ein"
 # 2b) DJ-Pult (Mixxx) einrichten – Mixxx selbst wird erst beim ersten Start installiert
 if [ -f "$DEST/dj/zynsimple-dj" ] && [ -d /run/systemd/system ]; then
     ZS_DIR="$DEST" bash "$DEST/dj/zynsimple-dj" einrichten || echo "DJ-Pult: Einrichtung übersprungen"
 fi
 
+echo "SCHRITT 4/6 Hänge ZynSimple in die Oberfläche ein"
 # 3) Startdatei (.pth) anlegen – wird bei jedem Python-Start gelesen,
 #    hängt sich aber nur in die Zynthian-Oberfläche ein.
 cat > "$SITE/zynsimple.pth" <<PTH
@@ -75,9 +79,15 @@ for ALT in /usr/local/lib/python3*/dist-packages/zynsimple.pth /usr/lib/python3/
     [ -f "$ALT" ] && [ "$ALT" != "$SITE/zynsimple.pth" ] && rm -f "$ALT" && echo "Alte Startdatei entfernt: $ALT"
 done
 
+echo "SCHRITT 5/6 Selbsttest"
 # 4) Kurzer Selbsttest
 "$PY" -c "import zynsimple_boot, sys; assert any(type(f).__name__=='_Finder' for f in sys.meta_path); print('Selbsttest:    OK')"
 
+# Merker für die Oberfläche: nach dem Neustart „Update fertig“ zeigen
+VER=$(cat "$SRC/VERSION" 2>/dev/null || echo "?")
+echo "$VER" > "$DEST/.update_fertig"
+echo "Fertig! Version $VER ist installiert."
+echo "SCHRITT 6/6 Die Oberfläche startet neu"
 # 5) Oberfläche neu starten
 if [ -z "$ZS_NO_RESTART" ] && command -v systemctl >/dev/null && systemctl list-units --type=service 2>/dev/null | grep -q zynthian.service; then
     echo "Starte die Zynthian-Oberfläche neu ..."
@@ -87,5 +97,5 @@ fi
 IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 PORT=$("$PY" -c "import json;print(json.load(open('$DEST/zynsimple.json')).get('web_port',8090))" 2>/dev/null || echo 8090)
 echo
-echo "Fertig! Handy/Tablet:  http://${IP:-zynthian.local}:$PORT"
+echo "Handy/Tablet:  http://${IP:-zynthian.local}:$PORT"
 echo "                  oder http://zynthian.local:$PORT"

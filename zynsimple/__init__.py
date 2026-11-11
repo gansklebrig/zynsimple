@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "3.3"
+VERSION = "3.4"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -107,6 +107,7 @@ def setup(zyngui):
         _add_menu_entry(zyngui)
     _hook_power(zyngui)
     _start_aktion(zyngui)
+    _update_fertig_zeigen(zyngui)
 
 
 START_AKTION = "/run/zynsimple-start-aktion"
@@ -187,6 +188,34 @@ def _hook_power(zyngui):
         log.info("ZynSimple: BACK 2 s → System-Menü")
     except Exception as e:
         log.warning(f"ZynSimple: System-Menü nicht eingehängt: {e}")
+
+
+def _update_fertig_zeigen(zyngui):
+    """War das ein Neustart nach einem Update? Dann kurz zeigen, dass alles geklappt hat."""
+    p = os.path.join(HOME_DIR, ".update_fertig")
+    try:
+        with open(p, encoding="utf-8") as f:
+            ver = f.read().strip()
+        os.remove(p)
+    except OSError:
+        return
+    from . import fortschritt as fs
+    from .updater import UPDATE_SCHRITTE
+
+    def zeigen():
+        scr = zyngui.screens.get(SCREEN_NAME)
+        if scr is None:
+            return
+        fs.start(f"Update auf {ver}", UPDATE_SCHRITTE)
+        fs.fertig(f"ZynSimple {ver} läuft – alles erledigt")
+        scr.show_update(f"Update auf {ver} fertig", "Antippen zum Schließen", done=True)
+        zynthian_gui_config.top.after(7000, lambda: (fs.ende(), scr.mode == "update" and setattr(scr, "mode", "mix"),
+                                                     setattr(scr, "sig", None)))
+    try:
+        from zyngui import zynthian_gui_config
+        zynthian_gui_config.top.after(4500, zeigen)
+    except Exception:
+        pass
 
 
 def _start_aktion(zyngui):
@@ -305,10 +334,15 @@ def start_update(zyngui, *a, **k):
 
     def run():
         from . import updater, web
+        from . import fortschritt as fs
+        fs.start("ZynSimple-Update", updater.UPDATE_SCHRITTE)
+        fs.schritt(0, "GitHub wird gefragt")
         show("Suche nach Updates …", "GitHub wird gefragt")
         st = updater.check(zyngui._zs_settings)
         if st.get("available"):
             try:
+                fs.teil(anteil=1.0, detail=f"Version {st['latest']} gefunden (du hast {st.get('current')})")
+                fs.STAND["titel"] = f"Update {st.get('current')} → {st['latest']}"
                 show(f"Update {st['latest']} wird geladen …", "von GitHub · bitte nicht ausschalten")
                 updater.install(zyngui._zs_settings)
                 show(f"Update {st['latest']} wird installiert …", "Die Oberfläche startet gleich neu")
@@ -324,6 +358,7 @@ def start_update(zyngui, *a, **k):
                 return
             raise FileNotFoundError
         except Exception:
+            fs.ende()
             if st.get("error"):
                 show("Kein Update gefunden", f"{st['error']} – und kein USB-Stick mit Update. Antippen zum Schließen.",
                      error=True)
@@ -382,24 +417,34 @@ def start_import(zyngui, *a, **k):
     def run():
         import time
         from . import dj
+        from . import fortschritt as fs
+        fs.start("Musik vom USB-Stick übernehmen", [("Stick prüfen", 5), ("Kopieren", 92), ("Fertig", 3)])
+        fs.schritt(0, "Ordner „MUSIK gekauft“ wird gesucht")
         show("Musik wird übernommen …", "vom USB-Stick (Ordner „MUSIK gekauft“)")
         try:
             dj.import_starten()
         except Exception as e:
+            fs.fehler(str(e))
             show("Import ging nicht", f"{e} Antippen zum Schließen.", error=True)
             return
         t0 = time.monotonic()
         while time.monotonic() - t0 < 4 * 3600:
-            time.sleep(0.5)
+            time.sleep(0.4)
             st = dj.import_stand()
             if st["phase"] == "fertig":
-                show("Musik übernommen", st["text"] + " · der Stick kann raus. Antippen zum Schließen.", done=True)
+                fs.fertig(st["text"] + " · der Stick kann raus")
+                show("Musik übernommen", "Antippen zum Schließen.", done=True)
                 return
             if st["phase"] == "fehler":
+                fs.fehler(st["text"])
                 show("Import ging nicht", st["text"] + ". Antippen zum Schließen.", error=True)
                 return
             if st.get("gesamt"):
-                show(f"Musik wird übernommen … {st['n']} / {st['gesamt']}", st.get("datei", "")[-70:])
+                if fs.STAND.get("schritt", 0) < 1:
+                    fs.schritt(1)
+                fs.teil(bytes_=st.get("bytes", 0), total=st.get("gesamt_b") or None,
+                        detail=f"{st['n']} von {st['gesamt']} Dateien",
+                        zeile=("kopiere: " if st.get("kopiert") else "schon da: ") + st.get("datei", ""))
 
     if scr is not None:
         try:

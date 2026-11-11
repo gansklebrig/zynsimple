@@ -165,18 +165,22 @@ case "$1" in
       cat "$IMPORT_LOG"; exit 1
     fi
     GESAMT=$(find "$QUELLE" -type f | wc -l); N=0
-    echo "START $GESAMT" > "$IMPORT_LOG"
+    GESAMT_B=$(du -sb "$QUELLE" 2>/dev/null | cut -f1); KOPIERT_B=0; NEU=0
+    echo "START $GESAMT $GESAMT_B" > "$IMPORT_LOG"
     while IFS= read -r -d '' F; do
-      REL="${F#"$QUELLE"/}"; Z="$MUSIK/$REL"; N=$((N + 1))
-      if [ ! -f "$Z" ] || [ "$(stat -c %s "$F")" != "$(stat -c %s "$Z")" ]; then
+      REL="${F#"$QUELLE"/}"; Z="$MUSIK/$REL"; N=$((N + 1)); GR=$(stat -c %s "$F")
+      if [ ! -f "$Z" ] || [ "$GR" != "$(stat -c %s "$Z")" ]; then
+        echo "DATEI $N $GESAMT $KOPIERT_B $GESAMT_B $REL" >> "$IMPORT_LOG"
         mkdir -p "$(dirname "$Z")" && cp -p "$F" "$Z.teil" && mv "$Z.teil" "$Z"
+        NEU=$((NEU + 1))
       fi
-      echo "STAND $N $GESAMT $REL" >> "$IMPORT_LOG"
+      KOPIERT_B=$((KOPIERT_B + GR))
+      echo "STAND $N $GESAMT $KOPIERT_B $GESAMT_B $REL" >> "$IMPORT_LOG"
     done < <(find "$QUELLE" -type f -print0)
     sync
     # merken: dieser Stick ist übernommen → Mixxx liest die Musik ab jetzt von der SD-Karte
     touch "$QUELLE/.zynsimple-importiert" 2>/dev/null
-    echo "FERTIG $N" >> "$IMPORT_LOG"
+    echo "FERTIG $N $NEU" >> "$IMPORT_LOG"
     echo "$N Dateien übernommen."
     ;;
   installieren)
@@ -187,9 +191,17 @@ case "$1" in
       export DEBIAN_FRONTEND=noninteractive
       # ohne „empfohlene“ Pakete: sonst kämen PulseAudio/PipeWire mit, die dem Zynthian-Ton in die Quere kämen
       PAKETE="mixxx xdotool unclutter"
-      [ -f /etc/samba/smb.conf ] || PAKETE="$PAKETE samba"
-      apt-get install -y -q --no-install-recommends $PAKETE \
-        || { apt-get update -q && apt-get install -y -q --no-install-recommends $PAKETE; }
+      command -v smbd >/dev/null || PAKETE="$PAKETE samba"
+      # Status-Zeilen (dlstatus/pmstatus) für den echten Fortschrittsbalken
+      AO="-o APT::Status-Fd=1 -o Dpkg::Use-Pty=0"
+      echo "PHASE paketliste"
+      if ! apt-get install -y -q --no-install-recommends --print-uris $PAKETE >/dev/null 2>&1; then
+        apt-get update $AO
+      fi
+      echo "PHASE laden"
+      LANG=C apt-get install -y --no-install-recommends $AO $PAKETE \
+        || { echo "PHASE paketliste"; apt-get update $AO; echo "PHASE laden"; LANG=C apt-get install -y --no-install-recommends $AO $PAKETE; }
+      echo "PHASE einrichten"
     } > "$LOG" 2>&1
     samba_einrichten >> "$LOG" 2>&1
     mixxx_da && { echo "Mixxx ist installiert."; echo "FERTIG" >> "$LOG"; exit 0; }

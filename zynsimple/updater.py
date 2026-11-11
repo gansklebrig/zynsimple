@@ -2,6 +2,7 @@
 """ZynSimple – Updates direkt von GitHub holen (wenn der Zynthian Internet hat)."""
 
 import logging
+import os
 import threading
 import time
 import urllib.error
@@ -42,15 +43,51 @@ def check(settings=None, timeout=8):
     return dict(status)
 
 
+UPDATE_SCHRITTE = [("Prüfen", 3), ("Herunterladen", 45), ("Entpacken", 10), ("Installieren", 37), ("Neustart", 5)]
+GROESSE_DATEI = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".update_groesse")
+
+
 def install(settings=None, timeout=60):
-    """Lädt den aktuellen Stand von GitHub und installiert ihn."""
+    """Lädt den aktuellen Stand von GitHub und installiert ihn – mit echtem Fortschritt (Bytes, Tempo)."""
+    from . import fortschritt as fs
     from .web import install_update
     repo, branch = _repo(settings)
     url = f"https://codeload.github.com/{repo}/zip/refs/heads/{branch}"
+    if not fs.STAND.get("aktiv"):
+        fs.start("ZynSimple-Update", UPDATE_SCHRITTE)
+    fs.schritt(1, f"von github.com/{repo}")
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=timeout) as r:
-            data = r.read(25 * 1024 * 1024)
+            total = int(r.headers.get("Content-Length") or 0)
+            if not total:
+                # GitHub nennt die Größe oft nicht – dann die vom letzten Mal als Schätzung
+                try:
+                    with open(GROESSE_DATEI) as f:
+                        schaetz = int(f.read().strip())
+                except Exception:
+                    schaetz = 0
+            teile, n = [], 0
+            while True:
+                b = r.read(32 * 1024)
+                if not b:
+                    break
+                teile.append(b)
+                n += len(b)
+                if n > 25 * 1024 * 1024:
+                    raise RuntimeError("Download ist unerwartet groß")
+                if total:
+                    fs.teil(bytes_=n, total=total)
+                else:
+                    fs.teil(bytes_=n, anteil=min(0.97, n / schaetz) if schaetz else None)
+            data = b"".join(teile)
+        try:
+            with open(GROESSE_DATEI, "w") as f:
+                f.write(str(len(data)))
+        except OSError:
+            pass
+        fs.teil(anteil=1.0, bytes_=len(data), total=len(data))
     except Exception as e:
+        fs.fehler(f"Download fehlgeschlagen ({e}) – hat der Zynthian Internet?")
         raise RuntimeError(f"Download fehlgeschlagen ({e}). Hat der Zynthian Internet?")
     return install_update(data)
 

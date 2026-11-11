@@ -73,6 +73,16 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 3.4 – Fortschritt, der wirklich etwas zeigt
+
+Updates, die Mixxx-Installation und der Musik-Import zeigen jetzt echte Werte statt eines Timers:
+- **Ring mit Prozent** – bewegt sich nur, wenn tatsächlich geladen, ausgepackt oder installiert wird.
+- **Schritte mit Haken:** z. B. Prüfen → Herunterladen → Entpacken → Installieren → Neustart; beim aktuellen Schritt steht, was gerade passiert.
+- **Daten:** „268 kB von 412 kB · 134 kB/s · noch ca. 2 s“, bei Mixxx die echten MB aus dem Paketmanager und welches Paket gerade ausgepackt/eingerichtet wird, beim Import Dateien und MB.
+- **Nach dem Neustart** zeigt ZynSimple kurz „Update auf 3.4 fertig ✓“.
+- Am Handy dasselbe: Prozent, Balken, Schritte, Daten.
+- Barden Beats: Der Update-Balken zeigt jetzt Prozent, geladene MB, Tempo und die Schritte statt Sekunden.
+
 ## Neu in Version 3.3 – System-Menü: BACK 2 Sekunden halten
 
 In **allen** Apps – Zynthian/ZynSimple, DJ-Pult und Barden Beats – öffnet **BACK 2 s halten** dasselbe System-Menü:
