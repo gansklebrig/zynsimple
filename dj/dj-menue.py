@@ -33,15 +33,15 @@ SOCK = "/tmp/zynsimple-dj-menue.sock"
 SCHRIFT = "DejaVu Sans"
 
 HILFE = [
-    ("Titel wählen", "Regler 1 drehen (oder am DDJ-200: SHIFT + Jogwheel)"),
-    ("In Deck A / B laden", "Regler 1 drücken = Deck A · Regler 2 drücken = Deck B · oder Titel antippen und ziehen"),
-    ("Abspielen", "am DDJ-200: PLAY ▶ links/rechts · Lautstärke: Fader · Überblenden: Crossfader"),
-    ("Im Takt", "SYNC am DDJ-200 drücken – das Tempo passt sich an"),
-    ("Vorhören", "MIXER = Deck A · CTRL = Deck B im Kopfhörer (USB-Soundkarte)"),
-    ("Effekte", "Regler 3 / 4 drehen = Stärke · drücken = an/aus"),
-    ("Stems", "F1–F4: Drums · Bass · Melodie · Vocals stumm/an (ALT halten = Deck B)"),
-    ("Aufnahme · Auto-DJ", "REC = Set aufnehmen · PLAY (Zynthian) = Auto-DJ an/aus"),
-    ("Menü", "☰ oben rechts oder BACK 2 s halten"),
+    ("Unten am Bildschirm", "steht immer, was die 4 Regler und F1–F4 gerade tun – bei jeder Bewegung kommt ein Hinweis"),
+    ("Titel laden", "Regler 1 (Ebene Mischen) oder ▲▼ wählen · SEL lädt ins freie Deck · Regler 1/2 drücken = Deck A/B"),
+    ("Abspielen & Mischen", "am DDJ-200: PLAY ▶, Fader, Crossfader · SYNC drücken = Tempo passt sich an"),
+    ("Ebenen (MIXER)", "MISCHEN: Titel · Kopfhörer · Filter A/B  │  EFFEKTE: 2 Effekte + Loops  │  HANDPAN: Eingang, Effekt, Lautstärken"),
+    ("F1–F4", "Mischen: Stems Drums/Bass/Melodie/Vocals (ALT = Deck B) · Effekte: Loop 4/8/16/aus · Handpan: an/aus, Effekt"),
+    ("Vorhören", "CTRL: Kopfhörer hört Deck A → Deck B → aus (USB-Soundkarte nötig)"),
+    ("Schnelltasten", "PLAY Auto-DJ · REC Aufnahme · PAD Handpan an/aus · TEMPO tippen (ALT: Sync) · ZS3 große Liste"),
+    ("Panik", "STOP kurz: alle Effekte und Filter aus · STOP 3 s halten: ausschalten"),
+    ("Menü", "☰ oben rechts, MENU kurz oder BACK 2 s halten – auch mit den Tasten bedienbar"),
 ]
 
 

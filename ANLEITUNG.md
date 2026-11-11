@@ -73,6 +73,27 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 3.8 – DJ-Pult: Ebenen, Hinweisleiste, Effekte
+
+**Hinweisleiste unten am Bildschirm:** zeigt immer, was die 4 Zynthian-Regler (drehen / ⏎ drücken) und F1–F4 gerade tun.
+Bei jeder Bedienung erscheint kurz darüber, was passiert ist („Filter A: 62 %“, „Loop 8 Schläge auf Deck A“ …).
+
+**Ebenen – MIXER wechselt (ALT + ◀ ▶ auch). Die MIXER-LED zeigt die Ebene:**
+
+| Ebene | R1 | R2 | R3 | R4 | F1–F4 |
+| --- | --- | --- | --- | --- | --- |
+| MISCHEN (gold) | Titel wählen · ⏎ Deck A | Kopfhörer Vorhören↔Mix · ⏎ Deck B | Filter A · ⏎ Mitte | Filter B · ⏎ Mitte | Stems Drums/Bass/Melodie/Vocals (ALT: Deck B) – sonst Sampler |
+| EFFEKTE (grün) | Effekt 1 Stärke · ⏎ an/aus | Effekt 1 wählen · ⏎ Ziel A → B → A+B | Effekt 2 Stärke · ⏎ an/aus | Effekt 2 wählen · ⏎ Ziel | Loop 4 · 8 · 16 · Loop aus |
+| HANDPAN (rot) | Handpan-Lautstärke | Handpan-Effekt · ⏎ an/aus | Master | Kopfhörer | Handpan an/aus · Effekt an/aus · nächster Effekt · Durchsage |
+
+**Immer gleich:** SEL lädt den gewählten Titel ins **freie** Deck · ▲▼ Titel · ◀▶ Bereich · PLAY Auto-DJ · REC Aufnahme ·
+PAD Handpan an/aus · TEMPO tippen (ALT + TEMPO: Sync) · CTRL Vorhören A → B → aus · ZS3 große Liste ·
+STOP kurz: Panik (alle Effekte und Filter aus), 3 s: ausschalten · ALT halten: fein drehen, Regler 1 springt seitenweise.
+
+**Effekte:** Im DJ-Pult laufen die Effekte von Mixxx (Echo, Hall, Filter, Flanger …) – die Zynthian-Effekte sind in dem Modus
+aus, weil der Zynthian-Ton pausiert. Die Namen stehen über der Bibliothek, FX1/FX2 leuchten grün, wenn sie an sind.
+Die Handpan hat eine eigene Effekt-Einheit (Effekt 3).
+
 ## Neu in Version 3.7 – Menüs mit den Zynthian-Tasten bedienen
 
 Alle Menüs gehen jetzt auch ohne Touchscreen – Einstellungen, Mehr, Spur-Seite, Neue Spur, Auto-Gain/Stimmgerät/Looper,

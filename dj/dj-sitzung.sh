@@ -65,7 +65,10 @@ export ZS_MIXXX="$MIXXX"
 TKPY_KNOPF="${TKPY:-}"
 [ -n "$TKPY_KNOPF" ] && [ "${DJ_KNOPF:-an}" != "aus" ] && "$TKPY_KNOPF" "$HIER/dj-knopf.py" &
 KNOPF=$!
-trap 'kill $HELFER $KNOPF 2>/dev/null' EXIT
+# Hinweisleiste unten: was die Regler und F1–F4 gerade tun, plus kurze Einblendungen
+[ -n "$TKPY_KNOPF" ] && [ "${DJ_LEISTE:-an}" != "aus" ] && "$TKPY_KNOPF" "$HIER/dj-hud.py" &
+LEISTE=$!
+trap 'kill $HELFER $KNOPF $LEISTE 2>/dev/null' EXIT
 
 # Mixxx: Einstellungen und Bibliothek liegen in $DATEN/.mixxx (wird beim Zynthian-Backup mitgesichert)
 VERSUCH=0

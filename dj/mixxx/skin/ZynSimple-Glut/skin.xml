@@ -363,6 +363,50 @@
       </Children>
     </WidgetGroup>
 
+    <!-- Effekte: Name und an/aus (Zynthian: Ebene EFFEKTE) -->
+    <WidgetGroup>
+      <ObjectName>EffektReihe</ObjectName>
+      <Layout>horizontal</Layout>
+      <SizePolicy>me,min</SizePolicy>
+      <Connection>
+        <ConfigKey>[Skin],show_maximized_library</ConfigKey>
+        <Transform><Not/></Transform>
+        <BindProperty>visible</BindProperty>
+      </Connection>
+      <Children>
+        <PushButton>
+          <ObjectName>FxAn</ObjectName>
+          <Size>58f,22f</Size>
+          <NumberStates>2</NumberStates>
+          <State><Number>0</Number><Text>FX1 aus</Text></State>
+          <State><Number>1</Number><Text>FX1 an</Text></State>
+          <Connection><ConfigKey>[EffectRack1_EffectUnit1],enabled</ConfigKey></Connection>
+        </PushButton>
+        <EffectName>
+          <ObjectName>FxName</ObjectName>
+          <EffectRack>1</EffectRack>
+          <EffectUnit>1</EffectUnit>
+          <Effect>1</Effect>
+          <SizePolicy>me,min</SizePolicy>
+        </EffectName>
+        <PushButton>
+          <ObjectName>FxAn</ObjectName>
+          <Size>58f,22f</Size>
+          <NumberStates>2</NumberStates>
+          <State><Number>0</Number><Text>FX2 aus</Text></State>
+          <State><Number>1</Number><Text>FX2 an</Text></State>
+          <Connection><ConfigKey>[EffectRack1_EffectUnit2],enabled</ConfigKey></Connection>
+        </PushButton>
+        <EffectName>
+          <ObjectName>FxName</ObjectName>
+          <EffectRack>1</EffectRack>
+          <EffectUnit>2</EffectUnit>
+          <Effect>1</Effect>
+          <SizePolicy>me,min</SizePolicy>
+        </EffectName>
+      </Children>
+    </WidgetGroup>
+
     <!-- Bibliothek: Seitenleiste (Kisten, Auto-DJ, Ordner) und Trackliste -->
     <WidgetGroup>
       <ObjectName>BibliothekKopf</ObjectName>
@@ -397,6 +441,15 @@
           <ShowButtonText>false</ShowButtonText>
         </Library>
       </Children>
+    </WidgetGroup>
+
+    <!-- Platz für die Hinweisleiste des Zynthian (unten) -->
+    <WidgetGroup>
+      <ObjectName>LeistePlatz</ObjectName>
+      <SizePolicy>me,f</SizePolicy>
+      <Size>0me,48f</Size>
+      <Layout>horizontal</Layout>
+      <Children/>
     </WidgetGroup>
 
   </Children>

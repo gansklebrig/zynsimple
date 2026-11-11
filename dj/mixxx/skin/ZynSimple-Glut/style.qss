@@ -54,3 +54,8 @@ QScrollBar::add-page, QScrollBar::sub-page { background: #100e0d; }
 WOverview, WWaveformViewer { background-color: #0b0908; }
 #Wellen, #DeckReihe, #BibliothekKopf, #Bibliothek, #KnopfPlatz { background-color: #100e0d; }
 #DeckReihe { background-color: #16120f; }
+
+#EffektReihe, #LeistePlatz { background-color: #100e0d; }
+#FxAn { border: 1px solid #5a4524; border-radius: 4px; color: #a69a8a; background: #1f1915; font-size: 11px; }
+#FxAn[displayValue="1"] { background: #34c78a; color: #000000; border-color: #34c78a; }
+#FxName { color: #f3e9d8; font-size: 12px; padding: 0 8px; }

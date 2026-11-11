@@ -272,9 +272,27 @@ def umschalten(ziel):
     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
 
 
+HUD_SOCK = "/tmp/zynsimple-dj-hud.sock"
+_hud = {"s": None}
+
+
+def an_hud(text):
+    """Text an die Hinweisleiste (dj-hud.py) – z. B. „T|Filter A: 62 %“ oder „E|EFFEKTE|0|1“."""
+    import socket
+    if not os.path.exists(HUD_SOCK):
+        return
+    if _hud["s"] is None:
+        _hud["s"] = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        _hud["s"].sendto(text.encode("utf-8"), HUD_SOCK)
+    except OSError:
+        pass
+
+
 def mixxx_lesen(v, clock, leds):
-    """Nachrichten von Mixxx: LEDs, Tempo, Takt."""
+    """Nachrichten von Mixxx: LEDs, Tempo, Takt, Texte für die Hinweisleiste (SysEx)."""
     puffer = []
+    sysex = None
     bpm_msb = 0
     while True:
         if v.fd is None:
@@ -290,6 +308,24 @@ def mixxx_lesen(v, clock, leds):
             continue
         for b in daten:
             if b >= 0xF8:
+                continue
+            if b == 0xF0:
+                sysex = []
+                continue
+            if sysex is not None:
+                if b == 0xF7:
+                    # F0 7D <Zeichen als je zwei 7-Bit-Bytes> F7
+                    if sysex[:1] == [0x7D]:
+                        roh = sysex[1:]
+                        text = "".join(chr((roh[i] << 7) | roh[i + 1]) for i in range(0, len(roh) - 1, 2))
+                        an_hud(text)
+                    sysex = None
+                elif b & 0x80:
+                    sysex = None
+                else:
+                    sysex.append(b)
+                    if len(sysex) > 400:
+                        sysex = None
                 continue
             if b & 0x80:
                 puffer = [b]
@@ -380,6 +416,12 @@ def main():
                     v.send(0x80, nr, 0)
                 elif kurz and name == "BACK":
                     an_menue("BACK")                    # BACK kurz: im Menü zurück / Menü schließen
+                elif kurz and name == "STOP":
+                    if menue_offen():
+                        an_menue("BACK")
+                    else:
+                        v.send(0x90, nr, 127)           # STOP kurz: Panik (Effekte und Filter aus)
+                        v.send(0x80, nr, 0)
                 elif kurz and name == "MENU":
                     if not an_menue("BACK"):            # MENU kurz: Menü auf (oder wieder zu)
                         menue_zeigen()
