@@ -11,6 +11,14 @@ for PY in /zynthian/venv/bin/python3 python3 python3.11 python3.12 python3.13; d
     fi
 done
 
+# DJ-Pult entfernen (Mixxx selbst bleibt installiert: sudo apt remove mixxx)
+if [ -f /etc/systemd/system/zynsimple-dj.service ]; then
+    systemctl stop zynsimple-dj 2>/dev/null
+    rm -f /etc/systemd/system/zynsimple-dj.service /usr/local/bin/zynsimple-dj
+    systemctl daemon-reload 2>/dev/null
+    echo "DJ-Pult entfernt"
+fi
+
 if [ "$1" == "--alles" ]; then
     rm -rf "$DEST" && echo "Ordner $DEST gelöscht"
 else

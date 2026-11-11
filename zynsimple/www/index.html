@@ -121,6 +121,8 @@
     color: var(--tx); font-weight: 700; font-size: 14px; }
   #imres-modes button small { display: block; font-weight: 400; font-size: 11px; color: var(--tx2); margin-top: 3px; }
   #imres-modes button:active { border-color: var(--accent); }
+  #dj-modes button { width: 100%; min-height: 56px; border-radius: 12px; border: 1px solid #5a4524; background: var(--panel); color: var(--tx); font-size: 15px; font-weight: 600; }
+  #dj-modes button small { display: block; font-weight: 400; font-size: 11px; color: var(--tx2); margin-top: 3px; }
   #imres-msg { color: var(--tx2); font-size: 14px; min-height: 1.2em; }
   #imres-msg code { background: var(--panel); padding: 2px 6px; border-radius: 6px; user-select: text; -webkit-user-select: text; }
   #fern { flex: 1; width: 100%; border: 1px solid var(--line); border-radius: var(--r); background: #0b0908; }
@@ -284,7 +286,7 @@
 <header>
   <span class="dot" id="dot"></span>
   <h1>Zynthian</h1>
-  <nav id="tabs"><button data-tab="mix" class="on">Mischer</button><button data-tab="imres">♫ Imres</button><button data-tab="fxall">✦ Effekte</button><button data-tab="extras">⚙ Extras</button></nav>
+  <nav id="tabs"><button data-tab="mix" class="on">Mischer</button><button data-tab="imres">♫ Bühne</button><button data-tab="fxall">✦ Effekte</button><button data-tab="extras">⚙ Extras</button></nav>
   <span class="sp"></span>
   <small id="info"></small>
   <span id="sys" title="Auslastung: DSP = Audio-Last, dazu CPU und Temperatur"></span>
@@ -314,6 +316,7 @@
     <button data-mode="hintergrund">⇄ Zusammen<small>Zynthian + Imres</small></button>
     <button data-mode="zynthian">◼ Nur Zynthian<small>Imres aus</small></button>
   </div>
+  <div id="dj-modes" style="display:none"><button data-dj="dj">🎧 DJ-Pult<small>Mixxx im Vollbild · DDJ-200</small></button></div>
   <div id="imres-msg"></div>
   <iframe id="fern" title="Imres Fernbedienung"></iframe>
 </section>
@@ -325,6 +328,12 @@
   <div id="fxrows"></div>
 </section>
 <section id="extras">
+  <div class="card" id="dj-card" style="display:none">
+    <h2>🎧 DJ-Pult</h2>
+    <p>Mixxx im Vollbild, gesteuert mit dem DDJ-200. Zurück: Mixxx beenden oder am Zynthian <b>BACK</b> halten (<b>MENU</b> halten → Barden Beats).</p>
+    <div class="line"><button class="btn" id="dj-go">DJ-Pult starten</button></div>
+    <p id="dj-info"></p>
+  </div>
   <div class="card">
     <h2>🪘 Handpan anlegen</h2>
     <p>Legt mit einem Tipp einen Kanal fürs Mikro an: Low-Cut gegen Rumpeln, Kompressor, Delay im Takt und Hall.</p>
@@ -699,6 +708,27 @@
     } catch (e) { toast('Ging nicht: ' + e.message, 6000); }
   });
   setInterval(() => { if (tab === 'imres') imresCheck(); }, 8000);
+
+  // ---- DJ-Pult ----
+  async function djCheck() {
+    try {
+      const d = await api('/api/dj');
+      document.getElementById('dj-card').style.display = d.eingerichtet ? '' : 'none';
+      document.getElementById('dj-modes').style.display = d.eingerichtet ? '' : 'none';
+      document.getElementById('dj-info').textContent = d.mixxx ? '' : 'Beim ersten Start wird Mixxx installiert (braucht Internet, einige Minuten).';
+    } catch (e) {}
+  }
+  async function djStart() {
+    if (!confirm('DJ-Pult starten? Die Zynthian-Oberfläche pausiert so lange.')) return;
+    try {
+      const r = await api('/api/dj', { aktion: 'dj' });
+      if (r.error) throw new Error(r.error);
+      toast(r.mixxx ? 'DJ-Pult startet …' : 'Mixxx wird installiert – das dauert ein paar Minuten, siehe Zynthian-Display', 7000);
+    } catch (e) { toast('Ging nicht: ' + e.message, 6000); }
+  }
+  document.getElementById('dj-go').onclick = djStart;
+  document.querySelector('#dj-modes button').onclick = djStart;
+  djCheck();
 
   // ---- Effekt-Regler (Blatt von unten) ----
   const $sheet = document.getElementById('sheet'), $shBody = document.getElementById('sh-body');

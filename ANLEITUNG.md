@@ -73,6 +73,31 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 2.6 – DJ-Pult (Mixxx mit dem DDJ-200)
+
+Der Zynthian wird auf Knopfdruck zum DJ-Pult: Mixxx läuft im Vollbild, der Pioneer DDJ-200 steuert alles per USB.
+Kein zweites Betriebssystem nötig – Zynthian, Barden Beats und DJ-Pult wechseln sich auf derselben SD-Karte ab.
+
+**Starten:** Zynthian-Hauptmenü → *DJ-Pult* · oder ZynSimple → *Mehr* → *🎧 DJ-Pult* · oder Barden Beats → MENU halten → *System* → *🎧 DJ-Pult* · oder am Handy (Extras bzw. Bühne).
+
+**Beim ersten Start** wird Mixxx einmalig installiert. Dafür braucht der Zynthian Internet, das dauert einige Minuten. Das Display zeigt den Fortschritt.
+Tipp: Vorher ein Backup der SD-Karte machen (Raspberry Pi Imager oder Win32DiskImager).
+
+**Zurück:**
+- Mixxx beenden → automatisch zurück zum Zynthian
+- **BACK** 1,5 s halten → Zynthian · **MENU** 1,5 s halten → Barden Beats (die beiden Tasten leuchten im DJ-Modus)
+- am Handy über die Barden-Beats-Fernbedienung (`:8790`), die läuft auch im DJ-Modus weiter
+
+**Einmal einrichten in Mixxx** (Optionen → Einstellungen):
+1. *Sound-Hardware:* ALSA, Main = Zynthian-Soundkarte, Kopfhörer = USB-Soundkarte (falls vorhanden). Der Kopfhörerausgang des V5 ist nur eine Kopie des Main-Outs.
+2. *Controller:* „Pioneer DDJ-200“ wählen, *Aktiviert* anhaken.
+3. *Bibliothek:* USB-Stick mit der Musik hinzufügen (er erscheint unter `/media/root/…`), einmal alles analysieren lassen.
+4. Danach Mixxx einmal regulär beenden, damit alles gespeichert ist.
+
+Einstellungen und Bibliothek von Mixxx liegen in `/zynthian/zynthian-my-data/dj` und werden mit dem Zynthian-Backup gesichert.
+Bildschirm verkehrt herum? In `/zynthian/zynthian-my-data/dj/einstellungen.sh` z. B. `DJ_DREHEN=normal` eintragen.
+Diagnose per SSH: `zynsimple-dj pruefen`
+
 ## Neu in Version 2.5 – Einstellungen im Hauptmenü
 
 - Im Zynthian-Hauptmenü gibt es jetzt **„Einstellungen & Update“** (ersetzt „Handpan anlegen“ und „ZynSimple Update“ – die Handpan steckt jetzt in „＋ Neue Spur“).

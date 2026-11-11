@@ -5,7 +5,8 @@ Einfache Mischer-Ansicht für den **Zynthian** (V5, ZynthianOS Oram & Vangelis) 
 - Großer Mischer mit Pegelanzeige, Mute/Solo, Presets, Effekte an/aus
 - Effekt-Regler, Delay im Takt (TR-8S-Clock), Freeze, Fußschalter
 - Handpan-Vorlage per Knopfdruck, automatisches Speichern
-- Tasten-LEDs ohne Blau, Imres-Bühne direkt erreichbar
+- Tasten-LEDs ohne Blau, Barden Beats direkt erreichbar
+- DJ-Pult: Mixxx im Vollbild mit dem DDJ-200, Wechsel per Knopfdruck
 - Updates mit einem Tipp – direkt von hier
 
 ## Installieren (per SSH auf dem Zynthian, mit Internet)

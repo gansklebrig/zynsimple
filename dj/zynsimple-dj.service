@@ -1,0 +1,17 @@
+[Unit]
+Description=ZynSimple DJ-Pult (Mixxx im Vollbild statt der Zynthian-Oberfläche)
+# Schließt sich gegenseitig aus mit Zynthian-Oberfläche, Barden-Beats-Bühne und JACK
+# (Mixxx braucht die Soundkarten für sich allein)
+Conflicts=zynthian.service imres-buehne.service imres-hintergrund.service jack2.service
+After=zynthian.service imres-buehne.service jack2.service
+
+[Service]
+Environment=HOME=/zynthian/zynthian-my-data/dj
+WorkingDirectory=/zynthian/zynthian-my-data/dj
+ExecStartPre=/bin/mkdir -p /zynthian/zynthian-my-data/dj
+ExecStart=/usr/bin/startx /zynthian/zynthian-my-data/zynsimple/dj/dj-sitzung.sh -- -nocursor -s 0
+# Endet Mixxx, geht es von selbst zurück zum Zynthian (außer ein anderer Modus übernimmt gerade)
+ExecStopPost=-/usr/local/bin/zynsimple-dj nach-ende
+TimeoutStopSec=12
+LimitRTPRIO=95
+LimitMEMLOCK=infinity

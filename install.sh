@@ -38,6 +38,8 @@ mkdir -p "$DEST"
 if [ "$SRC" != "$DEST" ]; then
     rm -rf "$DEST/zynsimple"
     cp -r "$SRC/zynsimple" "$DEST/"
+    rm -rf "$DEST/dj"
+    [ -d "$SRC/dj" ] && cp -r "$SRC/dj" "$DEST/"
     cp "$SRC/zynsimple_boot.py" "$DEST/"
     cp "$SRC/install.sh" "$SRC/uninstall.sh" "$DEST/" 2>/dev/null || true
     cp "$SRC/ANLEITUNG.md" "$DEST/" 2>/dev/null || true
@@ -56,6 +58,11 @@ JSON
 fi
 rm -f "$DEST/zynsimple.disabled"
 find "$DEST" -name "__pycache__" -type d -prune -exec rm -rf {} + 2>/dev/null || true
+
+# 2b) DJ-Pult (Mixxx) einrichten – Mixxx selbst wird erst beim ersten Start installiert
+if [ -f "$DEST/dj/zynsimple-dj" ] && [ -d /run/systemd/system ]; then
+    ZS_DIR="$DEST" bash "$DEST/dj/zynsimple-dj" einrichten || echo "DJ-Pult: Einrichtung übersprungen"
+fi
 
 # 3) Startdatei (.pth) anlegen – wird bei jedem Python-Start gelesen,
 #    hängt sich aber nur in die Zynthian-Oberfläche ein.

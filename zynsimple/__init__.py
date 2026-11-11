@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "2.5"
+VERSION = "2.6"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -149,13 +149,21 @@ def _add_menu_entry(zyngui):
                 from . import imres
                 if imres.installed():
                     entries.append({
-                        "title": "Imres\nBühne",
+                        "title": "Barden\nBeats",
                         "icon": "playing.png",
                         "action": lambda *a, **k: __import__("threading").Thread(
                             target=imres.system, args=("imres",), daemon=True).start(),
                     })
             except Exception:
                 pass
+            try:
+                from . import dj
+                if dj.eingerichtet():
+                    entries.append({"title": "DJ-Pult", "icon": "playing.png",
+                                    "action": lambda *a, **k: start_dj(zyngui)})
+            except Exception:
+                pass
+
             def settings_page(*a, **k):
                 zyngui.show_screen_reset(SCREEN_NAME)
                 scr = zyngui.screens.get(SCREEN_NAME)
@@ -211,6 +219,41 @@ def start_update(zyngui, *a, **k):
 
     if scr is not None:
         zyngui.show_screen_reset(SCREEN_NAME)
+    import threading
+    threading.Thread(target=run, daemon=True).start()
+
+
+def start_dj(zyngui, *a, **k):
+    """DJ-Pult starten – beim ersten Mal wird Mixxx installiert (mit Anzeige)."""
+    scr = zyngui.screens.get(SCREEN_NAME)
+
+    def show(text, sub="", done=False, error=False):
+        if scr is not None:
+            scr.show_update(text, sub, done, error)
+        else:
+            _info(zyngui, f"{text} {sub}")
+
+    def run():
+        from . import dj
+        if not dj.eingerichtet():
+            show("DJ-Pult fehlt", "ZynSimple einmal neu installieren. Antippen zum Schließen.", error=True)
+            return
+        if not dj.mixxx_da():
+            show("DJ-Pult wird eingerichtet …", "Mixxx wird einmalig installiert · braucht Internet · einige Minuten")
+            ok, msg = dj.installieren()
+            if not ok:
+                show("Mixxx fehlt noch", f"{msg} Antippen zum Schließen.", error=True)
+                return
+        show("DJ-Pult startet …", "Zurück zum Zynthian: Mixxx beenden oder BACK halten")
+        dj.system("dj")
+
+    if scr is not None:
+        # im Tk-Hauptthread umschalten (der Aufruf kann auch vom Handy-Webserver kommen)
+        try:
+            from zyngui import zynthian_gui_config
+            zynthian_gui_config.top.after(0, lambda: zyngui.show_screen_reset(SCREEN_NAME))
+        except Exception:
+            pass
     import threading
     threading.Thread(target=run, daemon=True).start()
 

@@ -1,0 +1,99 @@
+#!/bin/bash
+# ZynSimple DJ-Pult: Mixxx im Vollbild statt der Zynthian-Oberfläche, gesteuert z. B. mit dem Pioneer DDJ-200.
+#
+#   zynsimple-dj dj          DJ-Pult starten (Zynthian-Oberfläche und JACK pausieren)
+#   zynsimple-dj zynthian    zurück zur Zynthian-Oberfläche
+#   zynsimple-dj imres       weiter zu Barden Beats (wenn installiert)
+#   zynsimple-dj installieren   Mixxx einmalig installieren (braucht Internet)
+#   zynsimple-dj einrichten  Dienst und Befehl nach einem ZynSimple-Update auf den neuesten Stand bringen
+#   zynsimple-dj status      kurzer Zustand (für die Oberfläche)
+#   zynsimple-dj pruefen     Diagnose
+#
+# Wird von install.sh nach /usr/local/bin kopiert (als Kopie, damit Updates mitten im Tausch nichts kaputt machen).
+
+DEST="${ZS_DIR:-/zynthian/zynthian-my-data/zynsimple}"
+SRC="$DEST/dj"
+DATEN="${ZS_DJ_DATEN:-/zynthian/zynthian-my-data/dj}"
+ZIEL=/run/zynsimple-dj.ziel
+LOG=/tmp/zynsimple-dj-install.log
+IMRES_MODUS=/usr/local/bin/imres-modus
+
+imres_da() { [ -x "$IMRES_MODUS" ]; }
+mixxx_da() { command -v mixxx >/dev/null 2>&1; }
+
+case "$1" in
+  dj)
+    if ! mixxx_da; then
+      "$0" installieren || { echo "Mixxx fehlt und ließ sich nicht installieren (Internet?)."; exit 1; }
+    fi
+    rm -f "$ZIEL"
+    # Barden Beats im Hintergrund würde JACK wieder anwerfen
+    systemctl stop imres-hintergrund 2>/dev/null
+    # Conflicts= im Dienst beendet Zynthian-Oberfläche, Barden-Beats-Bühne und JACK
+    systemctl start zynsimple-dj.service
+    ;;
+  zynthian)
+    echo zynthian > "$ZIEL"
+    systemctl stop zynsimple-dj.service
+    systemctl start jack2.service 2>/dev/null
+    systemctl start zynthian.service
+    ;;
+  imres)
+    imres_da || { echo "Barden Beats ist nicht installiert."; exit 1; }
+    echo imres > "$ZIEL"
+    systemctl stop zynsimple-dj.service
+    exec "$IMRES_MODUS" imres
+    ;;
+  nach-ende)
+    # Läuft, wenn die DJ-Sitzung endet (Mixxx beendet, abgestürzt oder von einem anderen Modus abgelöst).
+    # Losgelöst und kurz verzögert, damit ein gerade startender anderer Modus erst dran ist.
+    if [ -z "$ZS_LOSGELOEST" ] && command -v systemd-run >/dev/null 2>&1; then
+      exec systemd-run --quiet --no-block --collect --unit="zynsimple-dj-ende-$$" --setenv=ZS_LOSGELOEST=1 "$0" nach-ende
+    fi
+    sleep 3
+    Z=$(cat "$ZIEL" 2>/dev/null); rm -f "$ZIEL"
+    [ "$Z" = "imres" ] && exit 0
+    for D in zynthian imres-buehne zynsimple-dj; do
+      case "$(systemctl is-active "$D" 2>/dev/null)" in active|activating|reloading) exit 0 ;; esac
+    done
+    systemctl list-jobs --no-legend 2>/dev/null | grep -q -E "zynthian.service|imres-buehne.service|zynsimple-dj.service" && exit 0
+    # nichts anderes läuft → zurück zum Zynthian
+    systemctl start --no-block jack2.service 2>/dev/null
+    systemctl start --no-block zynthian.service
+    ;;
+  installieren)
+    mixxx_da && { echo "Mixxx ist schon installiert."; exit 0; }
+    exec 9>/run/zynsimple-dj-install.lock; flock -n 9 || { echo "Die Installation läuft schon."; exit 1; }
+    {
+      echo "Start: $(date +%H:%M:%S)"
+      export DEBIAN_FRONTEND=noninteractive
+      # ohne „empfohlene“ Pakete: sonst kämen PulseAudio/PipeWire mit, die dem Zynthian-Ton in die Quere kämen
+      apt-get install -y -q --no-install-recommends mixxx \
+        || { apt-get update -q && apt-get install -y -q --no-install-recommends mixxx; }
+      command -v unclutter >/dev/null || apt-get install -y -q --no-install-recommends unclutter || true
+    } > "$LOG" 2>&1
+    mixxx_da && { echo "Mixxx ist installiert."; echo "FERTIG" >> "$LOG"; exit 0; }
+    echo "FEHLER" >> "$LOG"; tail -5 "$LOG"; exit 1
+    ;;
+  einrichten)
+    chmod +x "$SRC/zynsimple-dj" "$SRC/dj-sitzung.sh" 2>/dev/null
+    rm -f /usr/local/bin/zynsimple-dj; install -m 755 "$SRC/zynsimple-dj" /usr/local/bin/zynsimple-dj
+    cp "$SRC/zynsimple-dj.service" /etc/systemd/system/zynsimple-dj.service
+    mkdir -p "$DATEN"
+    systemctl daemon-reload
+    echo "DJ-Pult eingerichtet$(mixxx_da && echo " (Mixxx $(mixxx --version 2>/dev/null | grep -o -m1 '[0-9][0-9.]*'))" || echo " (Mixxx wird beim ersten Start installiert)")."
+    ;;
+  status)
+    echo "installiert=$(mixxx_da && echo 1 || echo 0) aktiv=$(systemctl is-active -q zynsimple-dj && echo 1 || echo 0) imres=$(imres_da && echo 1 || echo 0)"
+    ;;
+  pruefen)
+    echo "== Mixxx =="; command -v mixxx && mixxx --version 2>&1 | head -2
+    echo "== Dienste =="; for D in zynsimple-dj zynthian jack2 imres-buehne; do echo "$D: $(systemctl is-active $D)"; done
+    echo "== Soundkarten =="; aplay -l 2>&1 | grep -E "^card|^Karte"
+    echo "== MIDI (DDJ-200?) =="; amidi -l 2>&1
+    echo "== Log DJ-Sitzung =="; journalctl -u zynsimple-dj -n 25 --no-pager 2>&1 | tail -25
+    echo "== Installations-Log =="; tail -5 "$LOG" 2>/dev/null
+    ;;
+  *)
+    echo "Benutzung: zynsimple-dj dj|zynthian|imres|installieren|einrichten|status|pruefen"; exit 1 ;;
+esac

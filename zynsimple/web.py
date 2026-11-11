@@ -65,6 +65,15 @@ def make_handler(bridge, pin):
             elif path == "/api/imres":
                 from . import imres
                 self._send(200, imres.status())
+            elif path == "/api/dj":
+                from . import dj
+                st = dj.status()
+                try:
+                    with open(dj.INSTALL_LOG, encoding="utf-8", errors="replace") as f:
+                        st["log"] = [z.rstrip() for z in f.readlines()[-3:]]
+                except OSError:
+                    st["log"] = []
+                self._send(200, st)
             elif path == "/api/update_check":
                 from . import updater
                 force = "force" in self.path
@@ -130,6 +139,21 @@ def make_handler(bridge, pin):
                     req = json.loads(self.rfile.read(n) or b"{}")
                     imres.system(str(req.get("aktion", "")))
                     self._send(200, {"ok": True})
+                except Exception as e:
+                    self._send(400, {"error": str(e)})
+                return
+            if self.path.split("?", 1)[0] == "/api/dj":
+                if not self._authorized():
+                    return self._send(401, {"error": "pin"})
+                try:
+                    from . import dj, start_dj
+                    n = min(int(self.headers.get("Content-Length", 0)), 1024)
+                    aktion = str(json.loads(self.rfile.read(n) or b"{}").get("aktion", "dj"))
+                    if aktion == "dj":
+                        start_dj(bridge.zyngui)
+                    else:
+                        dj.system(aktion)
+                    self._send(200, {"ok": True, "mixxx": dj.mixxx_da()})
                 except Exception as e:
                     self._send(400, {"error": str(e)})
                 return

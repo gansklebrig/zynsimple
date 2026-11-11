@@ -79,6 +79,11 @@ class zynsimple_screen(zynthian_gui_base):
             self.imres_installed = imres.installed()
         except Exception:
             self.imres_installed = False
+        try:
+            from . import dj
+            self.dj_installed = dj.eingerichtet()
+        except Exception:
+            self.dj_installed = False
 
         family = getattr(cfg, "font_family", None) or "Audiowide"
         h = max(320, int(self.height))
@@ -886,14 +891,16 @@ class zynsimple_screen(zynthian_gui_base):
                  ("idle", "Bühnenbild", "Animation jetzt zeigen"),
                  ("settings", f"Update {upd} bereit" if upd else "Einstellungen", "Update, Start-Logo, Bühnenbild …"),
                  ("close", "Zurück", "")]
+        if self.dj_installed:
+            items.insert(0, ("dj", "🎧 DJ-Pult", "Mixxx mit dem DDJ-200"))
         if self.imres_installed:
-            items.insert(0, ("imres", "♫ Imres-Bühne", "Klangwelten im Vollbild"))
+            items.insert(0, ("imres", "♫ Barden Beats", "Bühne & Klangwelten im Vollbild"))
         cols = 4 if len(items) > 6 else 3
         rows = math.ceil(len(items) / cols)
         gw, gh = (W - 40) / cols, (H - 70) / rows
         for k, (art, title, sub) in enumerate(items):
             cx, cy = 20 + (k % cols) * gw, 52 + (k // cols) * gh
-            gold = art in ("imres",) or (art == "settings" and upd)
+            gold = art in ("imres", "dj") or (art == "settings" and upd)
             self.rrect(cx + 5, cy + 5, cx + gw - 5, cy + gh - 5, 14, fill=P["card2"] if not gold else "#2a2014",
                        outline=P["gold"] if gold else P["line"], width=2 if gold else 1)
             cv.create_text(cx + gw / 2, cy + gh * 0.42, text=title, font=self.f_mid, fill=P["champ"],
@@ -916,7 +923,10 @@ class zynsimple_screen(zynthian_gui_base):
                 elif art == "imres":
                     from . import imres
                     threading.Thread(target=imres.system, args=("imres",), daemon=True).start()
-                    self._flash("Imres-Bühne startet …")
+                    self._flash("Barden Beats startet …")
+                elif art == "dj":
+                    from . import start_dj
+                    start_dj(self.zyngui)
                 elif art == "newtrack":
                     self.open_newtrack()
                 elif art == "idle":
