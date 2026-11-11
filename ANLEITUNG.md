@@ -73,6 +73,12 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 3.1 – Startbildschirm fürs DJ-Pult
+
+Während Mixxx lädt, erscheint die Gans mit goldenen Ringen und darunter ein Ladebalken, der sagt, was gerade passiert
+(Ton einrichten, Controller verbinden, Bibliothek lesen, Ansicht aufbauen). Der Balken merkt sich, wie lange der Start
+beim letzten Mal gedauert hat, und blendet sich aus, sobald Mixxx bereit ist.
+
 ## Neu in Version 3.0 – leichter für alle, DJ-Pult komplett
 
 ### Für alle, die ZynSimple zum ersten Mal sehen

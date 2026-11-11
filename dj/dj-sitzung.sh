@@ -36,6 +36,13 @@ command -v unclutter >/dev/null && unclutter -idle 1 -root &
 PY=python3
 for k in /zynthian/venv/bin/python3 /usr/bin/python3; do [ -x "$k" ] && { PY="$k"; break; }; done
 
+# Startbildschirm mit der Gans und Ladebalken, bis Mixxx da ist
+phase() { echo "$1" > /tmp/zynsimple-dj-phase; }
+phase start
+TKPY=""
+for k in /zynthian/venv/bin/python3 /usr/bin/python3; do [ -x "$k" ] && "$k" -c "import tkinter" 2>/dev/null && { TKPY="$k"; break; }; done
+[ -n "$TKPY" ] && "$TKPY" "$HIER/dj-splash.py" &
+
 # Zynthian-Tasten als Controller, LEDs, TR-8S-Clock, BACK/MENU/STOP halten
 "$PY" "$HIER/dj-helfer.py" &
 HELFER=$!
@@ -43,7 +50,9 @@ trap 'kill $HELFER 2>/dev/null' EXIT
 sleep 1   # virtueller MIDI-Anschluss steht, bevor Mixxx ihn sucht
 
 # Mixxx einrichten (Ton, Controller, Bibliothek „MUSIK gekauft“, Kiste „Passt zur Handpan“, Aufnahmen, Ansicht)
+phase einrichten
 /usr/bin/python3 "$HIER/dj-einrichten.py"
+phase mixxx
 
 # Mixxx: Einstellungen und Bibliothek liegen in $DATEN/.mixxx (wird beim Zynthian-Backup mitgesichert)
 for VERSUCH in 1 2; do
