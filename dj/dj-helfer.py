@@ -7,7 +7,9 @@ ZynSimple DJ-Pult: macht im DJ-Modus aus den Tasten und Reglern des Zynthian V5 
   Mixxx → LEDs der Tasten, Tempo und Takt des laufenden Tracks
   Tempo/Takt           → MIDI-Clock für die TR-8S (USB oder DIN-Buchse)
 
-  BACK 2 s halten    → System-Menü (Updates, Neustart, Ausschalten, Zynthian, Barden Beats)
+  BACK 2 s halten    → DJ-Menü (Updates, Neustart, Ausschalten, Zynthian, Barden Beats)
+  MENU kurz          → DJ-Menü auf/zu
+  Im Menü: Drehregler oder Pfeile = auswählen · SEL oder Regler drücken = los · BACK = zurück/schließen
   MENU 1,5 s halten  → weiter zu Barden Beats (wenn installiert)
   STOP 3 s halten    → alles speichern und ausschalten
 
@@ -229,8 +231,33 @@ def menue_zeigen():
         if os.path.exists(py) and subprocess.call([py, "-c", "import tkinter"], stderr=subprocess.DEVNULL) == 0:
             _menue["proc"] = subprocess.Popen([py, os.path.join(HIER, "dj-menue.py")], env=dict(os.environ, DISPLAY=":0"))
             return
-            return
     umschalten("zynthian")      # ohne Tk: wie früher direkt zurück zum Zynthian
+
+
+MENUE_SOCK = "/tmp/zynsimple-dj-menue.sock"
+_sock = {"s": None}
+
+
+def an_menue(ereignis):
+    """Taste ans offene DJ-Menü schicken. False, wenn kein Menü offen ist."""
+    import socket
+    if not os.path.exists(MENUE_SOCK):
+        return False
+    if _sock["s"] is None:
+        _sock["s"] = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        _sock["s"].sendto(ereignis.encode(), MENUE_SOCK)
+        return True
+    except OSError:
+        return False
+
+
+def menue_offen():
+    return os.path.exists(MENUE_SOCK) and an_menue("PING")
+
+
+NAV = {"UP": "UP", "DOWN": "DOWN", "LEFT": "LEFT", "RIGHT": "RIGHT", "SEL": "SEL",
+       "DREH1": "SEL", "DREH2": "SEL", "DREH3": "SEL", "DREH4": "SEL", "PLAY": "SEL"}
 
 
 def umschalten(ziel):
@@ -323,6 +350,7 @@ def main():
     log("bereit:", letzter + 1, "Schalter,", npots, "Drehregler")
     seit = {}
     erledigt = set()
+    gesperrt = set()
     while True:
         jetzt = time.monotonic()
         for idx in range(4, letzter + 1):
@@ -334,13 +362,27 @@ def main():
             if d == 0:
                 if idx not in seit:
                     seit[idx] = jetzt
-                    if name not in HALTEN:
+                    # Menü offen? Dann steuern die Tasten das Menü, nicht Mixxx
+                    if name in NAV and menue_offen():
+                        an_menue(NAV[name])
+                        gesperrt.add(idx)
+                    elif name not in HALTEN and not menue_offen():
                         v.send(0x90, nr, 127)
+                    elif name not in HALTEN:
+                        gesperrt.add(idx)
             elif d > 0:
-                seit.pop(idx, None)
+                t0_ = seit.pop(idx, None)
+                kurz = t0_ is not None and idx not in erledigt
                 erledigt.discard(idx)
-                if name not in HALTEN:
+                if idx in gesperrt:
+                    gesperrt.discard(idx)
+                elif name not in HALTEN:
                     v.send(0x80, nr, 0)
+                elif kurz and name == "BACK":
+                    an_menue("BACK")                    # BACK kurz: im Menü zurück / Menü schließen
+                elif kurz and name == "MENU":
+                    if not an_menue("BACK"):            # MENU kurz: Menü auf (oder wieder zu)
+                        menue_zeigen()
             t0 = seit.get(idx)
             if t0 is not None and name in HALTEN and idx not in erledigt and jetzt - t0 >= HALTEN[name][0]:
                 erledigt.add(idx)
@@ -348,7 +390,10 @@ def main():
         for i in range(npots):
             d = lib.get_value_zynpot(i)
             if d:
-                v.send(0xB0, 1 + i, max(1, min(127, 64 + int(d))))
+                if menue_offen():
+                    an_menue(f"DREH:{int(d)}")
+                else:
+                    v.send(0xB0, 1 + i, max(1, min(127, 64 + int(d))))
         time.sleep(0.008)
 
 

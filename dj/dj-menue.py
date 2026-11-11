@@ -5,6 +5,7 @@ ZynSimple DJ-Pult: Start-Menü – übersichtlich und selbsterklärend, liegt ü
 
 Öffnet sich über den ☰-Knopf oben rechts, mit BACK 2 s halten – und von selbst, wenn noch keine Musik da ist.
 Oben steht, was gerade los ist (USB-Stick, Anzahl Titel, Mixxx-Version), darunter große Kacheln:
+Bedienung auch mit den Zynthian-Tasten: Drehregler/Pfeile wählen, SEL oder Regler drücken löst aus, BACK geht zurück.
   Musik:     Auflegen · USB-Stick neu einlesen · Musik übernehmen
   Wechseln:  Zum Zynthian · Barden Beats · So geht's
   System:    Updates · Neu starten · Ausschalten
@@ -12,6 +13,7 @@ Farben: Gold, Glut, Rot, Grün – kein Blau.
 """
 import json
 import os
+import socket
 import sqlite3
 import subprocess
 import sys
@@ -27,6 +29,7 @@ IMPORT_LOG = "/tmp/zynsimple-dj-import.log"
 BG, CARD, CARD2, LINIE, GOLD, GOLD2, CHAMP, TX2 = "#0b0908", "#1f1915", "#2a2014", "#5a4524", "#e8b04a", "#ffd98a", "#f3e9d8", "#a69a8a"
 ROT, GRUEN = "#e0445e", "#34c78a"
 SCHLIESSEN_NACH = 90
+SOCK = "/tmp/zynsimple-dj-menue.sock"
 SCHRIFT = "DejaVu Sans"
 
 HILFE = [
@@ -89,9 +92,21 @@ class Menue:
         self.scharf = {}
         self.hits = []
         self.import_laeuft = False
+        self.fokus = 0
+        # Zynthian-Tasten: der DJ-Helfer schickt UP/DOWN/LEFT/RIGHT/SEL/BACK/DREH:n über diesen Anschluss
+        self.sock = None
+        try:
+            if os.path.exists(SOCK):
+                os.remove(SOCK)
+            self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+            self.sock.bind(SOCK)
+            self.sock.setblocking(False)
+        except OSError as e:
+            print("DJ-Menü: Tasten-Anschluss:", e, file=sys.stderr)
         self.zeichnen()
         self.root.after(200, self.vorne)
         self.root.after(1000, self.zeit)
+        self.root.after(50, self.tasten)
 
     # ------------------------------------------------------------------
     def vorne(self):
@@ -102,9 +117,79 @@ class Menue:
             pass
         self.root.after(400, self.vorne)
 
+    def schliessen(self):
+        try:
+            if self.sock:
+                self.sock.close()
+            os.remove(SOCK)
+        except OSError:
+            pass
+        self.root.destroy()
+
+    def tasten(self):
+        """Ereignisse der Zynthian-Tasten und Drehregler abholen."""
+        while self.sock:
+            try:
+                ev = self.sock.recv(64).decode(errors="replace")
+            except (BlockingIOError, OSError):
+                break
+            if ev == "PING":
+                continue
+            self.t0 = time.monotonic()
+            if ev.startswith("DREH:"):
+                try:
+                    self.bewegen_linear(1 if int(ev[5:]) > 0 else -1)
+                except ValueError:
+                    pass
+            elif ev in ("UP", "DOWN", "LEFT", "RIGHT"):
+                self.bewegen(ev)
+            elif ev == "SEL":
+                if self.hits:
+                    x0, y0, x1, y1, key = self.hits[min(self.fokus, len(self.hits) - 1)]
+                    self.ausloesen(key)
+                    if not self.root.winfo_exists():
+                        return
+            elif ev == "BACK":
+                if self.seite != "start":
+                    self.seite = "start"
+                    self.fokus = 0
+                    self.zeichnen()
+                else:
+                    self.schliessen()
+                    return
+        self.root.after(40, self.tasten)
+
+    def bewegen_linear(self, schritt):
+        if self.hits:
+            self.fokus = (self.fokus + schritt) % len(self.hits)
+            self.zeichnen()
+
+    def bewegen(self, richtung):
+        """Pfeile: zur nächsten Kachel in dieser Richtung (nach Lage auf dem Bildschirm)."""
+        if not self.hits:
+            return
+        x0, y0, x1, y1, _ = self.hits[min(self.fokus, len(self.hits) - 1)]
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        dx, dy = {"UP": (0, -1), "DOWN": (0, 1), "LEFT": (-1, 0), "RIGHT": (1, 0)}[richtung]
+        best, bi = None, None
+        for i, (a, b, c, d, _) in enumerate(self.hits):
+            mx, my = (a + c) / 2 - cx, (b + d) / 2 - cy
+            vor = mx * dx + my * dy
+            if vor <= 5:
+                continue
+            if dx and not (b < y1 and d > y0):      # links/rechts nur innerhalb derselben Reihe
+                continue
+            seit_ = abs(mx * dy) + abs(my * dx)
+            wert = vor + seit_ * 2.5
+            if best is None or wert < best:
+                best, bi = wert, i
+        if bi is not None:
+            self.fokus = bi
+            self.zeichnen()
+
     def zeit(self):
         if time.monotonic() - self.t0 > SCHLIESSEN_NACH and not self.import_laeuft:
-            self.root.destroy()
+            self.schliessen()
             return
         if self.import_laeuft:
             self.zeichnen()
@@ -130,6 +215,15 @@ class Menue:
 
     # ------------------------------------------------------------------
     def zeichnen(self):
+        self._zeichnen()
+        if self.hits:
+            self.fokus = min(self.fokus, len(self.hits) - 1)
+            x0, y0, x1, y1, _ = self.hits[self.fokus]
+            self.rrect(x0 - 4, y0 - 4, x1 + 4, y1 + 4, 16, fill="", outline=GOLD2, width=4)
+            self.cv.create_text(self.W - 18, self.H - 6, anchor="se", font=(SCHRIFT, 8), fill=TX2,
+                                text="Drehregler/Pfeile: wählen · SEL oder Regler drücken: los · BACK: zurück")
+
+    def _zeichnen(self):
         cv, W, H = self.cv, self.W, self.H
         cv.delete("all")
         self.hits = []
@@ -232,37 +326,41 @@ class Menue:
     # ------------------------------------------------------------------
     def druck(self, ev):
         self.t0 = time.monotonic()
-        for x0, y0, x1, y1, key in self.hits:
-            if not (x0 <= ev.x <= x1 and y0 <= ev.y <= y1):
-                continue
-            if key in ("auflegen",):
-                self.root.destroy()
-            elif key in ("hilfe", "updates"):
-                self.seite = key
-                self.zeichnen()
-            elif key == "zurueck":
-                self.seite = "start"
-                self.zeichnen()
-            elif key in ("aus", "neustart") and self.scharf.get(key, 0) < time.monotonic():
-                self.scharf = {key: time.monotonic() + 3}
-                self.zeichnen()
-                self.root.after(3100, self.zeichnen)
-            elif key == "importieren":
-                ausfuehren("importieren")
-                self.import_laeuft = True
-                self.zeichnen()
-            elif key == "einlesen":
-                self.cv.delete("all")
-                self.cv.create_text(self.W / 2, self.H / 2, text="⟳ USB-Stick wird eingelesen …\nMixxx startet gleich neu",
-                                    font=(SCHRIFT, 16, "bold"), fill=GOLD, justify="center")
-                self.root.update()
-                ausfuehren("neu-einlesen")
-                self.root.after(1500, self.root.destroy)
-            else:
-                ausfuehren(key)
-                self.root.destroy()
-            return
+        for i, (x0, y0, x1, y1, key) in enumerate(self.hits):
+            if x0 <= ev.x <= x1 and y0 <= ev.y <= y1:
+                self.fokus = i
+                self.ausloesen(key)
+                return
 
+    def ausloesen(self, key):
+        if key == "auflegen":
+            self.schliessen()
+        elif key in ("hilfe", "updates"):
+            self.seite = key
+            self.fokus = 0
+            self.zeichnen()
+        elif key == "zurueck":
+            self.seite = "start"
+            self.fokus = 0
+            self.zeichnen()
+        elif key in ("aus", "neustart") and self.scharf.get(key, 0) < time.monotonic():
+            self.scharf = {key: time.monotonic() + 3}
+            self.zeichnen()
+            self.root.after(3100, self.zeichnen)
+        elif key == "importieren":
+            ausfuehren("importieren")
+            self.import_laeuft = True
+            self.zeichnen()
+        elif key == "einlesen":
+            self.cv.delete("all")
+            self.cv.create_text(self.W / 2, self.H / 2, text="⟳ USB-Stick wird eingelesen …\nMixxx startet gleich neu",
+                                font=(SCHRIFT, 16, "bold"), fill=GOLD, justify="center")
+            self.root.update()
+            ausfuehren("neu-einlesen")
+            self.root.after(1500, self.schliessen)
+        else:
+            ausfuehren(key)
+            self.schliessen()
 
 if __name__ == "__main__":
     try:

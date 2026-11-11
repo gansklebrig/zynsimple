@@ -167,6 +167,98 @@ class zynsimple_screen(zynthian_gui_base):
         if enabled:
             self.hits.append((x, y, x + w, y + h, art, cid, extra))
 
+    # ------------------------------------------------------------------
+    # Bedienung mit den Zynthian-Tasten: Drehregler/Pfeile wählen, SEL löst aus, BACK zurück
+    # ------------------------------------------------------------------
+    FOKUS_MODES = ("more", "settings", "track", "newtrack", "autogain", "tuner", "looper")
+
+    def _fokus_ziele(self):
+        roh = [(h[0], h[1], h[2], h[3], h[4], None) for h in getattr(self, "more_hits", [])] if self.mode == "more" \
+            else [(h[0], h[1], h[2], h[3], h[4], h[5]) for h in getattr(self, "trk_hits", [])]
+        beste = {}
+        for x0, y0, x1, y1, art, extra in roh:
+            k = (art, repr(extra))
+            fl = (x1 - x0) * (y1 - y0)
+            if k not in beste or fl < beste[k][0]:
+                beste[k] = (fl, (x0, y0, x1, y1))
+        ziele = [v[1] for v in beste.values()]
+        ziele.sort(key=lambda r: (round((r[1] + r[3]) / 2 / 24), (r[0] + r[2]) / 2))
+        return ziele
+
+    def _fokus_zeichnen(self):
+        if not getattr(self, "fokus_aktiv", False) or self.mode not in self.FOKUS_MODES:
+            return
+        z = self._fokus_ziele()
+        if not z:
+            return
+        self.fokus_i = min(getattr(self, "fokus_i", 0), len(z) - 1)
+        x0, y0, x1, y1 = z[self.fokus_i]
+        self.rrect(x0 - 3, y0 - 3, x1 + 3, y1 + 3, 12, fill="", outline=P["gold2"], width=4)
+
+    def _fokus_neu(self):
+        self._redraw()
+        self._fokus_zeichnen()
+
+    def fokus_linear(self, schritt):
+        z = self._fokus_ziele()
+        if not z:
+            return
+        if not getattr(self, "fokus_aktiv", False):
+            self.fokus_aktiv, self.fokus_i = True, 0
+        else:
+            self.fokus_i = (getattr(self, "fokus_i", 0) + schritt) % len(z)
+        self._fokus_neu()
+
+    def fokus_richtung(self, richtung):
+        z = self._fokus_ziele()
+        if not z:
+            return
+        if not getattr(self, "fokus_aktiv", False):
+            self.fokus_aktiv, self.fokus_i = True, 0
+            return self._fokus_neu()
+        x0, y0, x1, y1 = z[min(self.fokus_i, len(z) - 1)]
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        dx, dy = {"UP": (0, -1), "DOWN": (0, 1), "LEFT": (-1, 0), "RIGHT": (1, 0)}[richtung]
+        best, bi = None, None
+        for i, (a, b, c, d) in enumerate(z):
+            mx, my = (a + c) / 2 - cx, (b + d) / 2 - cy
+            vor = mx * dx + my * dy
+            if vor <= 4:
+                continue
+            if dx and not (b < y1 and d > y0):      # links/rechts nur innerhalb derselben Zeile
+                continue
+            wert = vor + (abs(mx * dy) + abs(my * dx)) * 2.5
+            if best is None or wert < best:
+                best, bi = wert, i
+        if bi is not None:
+            self.fokus_i = bi
+        self._fokus_neu()
+
+    def fokus_ausloesen(self):
+        z = self._fokus_ziele()
+        if not z:
+            return
+        if not getattr(self, "fokus_aktiv", False):
+            self.fokus_aktiv, self.fokus_i = True, 0
+            return self._fokus_neu()
+        x0, y0, x1, y1 = z[min(self.fokus_i, len(z) - 1)]
+
+        class E:
+            pass
+        e = E()
+        e.x, e.y = (x0 + x1) / 2, (y0 + y1) / 2
+        modus_vorher = self.mode
+        self._fokus_tippen = True
+        try:
+            self.on_press(e)
+            self.on_release(e)
+        finally:
+            self._fokus_tippen = False
+        if self.mode != modus_vorher:
+            self.fokus_i = 0
+        if self.mode in self.FOKUS_MODES:
+            self._fokus_zeichnen()
+
     def _anchor(self, x0, y0, x1, y1, text, side="in"):
         """Merkt sich ein Bedienelement für die Hilfe-Ansicht (?)."""
         self.help_anchors.append((x0, y0, x1, y1, text, side))
@@ -1038,6 +1130,8 @@ class zynsimple_screen(zynthian_gui_base):
         return None
 
     def on_press(self, ev):
+        if not getattr(self, "_fokus_tippen", False):
+            self.fokus_aktiv = False
         if self.mode == "splash":
             return self.stop_splash()
         if self.mode == "update":
@@ -3206,8 +3300,10 @@ class zynsimple_screen(zynthian_gui_base):
             except Exception as e:
                 log.debug(f"Regler: {e}")
             return True
-        if self.mode in ("more", "xy", "fxview", "update", "track", "newtrack", "settings", "help", "autogain",
-                         "tuner", "looper"):
+        if self.mode in self.FOKUS_MODES:
+            self.fokus_linear(1 if dval > 0 else -1)
+            return True
+        if self.mode in ("xy", "fxview", "update", "help"):
             return True
         if self.locked:
             return True
@@ -3276,6 +3372,13 @@ class zynsimple_screen(zynthian_gui_base):
             if t == "P":
                 self._touch()
                 self.stop_idle()
+            return True
+        if self.mode in self.FOKUS_MODES and role in ("UP", "DOWN", "LEFT", "RIGHT"):
+            if t == "P":
+                self.fokus_richtung(role)
+            return True
+        if self.mode == "help" and t == "P":
+            self.on_press(type("E", (), {"x": 0, "y": 0})())
             return True
         if self.mode != "mix":
             # In den Unterseiten bleiben die Pfeile normale Navigation
@@ -3372,12 +3475,21 @@ class zynsimple_screen(zynthian_gui_base):
                 self.close_editor()
             return True
         if self.mode == "help":
-            self.close_help()
+            if t == "S":
+                self.on_press(type("E", (), {"x": 0, "y": 0})())
+            else:
+                self.close_help()
             return True
-        if self.mode in ("autogain", "tuner", "looper"):
-            self.close_tool()
+        if self.mode in self.FOKUS_MODES:
+            if t == "S":
+                self.fokus_ausloesen()
+            else:
+                self.back_action()
             return True
-        if self.mode in ("browse", "more", "xy", "track", "newtrack", "settings"):
+        if self.mode == "update":
+            self.on_press(type("E", (), {"x": 0, "y": 0})())
+            return True
+        if self.mode in ("browse", "xy"):
             self.mode = "mix"
             self.browser = None
             self.sig = None
@@ -3506,3 +3618,22 @@ class zynsimple_screen(zynthian_gui_base):
             for k, led in enumerate((4, 11, 12, 19, 8, 9, 10)):
                 f = max(0.0, min(1.0, g * 1.4 - k * 0.08))
                 ws.wsleds[led] = col(int(40 + 190 * f), int(12 + 110 * f * f), int(2 + 30 * f * f * f))
+
+
+# Fokus-Rahmen nach jedem Zeichnen der Seiten, die sich mit den Zynthian-Tasten bedienen lassen
+def _mit_fokus(name):
+    orig = getattr(zynsimple_screen, name)
+
+    def neu(self, *a, **k):
+        r = orig(self, *a, **k)
+        try:
+            self._fokus_zeichnen()
+        except Exception:
+            pass
+        return r
+    neu.__name__ = name
+    setattr(zynsimple_screen, name, neu)
+
+
+for _n in ("draw_more", "draw_track", "draw_newtrack", "draw_tool", "draw_settings"):
+    _mit_fokus(_n)

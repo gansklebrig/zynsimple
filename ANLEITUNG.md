@@ -73,6 +73,21 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 3.7 – Menüs mit den Zynthian-Tasten bedienen
+
+Alle Menüs gehen jetzt auch ohne Touchscreen – Einstellungen, Mehr, Spur-Seite, Neue Spur, Auto-Gain/Stimmgerät/Looper,
+Hilfe, Update-Anzeige und das DJ-Menü:
+
+| Taste | im Menü |
+| --- | --- |
+| Drehregler | nächste / vorige Kachel |
+| ▲ ▼ ◀ ▶ | Kachel in diese Richtung |
+| SEL (oder Regler drücken im DJ-Menü) | auslösen |
+| BACK | zurück / schließen |
+| MENU kurz (im DJ-Pult) | DJ-Menü auf/zu |
+
+Die gewählte Kachel hat einen hellgoldenen Rahmen. Sobald man den Bildschirm antippt, verschwindet er wieder.
+
 ## Neu in Version 3.6 – DJ-Pult: Start-Menü und USB-Stick
 
 - **☰ Menü** oben rechts im DJ-Pult (immer sichtbar) – oder **BACK 2 s halten**. Das Menü zeigt oben, wie viele Titel in der
