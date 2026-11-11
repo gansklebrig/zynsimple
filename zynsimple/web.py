@@ -74,6 +74,7 @@ def make_handler(bridge, pin):
                 except OSError:
                     st["log"] = []
                 st["import"] = dj.import_stand()
+                st["samba"] = dj.samba_an()
                 self._send(200, st)
             elif path == "/api/aufnahmen":
                 if not self._authorized():
@@ -186,6 +187,8 @@ def make_handler(bridge, pin):
                         start_dj(bridge.zyngui)
                     elif aktion == "import":
                         dj.import_starten()
+                    elif aktion == "samba":
+                        dj.samba_einrichten()
                     else:
                         dj.system(aktion)
                     self._send(200, {"ok": True, "mixxx": dj.mixxx_da()})

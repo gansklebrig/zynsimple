@@ -2501,8 +2501,16 @@ class zynsimple_screen(zynthian_gui_base):
         if art == "s_djordner":
             a = getattr(self, "set_addr", {}) or {}
             ip = a.get("ip") or "zynthian"
-            return ("Musik per WLAN", f"am PC öffnen:  \\\\{ip}\\MUSIK gekauft  · oder USB-Stick mit Ordner „MUSIK gekauft“",
-                    None, True, False)
+            try:
+                from . import dj
+                an = dj.samba_an()
+            except Exception:
+                an = False
+            if an:
+                return ("Musik per WLAN", f"am PC: \\\\{ip}\\MUSIK gekauft · Benutzer musik · Passwort gekauft",
+                        None, True, False)
+            return ("Musik per WLAN", "WLAN-Ordner ist noch nicht eingerichtet – braucht einmal Internet",
+                    "Einrichten", True, False)
         return (art, "", None, False, False)
 
     def draw_settings(self):
@@ -2697,8 +2705,13 @@ class zynsimple_screen(zynthian_gui_base):
                 self.sig = None
                 self._flash("Barden Beats startet …")
                 return
-            elif art in ("s_handy", "s_djordner"):
+            elif art == "s_handy":
                 pass
+            elif art == "s_djordner":
+                from . import dj
+                if not dj.samba_an():
+                    dj.samba_einrichten()
+                    self._flash("WLAN-Ordner wird eingerichtet – dauert beim ersten Mal 1–2 Minuten")
             elif art == "s_djimport":
                 from . import start_import
                 start_import(self.zyngui)

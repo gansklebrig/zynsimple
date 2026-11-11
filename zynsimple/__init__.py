@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "3.1"
+VERSION = "3.2"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")

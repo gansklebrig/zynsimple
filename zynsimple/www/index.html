@@ -333,7 +333,9 @@
     <h2>🎧 DJ-Pult</h2>
     <p>Mixxx im Vollbild, gesteuert mit dem DDJ-200 und den Zynthian-Reglern. Zurück: Mixxx beenden oder am Zynthian <b>BACK</b> halten (<b>MENU</b> halten → Barden Beats, <b>STOP</b> 3 s → ausschalten).</p>
     <div class="line"><button class="btn" id="dj-go">DJ-Pult starten</button><button class="btn sec" id="dj-imp">Musik vom USB-Stick übernehmen</button></div>
-    <p>Musik per WLAN: am PC <code id="dj-share">\\zynthian\MUSIK gekauft</code> öffnen und Dateien hineinziehen.</p>
+    <p>Musik per WLAN: am PC <code id="dj-share">\\zynthian\MUSIK gekauft</code> öffnen und Dateien hineinziehen.
+      Anmeldung: Benutzer <b>musik</b>, Passwort <b>gekauft</b>.</p>
+    <div class="line" id="dj-smb" style="display:none"><button class="btn sec" id="dj-smb-go">WLAN-Ordner einrichten</button></div>
     <p id="dj-info"></p>
   </div>
   <div class="card">
@@ -729,6 +731,7 @@
       document.getElementById('dj-card').style.display = d.eingerichtet ? '' : 'none';
       document.getElementById('dj-modes').style.display = d.eingerichtet ? '' : 'none';
       document.getElementById('dj-info').textContent = d.mixxx ? '' : 'Beim ersten Start wird Mixxx installiert (braucht Internet, einige Minuten).';
+      document.getElementById('dj-smb').style.display = d.eingerichtet && !d.samba ? '' : 'none';
     } catch (e) {}
   }
   async function djStart() {
@@ -740,6 +743,11 @@
     } catch (e) { toast('Ging nicht: ' + e.message, 6000); }
   }
   document.getElementById('dj-go').onclick = djStart;
+  document.getElementById('dj-smb-go').onclick = async () => {
+    await api('/api/dj', { aktion: 'samba' }).catch(() => {});
+    toast('WLAN-Ordner wird eingerichtet – dauert beim ersten Mal 1–2 Minuten', 6000);
+    setTimeout(djCheck, 90000);
+  };
   try { document.getElementById('dj-share').textContent = '\\\\' + location.hostname + '\\MUSIK gekauft'; } catch (e) {}
   let impTimer = null;
   document.getElementById('dj-imp').onclick = async () => {

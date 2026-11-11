@@ -73,6 +73,14 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 3.2 – WLAN-Ordner „MUSIK gekauft“ zuverlässig
+
+- Der Ordner wird direkt nach dem Update eingerichtet (beim ersten Mal wird Samba installiert – Internet nötig, 1–2 Minuten), nicht erst beim ersten DJ-Start.
+- **Windows:** Der Zynthian erscheint unter „Netzwerk“. Sonst im Explorer oben in die Adresszeile `\\zynthian\MUSIK gekauft` oder `\\<IP>\MUSIK gekauft` tippen.
+- **Anmeldung:** Benutzer `musik`, Passwort `gekauft` (Windows 10/11 lassen ohne Anmeldung nicht hinein).
+- **Mac:** Finder → Gehe zu → Mit Server verbinden → `smb://zynthian.local/MUSIK gekauft`.
+- Status und „Einrichten“-Knopf: Einstellungen → DJ-Pult → Musik per WLAN (oder am Handy unter Extras).
+
 ## Neu in Version 3.1 – Startbildschirm fürs DJ-Pult
 
 Während Mixxx lädt, erscheint die Gans mit goldenen Ringen und darunter ein Ladebalken, der sagt, was gerade passiert

@@ -9,6 +9,7 @@
 #   zynsimple-dj importieren    Musik vom USB-Stick (Ordner „MUSIK gekauft“) auf den Zynthian kopieren
 #   zynsimple-dj installieren   Mixxx & Co. einmalig installieren (braucht Internet)
 #   zynsimple-dj einrichten     Dienst, Befehl und WLAN-Ordner nach einem ZynSimple-Update auffrischen
+#   zynsimple-dj samba          nur den WLAN-Ordner „MUSIK gekauft“ einrichten (Benutzer musik, Passwort gekauft)
 #   zynsimple-dj status | pruefen
 #
 # Wird von install.sh nach /usr/local/bin kopiert (als Kopie, damit Updates mitten im Tausch nichts kaputt machen).
@@ -39,9 +40,30 @@ mixxx_beenden() {
   systemctl stop zynsimple-dj.service
 }
 
+SMB_USER=musik
+SMB_PASS=gekauft
+SAMBA_LOG=/tmp/zynsimple-dj-samba.log
+
+# WLAN-Ordner „MUSIK gekauft“: Samba-Freigabe, Anmeldung musik/gekauft (Windows 10/11 sperren Gastzugriff),
+# Gastzugriff zusätzlich für Mac/Android, und WS-Discovery, damit Windows den Zynthian unter „Netzwerk“ zeigt.
 samba_einrichten() {
   mkdir -p "$MUSIK"
-  [ -f /etc/samba/smb.conf ] || return 0
+  P=""
+  command -v smbd >/dev/null || P="samba"
+  command -v wsdd >/dev/null || command -v wsdd2 >/dev/null || P="$P wsdd"
+  if [ -n "$P" ]; then
+    export DEBIAN_FRONTEND=noninteractive
+    echo "installiere:$P"
+    apt-get install -y -q --no-install-recommends $P >/dev/null 2>&1 \
+      || { apt-get update -q >/dev/null 2>&1 && apt-get install -y -q --no-install-recommends $P >/dev/null 2>&1; } \
+      || { command -v smbd >/dev/null || apt-get install -y -q --no-install-recommends samba >/dev/null 2>&1; }
+  fi
+  command -v smbd >/dev/null || { echo "Samba ließ sich nicht installieren (Internet?)"; return 1; }
+  [ -f /etc/samba/smb.conf ] || printf '[global]\n   workgroup = WORKGROUP\n   map to guest = Bad User\n' > /etc/samba/smb.conf
+  # eigener Benutzer nur für die Freigabe (kein Login am Gerät)
+  id "$SMB_USER" >/dev/null 2>&1 || useradd -M -s /usr/sbin/nologin "$SMB_USER" 2>/dev/null
+  printf '%s\n%s\n' "$SMB_PASS" "$SMB_PASS" | smbpasswd -s -a "$SMB_USER" >/dev/null 2>&1
+  smbpasswd -e "$SMB_USER" >/dev/null 2>&1
   cat > /etc/samba/zynsimple-dj.conf <<EOF
 # Von ZynSimple (DJ-Pult) – WLAN-Ordner für Musik
 [MUSIK gekauft]
@@ -50,13 +72,16 @@ samba_einrichten() {
    browseable = yes
    writable = yes
    guest ok = yes
+   valid users = $SMB_USER, nobody, root
    force user = root
    create mask = 0664
    directory mask = 0775
 EOF
   grep -q "zynsimple-dj.conf" /etc/samba/smb.conf || printf '\ninclude = /etc/samba/zynsimple-dj.conf\n' >> /etc/samba/smb.conf
-  systemctl enable smbd >/dev/null 2>&1
-  systemctl reload smbd 2>/dev/null || systemctl restart smbd 2>/dev/null
+  # Gastzugriff braucht „map to guest“ im [global]-Teil
+  grep -qi "map to guest" /etc/samba/smb.conf || sed -i '0,/^\[global\]/s//[global]\n   map to guest = Bad User/' /etc/samba/smb.conf
+  for D in smbd nmbd wsdd wsdd2; do systemctl enable "$D" >/dev/null 2>&1; systemctl restart "$D" >/dev/null 2>&1; done
+  systemctl is-active -q smbd && echo "WLAN-Ordner bereit: \\\\$(hostname)\\MUSIK gekauft (Benutzer $SMB_USER, Passwort $SMB_PASS)"
 }
 
 case "$1" in
@@ -65,6 +90,8 @@ case "$1" in
       "$0" installieren || { echo "Mixxx fehlt und ließ sich nicht installieren (Internet?)."; exit 1; }
     fi
     rm -f "$ZIEL"
+    # WLAN-Ordner noch eingetragen? (die Zynthian-Weboberfläche schreibt smb.conf manchmal neu)
+    [ -f /etc/samba/smb.conf ] && ! grep -q "zynsimple-dj.conf" /etc/samba/smb.conf && samba_einrichten >/dev/null 2>&1
     # virtueller MIDI-Anschluss für die Zynthian-Tasten → Mixxx
     grep -q VirMIDI /proc/asound/cards 2>/dev/null || modprobe snd-virmidi midi_devs=1 2>/dev/null
     # Barden Beats im Hintergrund würde JACK wieder anwerfen
@@ -158,9 +185,20 @@ case "$1" in
     cp "$SRC/zynsimple-dj.service" /etc/systemd/system/zynsimple-dj.service
     mkdir -p "$DATEN" "$MUSIK"
     rm -f "$DATEN/.skin-kaputt"      # neue Version der eigenen Ansicht – nochmal versuchen
-    samba_einrichten
     systemctl daemon-reload
+    # WLAN-Ordner im Hintergrund einrichten (beim ersten Mal wird Samba installiert)
+    if command -v systemd-run >/dev/null; then
+      systemd-run --no-block --collect --quiet --unit="zynsimple-dj-samba-$$" /usr/local/bin/zynsimple-dj samba
+    else
+      setsid /usr/local/bin/zynsimple-dj samba >/dev/null 2>&1 &
+    fi
     echo "DJ-Pult eingerichtet$(mixxx_da && echo " (Mixxx $(mixxx --version 2>/dev/null | grep -o -m1 '[0-9][0-9.]*'))" || echo " (Mixxx wird beim ersten Start installiert)")."
+    ;;
+  samba)
+    # WLAN-Ordner einrichten (wird nach jedem Update losgelöst ausgeführt – braucht beim ersten Mal Internet)
+    exec 9>/run/zynsimple-dj-samba.lock; flock -n 9 || { echo "Läuft schon."; exit 0; }
+    samba_einrichten > "$SAMBA_LOG" 2>&1
+    cat "$SAMBA_LOG"
     ;;
   status)
     echo "installiert=$(mixxx_da && echo 1 || echo 0) aktiv=$(dj_aktiv && echo 1 || echo 0) imres=$(imres_da && echo 1 || echo 0)"
@@ -170,10 +208,13 @@ case "$1" in
     echo "== Dienste =="; for D in zynsimple-dj zynthian jack2 imres-buehne smbd; do echo "$D: $(systemctl is-active $D)"; done
     echo "== Soundkarten =="; cat /proc/asound/cards
     echo "== MIDI (DDJ-200, VirMIDI, TR-8S) =="; amidi -l 2>&1
-    echo "== WLAN-Ordner =="; ls -la "$MUSIK" 2>&1 | head -5; grep -c "MUSIK gekauft" /etc/samba/zynsimple-dj.conf 2>/dev/null
+    echo "== WLAN-Ordner =="; ls -la "$MUSIK" 2>&1 | head -5
+    for D in smbd nmbd wsdd wsdd2; do echo "$D: $(systemctl is-active $D 2>/dev/null)"; done
+    testparm -s 2>/dev/null | grep -A3 "MUSIK gekauft"; cat "$SAMBA_LOG" 2>/dev/null | tail -3
+    echo "Adresse: \\\\$(hostname)\\MUSIK gekauft  ·  \\\\$(hostname -I | awk '{print $1}')\\MUSIK gekauft"
     echo "== Log DJ-Sitzung =="; journalctl -u zynsimple-dj -n 40 --no-pager 2>&1 | tail -40
     echo "== Installations-Log =="; tail -5 "$LOG" 2>/dev/null
     ;;
   *)
-    echo "Benutzung: zynsimple-dj dj|zynthian|imres|aus|importieren|installieren|einrichten|status|pruefen"; exit 1 ;;
+    echo "Benutzung: zynsimple-dj dj|zynthian|imres|aus|importieren|installieren|einrichten|samba|status|pruefen"; exit 1 ;;
 esac

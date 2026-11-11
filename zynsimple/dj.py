@@ -58,6 +58,26 @@ def installieren():
 
 
 IMPORT_LOG = "/tmp/zynsimple-dj-import.log"
+SAMBA_LOG = "/tmp/zynsimple-dj-samba.log"
+_samba = {"t": 0, "an": False}
+
+
+def samba_an():
+    """Läuft die WLAN-Freigabe? (kurz zwischengespeichert)"""
+    import time
+    if time.monotonic() - _samba["t"] > 5:
+        _samba["t"] = time.monotonic()
+        try:
+            r = subprocess.run(["systemctl", "is-active", "-q", "smbd"], timeout=2)
+            _samba["an"] = r.returncode == 0 and os.path.exists("/etc/samba/zynsimple-dj.conf")
+        except Exception:
+            _samba["an"] = False
+    return _samba["an"]
+
+
+def samba_einrichten():
+    _samba["t"] = 0
+    _losgeloest(["samba"])
 
 
 def import_starten():
