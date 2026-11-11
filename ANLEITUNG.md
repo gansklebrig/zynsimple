@@ -73,6 +73,21 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 3.3 – System-Menü: BACK 2 Sekunden halten
+
+In **allen** Apps – Zynthian/ZynSimple, DJ-Pult und Barden Beats – öffnet **BACK 2 s halten** dasselbe System-Menü:
+
+| Knopf | Was passiert |
+| --- | --- |
+| Abbrechen · Ausschalten · Neu starten | wie das bekannte Zynthian-Power-Menü (im DJ-Pult speichert Mixxx vorher) |
+| ZynSimple aktualisieren | sucht das Update (GitHub, sonst USB-Stick) |
+| Zynthian aktualisieren | das offizielle Zynthian-System-Update |
+| Barden Beats aktualisieren | läuft im Hintergrund |
+| DJ-Pult · Barden Beats · Einfacher Mischer | direkt wechseln |
+
+Aus dem DJ-Pult oder Barden Beats wechselt ein Update erst zum Zynthian und startet dort von selbst.
+Auch das normale Zynthian-Power-Menü zeigt jetzt diese erweiterte Auswahl.
+
 ## Neu in Version 3.2 – WLAN-Ordner „MUSIK gekauft“ zuverlässig
 
 - Der Ordner wird direkt nach dem Update eingerichtet (beim ersten Mal wird Samba installiert – Internet nötig, 1–2 Minuten), nicht erst beim ersten DJ-Start.
@@ -108,7 +123,7 @@ beim letzten Mal gedauert hat, und blendet sich aus, sobald Mixxx bereit ist.
 ### DJ-Pult
 - **Fertig eingerichtet:** Ton, DDJ-200, Bibliothek, Aufnahmen und Ansicht stellt ZynSimple vor jedem Start selbst ein. Mit USB-Soundkarte: Kopfhörer automatisch auf der USB-Karte.
 - **Zynthian als Zusatz-Controller:** Regler 1 Bibliothek blättern (drücken: in Deck A laden) · Regler 2 Bereich wechseln (drücken: in Deck B) · Regler 3/4 Effekt 1/2 (drücken: an/aus) · F1–F4 Sampler · PLAY Auto-DJ · REC Aufnahme · TEMPO Tempo tippen · PAD Handpan im Mix an/aus · MIXER/CTRL Vorhören Deck A/B · ZS3 große Bibliothek · ▲▼◀▶ SEL in der Bibliothek. Die LEDs zeigen, was läuft.
-- **BACK halten** → Zynthian · **MENU halten** → Barden Beats · **STOP 3 s halten** → speichern und ausschalten.
+- **BACK 2 s halten** → System-Menü · **MENU halten** → Barden Beats · **STOP 3 s halten** → speichern und ausschalten.
 - **Eigene Ansicht „ZynSimple Glut“** für das 5-Zoll-Display: Wellenformen Bässe rot, Mitten gold, Höhen grün – kein Blau. Startet sie nicht, nimmt Mixxx automatisch LateNight.
 - **Handpan/Mikro im Mix:** Zynthian-Eingänge 1+2 laufen in Mixxx mit (Effekt-Einheit 2 = Regler 4).
 - **Kiste „Passt zur Handpan (…)“:** alle Tracks in Tonarten, die zur eingestellten Tonart passen.

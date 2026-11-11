@@ -33,6 +33,14 @@ def status():
     return {"installed": inst, "bridge": bridge_ok() if inst else False}
 
 
+def system_update():
+    """Barden Beats im Hintergrund aktualisieren (die Bühne bleibt, wie sie ist)."""
+    modus = MODUS if os.path.isfile(MODUS) else os.path.join(DATEN, "seite", "zynthian", "imres-modus")
+    cmd = ["systemd-run", "--no-block", "--collect", modus, "aktualisieren"] if shutil.which("systemd-run") \
+        else ["setsid", modus, "aktualisieren"]
+    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+
 def system(aktion):
     """Schaltet den Modus: imres (Bühne im Vollbild), hintergrund (zusammen), zynthian (nur Zynthian)."""
     if aktion not in ERLAUBT:

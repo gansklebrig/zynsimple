@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "3.2"
+VERSION = "3.3"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -105,6 +105,113 @@ def setup(zyngui):
         except Exception as e:
             log.exception(f"ZynSimple: Touchscreen-Ansicht fehlgeschlagen: {e}")
         _add_menu_entry(zyngui)
+    _hook_power(zyngui)
+    _start_aktion(zyngui)
+
+
+START_AKTION = "/run/zynsimple-start-aktion"
+
+
+def system_menue(zyngui):
+    """Das Zynthian-Power-Menü (Abbrechen · Ausschalten · Neu starten), erweitert um Updates und die Apps."""
+    import threading
+    adm = zyngui.screens.get("admin")
+    items = [
+        {"icon": "cancel.png", "title": "Abbrechen", "action": lambda *a, **k: zyngui.close_screen()},
+        {"icon": "poweroff.png", "title": "Ausschalten", "action": lambda *a, **k: adm.power_off_confirmed()},
+        {"icon": "reboot.png", "title": "Neu starten", "action": lambda *a, **k: adm.reboot_confirmed()},
+    ]
+    try:
+        from . import updater
+        neu = updater.status.get("available") and updater.status.get("latest")
+    except Exception:
+        neu = None
+    items.append({"icon": "settings.png", "title": f"ZynSimple-Update {neu} bereit" if neu else "ZynSimple aktualisieren",
+                  "action": lambda *a, **k: start_update(zyngui)})
+    if adm is not None and hasattr(adm, "update_software"):
+        items.append({"icon": "zynthian_logo.png", "title": "Zynthian aktualisieren",
+                      "action": lambda *a, **k: adm.update_software()})
+    try:
+        from . import imres
+        if imres.installed():
+            def bb_update(*a, **k):
+                imres.system_update()
+                _info(zyngui, "Barden Beats wird im Hintergrund aktualisiert")
+                zyngui.close_screen()
+            items.append({"icon": "audio.png", "title": "Barden Beats aktualisieren", "action": bb_update})
+            items.append({"icon": "special_chain.png", "title": "Barden Beats",
+                          "action": lambda *a, **k: threading.Thread(target=imres.system, args=("imres",), daemon=True).start()})
+    except Exception:
+        pass
+    try:
+        from . import dj
+        if dj.eingerichtet():
+            items.append({"icon": "audio_generator.png", "title": "DJ-Pult", "action": lambda *a, **k: start_dj(zyngui)})
+    except Exception:
+        pass
+    items.append({"icon": "mixer.png", "title": "Einfacher Mischer",
+                  "action": lambda *a, **k: zyngui.show_screen_reset(SCREEN_NAME)})
+    zyngui.screens["grid_sel"].setup("System", items, cols=3)
+    zyngui.show_screen("grid_sel")
+
+
+def _ist_back(cfg_eintrag):
+    try:
+        return str(cfg_eintrag.get("S") or "").strip().upper().split(" ")[0] == "BACK"
+    except Exception:
+        return False
+
+
+def _hook_power(zyngui):
+    """BACK 2 s halten (Zynthians „lang“) und das Power-Menü → erweitertes System-Menü."""
+    try:
+        adm = zyngui.screens.get("admin")
+        if adm is not None and not getattr(adm, "_zs_power", False):
+            adm.power = lambda *a, **k: system_menue(zyngui)
+            adm._zs_power = True
+        orig = getattr(zyngui, "custom_switch_ui_action", None)
+        if callable(orig) and not getattr(zyngui, "_zs_back_long", False):
+            from zyngui import zynthian_gui_config as cfg
+
+            def custom_switch_ui_action(i, t, *a, **k):
+                try:
+                    if t == "L" and _ist_back(cfg.custom_switch_ui_actions[i]):
+                        system_menue(zyngui)
+                        return True
+                except Exception as e:
+                    log.debug(f"ZynSimple: BACK lang: {e}")
+                return orig(i, t, *a, **k)
+
+            zyngui.custom_switch_ui_action = custom_switch_ui_action
+            zyngui._zs_back_long = True
+        log.info("ZynSimple: BACK 2 s → System-Menü")
+    except Exception as e:
+        log.warning(f"ZynSimple: System-Menü nicht eingehängt: {e}")
+
+
+def _start_aktion(zyngui):
+    """Kommt die Oberfläche aus dem DJ-Pult oder Barden Beats mit einem Auftrag (z. B. Update)?"""
+    try:
+        with open(START_AKTION, encoding="utf-8") as f:
+            aktion = f.read().strip()
+        os.remove(START_AKTION)
+    except OSError:
+        return
+
+    def los():
+        if aktion == "zynsimple-update":
+            start_update(zyngui)
+        elif aktion == "zynthian-update":
+            adm = zyngui.screens.get("admin")
+            if adm is not None and hasattr(adm, "update_software"):
+                adm.update_software()
+        elif aktion == "menue":
+            system_menue(zyngui)
+    try:
+        from zyngui import zynthian_gui_config
+        zynthian_gui_config.top.after(6000, los)
+    except Exception:
+        pass
 
 
 def _hook_exit(zyngui, extras):
@@ -250,7 +357,7 @@ def start_dj(zyngui, *a, **k):
             if not ok:
                 show("Mixxx fehlt noch", f"{msg} Antippen zum Schließen.", error=True)
                 return
-        show("DJ-Pult startet …", "Zurück zum Zynthian: Mixxx beenden oder BACK halten")
+        show("DJ-Pult startet …", "Zurück: Mixxx beenden oder BACK 2 s halten → System-Menü")
         dj.system("dj")
 
     if scr is not None:

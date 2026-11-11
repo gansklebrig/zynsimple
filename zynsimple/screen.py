@@ -68,7 +68,7 @@ class zynsimple_screen(zynthian_gui_base):
         ("PLAY", "↯ Echo-Wurf, solange gedrückt"),
         ("STOP", "Panik: Hall, Echos und hängende Töne aus"),
         ("METRONOM", "Tempo tippen (TAP)"),
-        ("BACK", "zurück · auf der Hauptseite: nichts kaputt zu machen"),
+        ("BACK", "zurück · 2 s halten: System-Menü (Update, Neustart, Ausschalten, DJ, Barden Beats)"),
     ]
 
     def __init__(self, bridge, settings):
@@ -2477,10 +2477,10 @@ class zynsimple_screen(zynthian_gui_base):
             return ("Jetzt speichern", "Mischer, Effekte und Spuren sofort sichern",
                     "✓ Gesichert" if armed else "Speichern", True, False)
         if art == "s_dj":
-            return ("DJ-Pult", "Mixxx im Vollbild mit dem DDJ-200 · zurück: BACK halten", "Starten",
+            return ("DJ-Pult", "Mixxx im Vollbild mit dem DDJ-200 · zurück: BACK 2 s → System-Menü", "Starten",
                     getattr(self, "dj_installed", False), False)
         if art == "s_imres":
-            return ("Barden Beats", "Bühne & Klangwelten im Vollbild · zurück: BACK halten", "Starten",
+            return ("Barden Beats", "Bühne & Klangwelten im Vollbild · zurück: BACK 2 s → System-Menü", "Starten",
                     getattr(self, "imres_installed", False), False)
         if art == "s_handy":
             a = getattr(self, "set_addr", {}) or {}
@@ -3101,6 +3101,8 @@ class zynsimple_screen(zynthian_gui_base):
                 return role
         if re.search(r"(^|\s)STOP(\s|$)", txt):
             return "STOP"
+        if str(acts.get("S") or "").strip().upper().split(" ")[0] == "BACK":
+            return "BACK"
         return None
 
     def switch(self, i, t):
@@ -3116,6 +3118,12 @@ class zynsimple_screen(zynthian_gui_base):
             return False
         role = self._pad_role(i)
         if role is None:
+            return False
+        if role == "BACK":
+            if t == "L":
+                from . import system_menue
+                system_menue(self.zyngui)
+                return True
             return False
         if self.mode == "idle":
             if t == "P":

@@ -7,7 +7,7 @@ ZynSimple DJ-Pult: macht im DJ-Modus aus den Tasten und Reglern des Zynthian V5 
   Mixxx → LEDs der Tasten, Tempo und Takt des laufenden Tracks
   Tempo/Takt           → MIDI-Clock für die TR-8S (USB oder DIN-Buchse)
 
-  BACK 1,5 s halten  → zurück zum Zynthian
+  BACK 2 s halten    → System-Menü (Updates, Neustart, Ausschalten, Zynthian, Barden Beats)
   MENU 1,5 s halten  → weiter zu Barden Beats (wenn installiert)
   STOP 3 s halten    → alles speichern und ausschalten
 
@@ -37,7 +37,9 @@ LED_NR = {"MENU": 0, "MIXER": 1, "CTRL": 2, "ZS3": 3, "F1": 4, "PAD": 5, "TEMPO"
 NUMMER = {v: k for k, v in TASTEN.items()}
 # LED-Farbcodes, die das Mixxx-Mapping schickt (ohne Blau)
 FARBE = {0: (0, 0, 0), 1: (26, 12, 2), 2: (200, 130, 15), 3: (210, 20, 25), 4: (30, 170, 60), 5: (235, 210, 60)}
-HALTEN = {"BACK": (1.5, "zynthian"), "MENU": (1.5, "imres"), "STOP": (3.0, "aus")}
+HALTEN = {"BACK": (2.0, "menue"), "MENU": (1.5, "imres"), "STOP": (3.0, "aus")}
+HIER = os.path.dirname(os.path.abspath(__file__))
+_menue = {"proc": None}
 
 
 def log(*a):
@@ -218,7 +220,21 @@ class Leds:
 
 
 # ---------------------------------------------------------------------------------------------------------
+def menue_zeigen():
+    """System-Menü über Mixxx legen (BACK 2 s)."""
+    p = _menue["proc"]
+    if p is not None and p.poll() is None:
+        return
+    for py in ("/zynthian/venv/bin/python3", "/usr/bin/python3"):
+        if os.path.exists(py) and subprocess.call([py, "-c", "import tkinter"], stderr=subprocess.DEVNULL) == 0:
+            _menue["proc"] = subprocess.Popen([py, os.path.join(HIER, "dj-menue.py")], env=dict(os.environ, DISPLAY=":0"))
+            return
+    umschalten("zynthian")      # ohne Tk: wie früher direkt zurück zum Zynthian
+
+
 def umschalten(ziel):
+    if ziel == "menue":
+        return menue_zeigen()
     if ziel == "imres" and not os.path.exists(IMRES):
         return
     log("wechsle zu", ziel)

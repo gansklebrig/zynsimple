@@ -6,6 +6,8 @@
 #   zynsimple-dj zynthian       zurück zur Zynthian-Oberfläche (Mixxx wird sauber beendet)
 #   zynsimple-dj imres          weiter zu Barden Beats (wenn installiert)
 #   zynsimple-dj aus            Mixxx sauber beenden und ausschalten
+#   zynsimple-dj neustart       Mixxx sauber beenden und neu starten
+#   zynsimple-dj update-zynsimple|update-zynthian|update-barden   Updates aus dem System-Menü (BACK 2 s)
 #   zynsimple-dj importieren    Musik vom USB-Stick (Ordner „MUSIK gekauft“) auf den Zynthian kopieren
 #   zynsimple-dj installieren   Mixxx & Co. einmalig installieren (braucht Internet)
 #   zynsimple-dj einrichten     Dienst, Befehl und WLAN-Ordner nach einem ZynSimple-Update auffrischen
@@ -117,6 +119,20 @@ case "$1" in
     sync
     systemctl poweroff
     ;;
+  neustart)
+    echo aus > "$ZIEL"
+    mixxx_beenden
+    sync
+    systemctl reboot
+    ;;
+  update-zynsimple|update-zynthian)
+    # zurück zum Zynthian; ZynSimple startet dort das passende Update
+    echo "${1#update-}-update" > /run/zynsimple-start-aktion
+    exec "$0" zynthian
+    ;;
+  update-barden)
+    [ -x "$IMRES_MODUS" ] && exec "$IMRES_MODUS" aktualisieren
+    ;;
   nach-ende)
     # Läuft, wenn die DJ-Sitzung endet (Mixxx beendet, abgestürzt oder von einem anderen Modus abgelöst).
     # Losgelöst und kurz verzögert, damit ein gerade startender anderer Modus erst dran ist.
@@ -216,5 +232,5 @@ case "$1" in
     echo "== Installations-Log =="; tail -5 "$LOG" 2>/dev/null
     ;;
   *)
-    echo "Benutzung: zynsimple-dj dj|zynthian|imres|aus|importieren|installieren|einrichten|samba|status|pruefen"; exit 1 ;;
+    echo "Benutzung: zynsimple-dj dj|zynthian|imres|aus|neustart|update-zynsimple|update-zynthian|update-barden|importieren|installieren|einrichten|samba|status|pruefen"; exit 1 ;;
 esac
