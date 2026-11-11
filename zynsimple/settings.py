@@ -26,8 +26,21 @@ SPEC = [
     ("synth_midi_chan", "MIDI-Kanal neuer Synths", "choice", [(i, f"Kanal {i + 1}") for i in range(16)],
      "auf diesem Kanal hören neu angelegte Synths"),
     ("led_recolor", "Tasten-Farben ohne Blau", "bool", None, "warme LED-Farben · wirkt nach einem Neustart"),
+    ("tonart", "Tonart der Band", "choice", None,
+     "für Stimmgerät und DJ-Pult (passende Tracks) · z. B. Handpan-Grundton"),
+    ("master_limiter", "Schutz vor Übersteuern", "bool", None, "Limiter am Hauptausgang · fängt laute Spitzen ab"),
+    ("dj_auto_rec", "Set automatisch aufnehmen", "bool", None, "jedes DJ-Set landet als Datei auf dem USB-Stick"),
+    ("dj_clock", "TR-8S läuft im Takt mit", "bool", None, "sendet MIDI-Clock im Tempo des laufenden Tracks"),
+    ("dj_handpan_fx", "Handpan im DJ-Mix", "bool", None, "Zynthian-Eingänge 1+2 laufen mit in den Mix"),
     ("update_check", "Updates selbst suchen", "bool", None, "beim Start und alle 6 Stunden · braucht Internet"),
 ]
+
+
+def _choices(key, choices):
+    if key == "tonart":
+        from .helfer import TONARTEN
+        return TONARTEN
+    return choices
 
 
 def _config_file():
@@ -38,6 +51,7 @@ def _config_file():
 def items(settings):
     out = []
     for key, title, kind, choices, hint in SPEC:
+        choices = _choices(key, choices)
         v = settings.get(key)
         if kind == "bool":
             text = "an" if v else "aus"
@@ -50,7 +64,7 @@ def items(settings):
 
 def save(settings, changes):
     """Übernimmt Änderungen in die laufenden Einstellungen und in zynsimple.json."""
-    spec = {k: (kind, choices) for k, _, kind, choices, _ in SPEC}
+    spec = {k: (kind, _choices(k, choices)) for k, _, kind, choices, _ in SPEC}
     path = _config_file()
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -78,9 +92,33 @@ def save(settings, changes):
     log.info(f"ZynSimple: Einstellungen geändert: {changes}")
 
 
+def save_intern(settings, key, value):
+    """Interne Merker (nicht in der Liste), z. B. ob die Hilfe schon gezeigt wurde."""
+    path = _config_file()
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            stored = json.load(f)
+    except Exception:
+        stored = {}
+    settings[key] = value
+    stored[key] = value
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(stored, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, path)
+
+
+def choices_of(key):
+    for k, _, kind, choices, _ in SPEC:
+        if k == key:
+            return _choices(k, choices) or []
+    return []
+
+
 def cycle(settings, key):
     """Nächster Wert (für den Touchscreen: antippen = weiterschalten)."""
     for k, _, kind, choices, _ in SPEC:
+        choices = _choices(k, choices)
         if k == key:
             if kind == "bool":
                 return not settings.get(key)
@@ -97,6 +135,16 @@ def apply_live(bridge, key):
     try:
         if key == "autosave" and bridge.extras:
             bridge.extras.autosave_info["enabled"] = bool(s.get("autosave"))
+        if key == "master_limiter":
+            import threading
+            from . import helfer
+
+            def run():
+                try:
+                    log.info("ZynSimple: " + helfer.limiter_setzen(bridge, bool(s.get("master_limiter"))))
+                except Exception as e:
+                    log.warning(f"ZynSimple: Limiter: {e}")
+            threading.Thread(target=run, daemon=True).start()
     except Exception as e:
         log.debug(f"Einstellung {key}: {e}")
 

@@ -10,7 +10,7 @@ log = logging.getLogger("zynsimple")
 
 BEFEHL = "/usr/local/bin/zynsimple-dj"
 INSTALL_LOG = "/tmp/zynsimple-dj-install.log"
-ERLAUBT = ("dj", "zynthian", "imres")
+ERLAUBT = ("dj", "zynthian", "imres", "aus")
 
 
 def eingerichtet():
@@ -55,6 +55,40 @@ def installieren():
     if "resolve" in letzte or "Temporary failure" in letzte or "Could not" in letzte:
         return False, "Kein Internet – der Zynthian braucht für die einmalige Installation WLAN oder Kabel."
     return False, "Installation fehlgeschlagen" + (f": {letzte[:120]}" if letzte else "")
+
+
+IMPORT_LOG = "/tmp/zynsimple-dj-import.log"
+
+
+def import_starten():
+    """Musik vom USB-Stick übernehmen (läuft losgelöst; Fortschritt über import_stand())."""
+    if not eingerichtet():
+        raise RuntimeError("DJ-Pult ist nicht eingerichtet")
+    try:
+        os.remove(IMPORT_LOG)
+    except OSError:
+        pass
+    _losgeloest(["importieren"])
+
+
+def import_stand():
+    """{"phase": "laeuft"|"fertig"|"fehler"|None, "n", "gesamt", "datei", "text"}"""
+    try:
+        with open(IMPORT_LOG, encoding="utf-8", errors="replace") as f:
+            zeilen = [z.rstrip("\n") for z in f if z.strip()]
+    except OSError:
+        return {"phase": None}
+    if not zeilen:
+        return {"phase": "laeuft", "n": 0, "gesamt": 0, "datei": ""}
+    letzte = zeilen[-1]
+    if letzte.startswith("FEHLER"):
+        return {"phase": "fehler", "text": letzte[7:]}
+    if letzte.startswith("FERTIG"):
+        return {"phase": "fertig", "text": f"{letzte.split()[1]} Dateien sind jetzt auf dem Zynthian"}
+    teile = letzte.split(" ", 3)
+    if teile[0] == "STAND" and len(teile) >= 3:
+        return {"phase": "laeuft", "n": int(teile[1]), "gesamt": int(teile[2]), "datei": teile[3] if len(teile) > 3 else ""}
+    return {"phase": "laeuft", "n": 0, "gesamt": 0, "datei": ""}
 
 
 def system(aktion):

@@ -14,7 +14,9 @@ done
 # DJ-Pult entfernen (Mixxx selbst bleibt installiert: sudo apt remove mixxx)
 if [ -f /etc/systemd/system/zynsimple-dj.service ]; then
     systemctl stop zynsimple-dj 2>/dev/null
-    rm -f /etc/systemd/system/zynsimple-dj.service /usr/local/bin/zynsimple-dj
+    rm -f /etc/systemd/system/zynsimple-dj.service /usr/local/bin/zynsimple-dj /etc/samba/zynsimple-dj.conf
+    rm -rf /usr/share/mixxx/skins/ZynSimple-Glut
+    sed -i '/zynsimple-dj.conf/d' /etc/samba/smb.conf 2>/dev/null
     systemctl daemon-reload 2>/dev/null
     echo "DJ-Pult entfernt"
 fi

@@ -73,7 +73,40 @@ def make_handler(bridge, pin):
                         st["log"] = [z.rstrip() for z in f.readlines()[-3:]]
                 except OSError:
                     st["log"] = []
+                st["import"] = dj.import_stand()
                 self._send(200, st)
+            elif path == "/api/aufnahmen":
+                if not self._authorized():
+                    return self._send(401, {"error": "pin"})
+                from . import helfer
+                self._send(200, {"liste": helfer.aufnahmen(), "laeuft": helfer.aufnahme_laeuft(bridge)})
+            elif path in ("/datei/aufnahme", "/datei/sicherung"):
+                from urllib.parse import parse_qs
+                q = {k: v[0] for k, v in parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "").items()}
+                if pin and q.get("pin", "") != str(pin):
+                    return self._send(401, {"error": "pin"})
+                from . import helfer
+                try:
+                    if path == "/datei/sicherung":
+                        body, name, ctype = helfer.sicherung_bauen(bridge), helfer.sicherung_name(), "application/zip"
+                        self.send_response(200)
+                        self.send_header("Content-Type", ctype)
+                        self.send_header("Content-Length", str(len(body)))
+                        self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+                        self.end_headers()
+                        self.wfile.write(body)
+                    else:
+                        fp = helfer.aufnahme_pfad(q.get("f", ""))
+                        size = os.path.getsize(fp)
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/octet-stream")
+                        self.send_header("Content-Length", str(size))
+                        self.send_header("Content-Disposition", f'attachment; filename="{os.path.basename(fp)}"')
+                        self.end_headers()
+                        with open(fp, "rb") as f:
+                            shutil.copyfileobj(f, self.wfile, 256 * 1024)
+                except FileNotFoundError:
+                    self._send(404, {"error": "nicht gefunden"})
             elif path == "/api/update_check":
                 from . import updater
                 force = "force" in self.path
@@ -151,9 +184,23 @@ def make_handler(bridge, pin):
                     aktion = str(json.loads(self.rfile.read(n) or b"{}").get("aktion", "dj"))
                     if aktion == "dj":
                         start_dj(bridge.zyngui)
+                    elif aktion == "import":
+                        dj.import_starten()
                     else:
                         dj.system(aktion)
                     self._send(200, {"ok": True, "mixxx": dj.mixxx_da()})
+                except Exception as e:
+                    self._send(400, {"error": str(e)})
+                return
+            if self.path.split("?", 1)[0] == "/api/restore":
+                if not self._authorized():
+                    return self._send(401, {"error": "pin"})
+                try:
+                    from . import helfer
+                    n = int(self.headers.get("Content-Length", 0))
+                    if not 0 < n < 30 * 1024 * 1024:
+                        raise ValueError("Datei fehlt oder ist zu groß")
+                    self._send(200, {"ok": True, "message": helfer.sicherung_einspielen(bridge, self.rfile.read(n))})
                 except Exception as e:
                     self._send(400, {"error": str(e)})
                 return

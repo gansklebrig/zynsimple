@@ -73,6 +73,38 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 3.0 – leichter für alle, DJ-Pult komplett
+
+### Für alle, die ZynSimple zum ersten Mal sehen
+- **Leerer Start:** Gibt es noch keine Spur, fragt der Bildschirm „Was schließt du an?“ – Handpan, Mikro/Gesang, Instrument, Synth, Looper oder leerer Eingang. Antippen, fertig.
+- **? oben neben LIVE:** legt Erklärungen über alle Bedienelemente; nochmal tippen zeigt, was die Tasten und Regler am Zynthian tun. Beim allerersten Start erscheint das von selbst.
+- **Langer Druck erklärt:** M, S, ❄, Gain, ‹ › und Überblenden erklären sich, wenn man sie gedrückt hält. Kurz tippen wirkt wie immer.
+- **Warnungen in Klartext** oben im Mischer: zu laut, Aussetzer, zu warm, zu wenig Strom – jeweils mit dem, was hilft.
+- **F1–F4** sagen beim Drücken, welchen Effekt sie gerade schalten.
+
+### Leichter bedienen
+- **Auto-Gain** (Spur-Name antippen → Auto-Gain): 10 Sekunden so laut spielen wie beim Auftritt – der Gain stellt sich selbst ein.
+- **Schutz vor Übersteuern** (Einstellungen → Bedienung): Limiter am Hauptausgang.
+- **Auftritt** (statt „Sperre“): nur noch Fader, Mute, Szenen und Panik bedienbar. Lang drücken beendet. Am Zynthian gehen dann nur Panik, Szenen (ALT+F) und Kanalwahl.
+- **Tonart der Band** (Einstellungen → Bedienung) und **Stimmgerät** (Spur-Seite): zeigt Ton, Cent und ob der Ton zur Tonart passt.
+- **● REC** in der unteren Leiste: nimmt alles auf, was rauskommt. Herunterladen am Handy unter Extras → Aufnahmen.
+- **Looper** als neue Spur: Aufnehmen, Darüber, Abspielen, Stumm, Zurück, Löschen (Spur-Name antippen → Looper).
+- **Sicherung:** am Handy (Extras → Sicherung) herunterladen/einspielen oder am Zynthian auf/vom USB-Stick (Einstellungen → System).
+
+### DJ-Pult
+- **Fertig eingerichtet:** Ton, DDJ-200, Bibliothek, Aufnahmen und Ansicht stellt ZynSimple vor jedem Start selbst ein. Mit USB-Soundkarte: Kopfhörer automatisch auf der USB-Karte.
+- **Zynthian als Zusatz-Controller:** Regler 1 Bibliothek blättern (drücken: in Deck A laden) · Regler 2 Bereich wechseln (drücken: in Deck B) · Regler 3/4 Effekt 1/2 (drücken: an/aus) · F1–F4 Sampler · PLAY Auto-DJ · REC Aufnahme · TEMPO Tempo tippen · PAD Handpan im Mix an/aus · MIXER/CTRL Vorhören Deck A/B · ZS3 große Bibliothek · ▲▼◀▶ SEL in der Bibliothek. Die LEDs zeigen, was läuft.
+- **BACK halten** → Zynthian · **MENU halten** → Barden Beats · **STOP 3 s halten** → speichern und ausschalten.
+- **Eigene Ansicht „ZynSimple Glut“** für das 5-Zoll-Display: Wellenformen Bässe rot, Mitten gold, Höhen grün – kein Blau. Startet sie nicht, nimmt Mixxx automatisch LateNight.
+- **Handpan/Mikro im Mix:** Zynthian-Eingänge 1+2 laufen in Mixxx mit (Effekt-Einheit 2 = Regler 4).
+- **Kiste „Passt zur Handpan (…)“:** alle Tracks in Tonarten, die zur eingestellten Tonart passen.
+- **TR-8S im Takt:** MIDI-Clock im Tempo des Tracks, der gerade vorne läuft – per USB an der TR-8S und an MIDI-OUT. An der TR-8S Sync auf extern stellen.
+- **Musik per WLAN:** am PC `\\zynthian\MUSIK gekauft` öffnen (oder mit der IP) und Dateien hineinziehen.
+- **USB-Stick:** Ordner **MUSIK gekauft** auf dem Stick wird automatisch eingelesen. **Musik vom USB-Stick übernehmen** (Einstellungen → DJ-Pult oder Handy) kopiert ihn auf den Zynthian – danach geht es ohne Stick.
+- **Set automatisch aufnehmen** (Einstellungen → DJ-Pult): landet im Ordner DJ-Sets auf dem Stick.
+
+**USB-Stick-Format:** exFAT ist am besten (geht an Windows, Mac und Zynthian, keine Größengrenze). FAT32 geht auch (einzelne Dateien bis 4 GB), NTFS meist ebenfalls.
+
 ## Neu in Version 2.7 – Einstellungen neu geordnet
 
 Die Einstellungen (Zynthian-Hauptmenü → *Einstellungen & Update*) sind jetzt so aufgebaut wie das System-Menü von Barden Beats:

@@ -45,6 +45,7 @@ TRACK_TEMPLATES = {
         ("reverb", ["JV/Dragonfly Room Reverb", "JV/Dragonfly Plate Reverb", "JV/Calf Reverb", "JV/GVerb"]),
     ],
     "audio": [],
+    "looper": [("looper", ["SL", "JV/SooperLooper", "AP/SooperLooper"])],
 }
 
 # Effekt-Auswahl: (Gruppe, Name, Symbol, [Plugins in Wunschreihenfolge])
@@ -841,6 +842,8 @@ class Extras:
         plan = self.plan_handpan(template)
         if not plan and template == "handpan":
             raise RuntimeError("Keine passenden Effekte auf diesem Zynthian gefunden")
+        if not plan and template == "looper":
+            raise RuntimeError("Kein Looper (SooperLooper) auf diesem Zynthian gefunden")
         inputs = [int(i) for i in inputs if 1 <= int(i) <= 32] or [1]
         done = {"ev": threading.Event()}
         self.b._jobs.put((self._create_handpan, (plan, inputs, title, done)))

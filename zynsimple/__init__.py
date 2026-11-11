@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "2.7"
+VERSION = "3.0"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -35,6 +35,12 @@ DEFAULTS = {
     "synth_midi_chan": 0,
     "update_repo": "gansklebrig/zynsimple",
     "update_branch": "main",
+    "help_seen": False,
+    "tonart": "",
+    "master_limiter": False,
+    "dj_auto_rec": False,
+    "dj_clock": True,
+    "dj_handpan_fx": True,
 }
 
 SCREEN_NAME = "zynsimple"
@@ -249,6 +255,46 @@ def start_dj(zyngui, *a, **k):
 
     if scr is not None:
         # im Tk-Hauptthread umschalten (der Aufruf kann auch vom Handy-Webserver kommen)
+        try:
+            from zyngui import zynthian_gui_config
+            zynthian_gui_config.top.after(0, lambda: zyngui.show_screen_reset(SCREEN_NAME))
+        except Exception:
+            pass
+    import threading
+    threading.Thread(target=run, daemon=True).start()
+
+
+def start_import(zyngui, *a, **k):
+    """Musik vom USB-Stick auf den Zynthian kopieren – mit Fortschritt auf dem Display."""
+    scr = zyngui.screens.get(SCREEN_NAME)
+
+    def show(text, sub="", done=False, error=False):
+        if scr is not None:
+            scr.show_update(text, sub, done, error)
+
+    def run():
+        import time
+        from . import dj
+        show("Musik wird übernommen …", "vom USB-Stick (Ordner „MUSIK gekauft“)")
+        try:
+            dj.import_starten()
+        except Exception as e:
+            show("Import ging nicht", f"{e} Antippen zum Schließen.", error=True)
+            return
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < 4 * 3600:
+            time.sleep(0.5)
+            st = dj.import_stand()
+            if st["phase"] == "fertig":
+                show("Musik übernommen", st["text"] + " · der Stick kann raus. Antippen zum Schließen.", done=True)
+                return
+            if st["phase"] == "fehler":
+                show("Import ging nicht", st["text"] + ". Antippen zum Schließen.", error=True)
+                return
+            if st.get("gesamt"):
+                show(f"Musik wird übernommen … {st['n']} / {st['gesamt']}", st.get("datei", "")[-70:])
+
+    if scr is not None:
         try:
             from zyngui import zynthian_gui_config
             zynthian_gui_config.top.after(0, lambda: zyngui.show_screen_reset(SCREEN_NAME))

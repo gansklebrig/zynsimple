@@ -6,7 +6,8 @@ Einfache Mischer-Ansicht für den **Zynthian** (V5, ZynthianOS Oram & Vangelis) 
 - Effekt-Regler, Delay im Takt (TR-8S-Clock), Freeze, Fußschalter
 - Handpan-Vorlage per Knopfdruck, automatisches Speichern
 - Tasten-LEDs ohne Blau, Barden Beats direkt erreichbar
-- DJ-Pult: Mixxx im Vollbild mit dem DDJ-200, Wechsel per Knopfdruck
+- Hilfe auf Knopfdruck (?), leerer Start mit Vorschlägen, Auto-Gain, Stimmgerät, Looper, Set-Aufnahme, Sicherung
+- DJ-Pult: Mixxx im Vollbild mit dem DDJ-200 und den Zynthian-Reglern, TR-8S im Takt, Musik per WLAN („MUSIK gekauft“)
 - Updates mit einem Tipp – direkt von hier
 
 ## Installieren (per SSH auf dem Zynthian, mit Internet)

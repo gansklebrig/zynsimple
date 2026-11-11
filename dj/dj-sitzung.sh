@@ -1,6 +1,6 @@
 #!/bin/bash
 # ZynSimple DJ-Pult: X-Sitzung (startx) anstelle der Zynthian-Oberfläche.
-# Dreht den Bildschirm passend, startet die Zynthian-Tasten als Fernbedienung und Mixxx im Vollbild.
+# Richtet Mixxx passend ein, dreht den Bildschirm, startet den DJ-Helfer (Tasten, LEDs, TR-8S-Clock) und Mixxx.
 # Endet Mixxx, endet die Sitzung – der Dienst kehrt dann von selbst zum Zynthian zurück.
 HIER="$(cd "$(dirname "$0")" && pwd)"
 DATEN="${HOME:-/zynthian/zynthian-my-data/dj}"
@@ -33,14 +33,33 @@ done
 echo "DJ-Pult: Bildschirm $AUSGANG → $DREHEN, Touch → $TOUCH"
 command -v unclutter >/dev/null && unclutter -idle 1 -root &
 
-# Zynthian-Tasten: BACK halten → Zynthian, MENU halten → Barden Beats
 PY=python3
 for k in /zynthian/venv/bin/python3 /usr/bin/python3; do [ -x "$k" ] && { PY="$k"; break; }; done
-"$PY" "$HIER/dj-tasten.py" &
-TASTEN=$!
-trap 'kill $TASTEN 2>/dev/null' EXIT
+
+# Zynthian-Tasten als Controller, LEDs, TR-8S-Clock, BACK/MENU/STOP halten
+"$PY" "$HIER/dj-helfer.py" &
+HELFER=$!
+trap 'kill $HELFER 2>/dev/null' EXIT
+sleep 1   # virtueller MIDI-Anschluss steht, bevor Mixxx ihn sucht
+
+# Mixxx einrichten (Ton, Controller, Bibliothek „MUSIK gekauft“, Kiste „Passt zur Handpan“, Aufnahmen, Ansicht)
+/usr/bin/python3 "$HIER/dj-einrichten.py"
 
 # Mixxx: Einstellungen und Bibliothek liegen in $DATEN/.mixxx (wird beim Zynthian-Backup mitgesichert)
-echo "DJ-Pult: starte Mixxx"
-mixxx --fullScreen
-echo "DJ-Pult: Mixxx beendet ($?)"
+for VERSUCH in 1 2; do
+  START=$(date +%s)
+  echo "DJ-Pult: starte Mixxx (Versuch $VERSUCH)"
+  mixxx --fullScreen
+  RC=$?
+  echo "DJ-Pult: Mixxx beendet ($RC)"
+  # Sofort wieder zu (unter 20 s, ohne dass jemand beendet hat)? Dann lag es meist an der eigenen Ansicht:
+  # einmal mit der Standard-Ansicht LateNight neu starten.
+  if [ $(( $(date +%s) - START )) -lt 20 ] && [ ! -f /run/zynsimple-dj.ziel ] && [ ! -f "$DATEN/.skin-kaputt" ] \
+     && grep -q "ZynSimple-Glut" "$DATEN/.mixxx/mixxx.cfg" 2>/dev/null; then
+    echo "DJ-Pult: eigene Ansicht ging nicht – nehme LateNight"
+    touch "$DATEN/.skin-kaputt"
+    /usr/bin/python3 "$HIER/dj-einrichten.py"
+    continue
+  fi
+  break
+done

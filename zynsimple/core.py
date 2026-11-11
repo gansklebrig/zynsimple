@@ -293,6 +293,8 @@ class Bridge:
         if op == "mute_kind":
             v = value if isinstance(value, dict) else {"kind": value}
             return self.extras.mute_kind(str(v.get("kind", "synth")), v.get("mute"))
+        if op.startswith("hf_"):
+            return self._helfer_action(chain_id, op, value)
         if op == "learn_cancel":
             return self.extras.cancel_learn()
         if op == "foot_delete":
@@ -366,6 +368,24 @@ class Bridge:
             self.sm.set_event_flag()
         except Exception:
             pass
+
+    def _helfer_action(self, chain_id, op, value):
+        from . import helfer
+        if op == "hf_autogain":
+            if not hasattr(self, "autogain"):
+                self.autogain = helfer.AutoGain(self)
+            return self.autogain.start(chain_id, int((value or {}).get("sek", 10)) if isinstance(value, dict) else 10)
+        if op == "hf_autogain_info":
+            ag = getattr(self, "autogain", None)
+            return ag.info() if ag else None
+        if op == "hf_rec":
+            return {"text": helfer.aufnahme_umschalten(self), "on": helfer.aufnahme_laeuft(self)}
+        if op == "hf_looper":
+            chain = self._chain(chain_id)
+            if value:
+                helfer.looper_druck(self, chain, str(value))
+            return {"tasten": helfer.looper_tasten(self, chain)}
+        raise ValueError(f"Unbekannte Aktion {op}")
 
     def _track_action(self, chain_id, op, value):
         t = self.tracks

@@ -1,25 +1,63 @@
 #!/bin/bash
-# ZynSimple DJ-Pult: Mixxx im Vollbild statt der Zynthian-Oberfläche, gesteuert z. B. mit dem Pioneer DDJ-200.
+# ZynSimple DJ-Pult: Mixxx im Vollbild statt der Zynthian-Oberfläche, gesteuert mit dem Pioneer DDJ-200
+# und den Tasten/Reglern des Zynthian.
 #
-#   zynsimple-dj dj          DJ-Pult starten (Zynthian-Oberfläche und JACK pausieren)
-#   zynsimple-dj zynthian    zurück zur Zynthian-Oberfläche
-#   zynsimple-dj imres       weiter zu Barden Beats (wenn installiert)
-#   zynsimple-dj installieren   Mixxx einmalig installieren (braucht Internet)
-#   zynsimple-dj einrichten  Dienst und Befehl nach einem ZynSimple-Update auf den neuesten Stand bringen
-#   zynsimple-dj status      kurzer Zustand (für die Oberfläche)
-#   zynsimple-dj pruefen     Diagnose
+#   zynsimple-dj dj             DJ-Pult starten (Zynthian-Oberfläche und JACK pausieren)
+#   zynsimple-dj zynthian       zurück zur Zynthian-Oberfläche (Mixxx wird sauber beendet)
+#   zynsimple-dj imres          weiter zu Barden Beats (wenn installiert)
+#   zynsimple-dj aus            Mixxx sauber beenden und ausschalten
+#   zynsimple-dj importieren    Musik vom USB-Stick (Ordner „MUSIK gekauft“) auf den Zynthian kopieren
+#   zynsimple-dj installieren   Mixxx & Co. einmalig installieren (braucht Internet)
+#   zynsimple-dj einrichten     Dienst, Befehl und WLAN-Ordner nach einem ZynSimple-Update auffrischen
+#   zynsimple-dj status | pruefen
 #
 # Wird von install.sh nach /usr/local/bin kopiert (als Kopie, damit Updates mitten im Tausch nichts kaputt machen).
 
 DEST="${ZS_DIR:-/zynthian/zynthian-my-data/zynsimple}"
 SRC="$DEST/dj"
 DATEN="${ZS_DJ_DATEN:-/zynthian/zynthian-my-data/dj}"
+MUSIK="$DATEN/MUSIK gekauft"
 ZIEL=/run/zynsimple-dj.ziel
 LOG=/tmp/zynsimple-dj-install.log
+IMPORT_LOG=/tmp/zynsimple-dj-import.log
 IMRES_MODUS=/usr/local/bin/imres-modus
 
 imres_da() { [ -x "$IMRES_MODUS" ]; }
 mixxx_da() { command -v mixxx >/dev/null 2>&1; }
+dj_aktiv() { systemctl is-active -q zynsimple-dj.service; }
+
+# Mixxx sauber beenden (speichert Einstellungen), sonst nach kurzer Zeit hart
+mixxx_beenden() {
+  dj_aktiv || return 0
+  if command -v xdotool >/dev/null; then
+    DISPLAY=:0 XAUTHORITY="$DATEN/.Xauthority" xdotool search --class mixxx windowactivate --sync key --clearmodifiers ctrl+q 2>/dev/null
+    sleep 1
+    # Rückfrage „Es läuft noch ein Deck – wirklich beenden?“ bestätigen
+    DISPLAY=:0 XAUTHORITY="$DATEN/.Xauthority" xdotool key --clearmodifiers Return 2>/dev/null
+    for i in $(seq 1 16); do dj_aktiv || return 0; sleep 0.5; done
+  fi
+  systemctl stop zynsimple-dj.service
+}
+
+samba_einrichten() {
+  mkdir -p "$MUSIK"
+  [ -f /etc/samba/smb.conf ] || return 0
+  cat > /etc/samba/zynsimple-dj.conf <<EOF
+# Von ZynSimple (DJ-Pult) – WLAN-Ordner für Musik
+[MUSIK gekauft]
+   path = $MUSIK
+   comment = Musik für das DJ-Pult
+   browseable = yes
+   writable = yes
+   guest ok = yes
+   force user = root
+   create mask = 0664
+   directory mask = 0775
+EOF
+  grep -q "zynsimple-dj.conf" /etc/samba/smb.conf || printf '\ninclude = /etc/samba/zynsimple-dj.conf\n' >> /etc/samba/smb.conf
+  systemctl enable smbd >/dev/null 2>&1
+  systemctl reload smbd 2>/dev/null || systemctl restart smbd 2>/dev/null
+}
 
 case "$1" in
   dj)
@@ -27,6 +65,8 @@ case "$1" in
       "$0" installieren || { echo "Mixxx fehlt und ließ sich nicht installieren (Internet?)."; exit 1; }
     fi
     rm -f "$ZIEL"
+    # virtueller MIDI-Anschluss für die Zynthian-Tasten → Mixxx
+    grep -q VirMIDI /proc/asound/cards 2>/dev/null || modprobe snd-virmidi midi_devs=1 2>/dev/null
     # Barden Beats im Hintergrund würde JACK wieder anwerfen
     systemctl stop imres-hintergrund 2>/dev/null
     # Conflicts= im Dienst beendet Zynthian-Oberfläche, Barden-Beats-Bühne und JACK
@@ -34,15 +74,21 @@ case "$1" in
     ;;
   zynthian)
     echo zynthian > "$ZIEL"
-    systemctl stop zynsimple-dj.service
+    mixxx_beenden
     systemctl start jack2.service 2>/dev/null
     systemctl start zynthian.service
     ;;
   imres)
     imres_da || { echo "Barden Beats ist nicht installiert."; exit 1; }
     echo imres > "$ZIEL"
-    systemctl stop zynsimple-dj.service
+    mixxx_beenden
     exec "$IMRES_MODUS" imres
+    ;;
+  aus)
+    echo aus > "$ZIEL"
+    mixxx_beenden
+    sync
+    systemctl poweroff
     ;;
   nach-ende)
     # Läuft, wenn die DJ-Sitzung endet (Mixxx beendet, abgestürzt oder von einem anderen Modus abgelöst).
@@ -52,26 +98,57 @@ case "$1" in
     fi
     sleep 3
     Z=$(cat "$ZIEL" 2>/dev/null); rm -f "$ZIEL"
-    [ "$Z" = "imres" ] && exit 0
+    case "$Z" in imres|aus) exit 0 ;; esac
     for D in zynthian imres-buehne zynsimple-dj; do
       case "$(systemctl is-active "$D" 2>/dev/null)" in active|activating|reloading) exit 0 ;; esac
     done
-    systemctl list-jobs --no-legend 2>/dev/null | grep -q -E "zynthian.service|imres-buehne.service|zynsimple-dj.service" && exit 0
+    systemctl list-jobs --no-legend 2>/dev/null | grep -q -E "zynthian.service|imres-buehne.service|zynsimple-dj.service|poweroff" && exit 0
     # nichts anderes läuft → zurück zum Zynthian
     systemctl start --no-block jack2.service 2>/dev/null
     systemctl start --no-block zynthian.service
     ;;
+  importieren)
+    # Musik vom Stick auf den Zynthian (nur Neues/Geändertes). Danach lädt nichts mehr vom Stick.
+    exec 9>/run/zynsimple-dj-import.lock; flock -n 9 || { echo "Der Import läuft schon."; exit 1; }
+    QUELLE=""
+    for Q in /media/*/*/"MUSIK gekauft" /media/*/"MUSIK gekauft"; do [ -d "$Q" ] && { QUELLE="$Q"; break; }; done
+    if [ -z "$QUELLE" ]; then
+      echo "FEHLER Kein USB-Stick mit Ordner „MUSIK gekauft“ gefunden" > "$IMPORT_LOG"; cat "$IMPORT_LOG"; exit 1
+    fi
+    mkdir -p "$MUSIK"
+    BRAUCHT=$(du -sk "$QUELLE" 2>/dev/null | cut -f1); FREI=$(df -Pk "$MUSIK" | awk 'NR==2{print $4}')
+    if [ -n "$BRAUCHT" ] && [ -n "$FREI" ] && [ "$FREI" -lt $((BRAUCHT + 524288)) ]; then
+      echo "FEHLER Zu wenig Platz auf der SD-Karte ($((FREI / 1024)) MB frei, gebraucht $((BRAUCHT / 1024)) MB)" > "$IMPORT_LOG"
+      cat "$IMPORT_LOG"; exit 1
+    fi
+    GESAMT=$(find "$QUELLE" -type f | wc -l); N=0
+    echo "START $GESAMT" > "$IMPORT_LOG"
+    while IFS= read -r -d '' F; do
+      REL="${F#"$QUELLE"/}"; Z="$MUSIK/$REL"; N=$((N + 1))
+      if [ ! -f "$Z" ] || [ "$(stat -c %s "$F")" != "$(stat -c %s "$Z")" ]; then
+        mkdir -p "$(dirname "$Z")" && cp -p "$F" "$Z.teil" && mv "$Z.teil" "$Z"
+      fi
+      echo "STAND $N $GESAMT $REL" >> "$IMPORT_LOG"
+    done < <(find "$QUELLE" -type f -print0)
+    sync
+    # merken: dieser Stick ist übernommen → Mixxx liest die Musik ab jetzt von der SD-Karte
+    touch "$QUELLE/.zynsimple-importiert" 2>/dev/null
+    echo "FERTIG $N" >> "$IMPORT_LOG"
+    echo "$N Dateien übernommen."
+    ;;
   installieren)
-    mixxx_da && { echo "Mixxx ist schon installiert."; exit 0; }
+    if mixxx_da && command -v xdotool >/dev/null; then echo "Mixxx ist schon installiert."; samba_einrichten; exit 0; fi
     exec 9>/run/zynsimple-dj-install.lock; flock -n 9 || { echo "Die Installation läuft schon."; exit 1; }
     {
       echo "Start: $(date +%H:%M:%S)"
       export DEBIAN_FRONTEND=noninteractive
       # ohne „empfohlene“ Pakete: sonst kämen PulseAudio/PipeWire mit, die dem Zynthian-Ton in die Quere kämen
-      apt-get install -y -q --no-install-recommends mixxx \
-        || { apt-get update -q && apt-get install -y -q --no-install-recommends mixxx; }
-      command -v unclutter >/dev/null || apt-get install -y -q --no-install-recommends unclutter || true
+      PAKETE="mixxx xdotool unclutter"
+      [ -f /etc/samba/smb.conf ] || PAKETE="$PAKETE samba"
+      apt-get install -y -q --no-install-recommends $PAKETE \
+        || { apt-get update -q && apt-get install -y -q --no-install-recommends $PAKETE; }
     } > "$LOG" 2>&1
+    samba_einrichten >> "$LOG" 2>&1
     mixxx_da && { echo "Mixxx ist installiert."; echo "FERTIG" >> "$LOG"; exit 0; }
     echo "FEHLER" >> "$LOG"; tail -5 "$LOG"; exit 1
     ;;
@@ -79,21 +156,24 @@ case "$1" in
     chmod +x "$SRC/zynsimple-dj" "$SRC/dj-sitzung.sh" 2>/dev/null
     rm -f /usr/local/bin/zynsimple-dj; install -m 755 "$SRC/zynsimple-dj" /usr/local/bin/zynsimple-dj
     cp "$SRC/zynsimple-dj.service" /etc/systemd/system/zynsimple-dj.service
-    mkdir -p "$DATEN"
+    mkdir -p "$DATEN" "$MUSIK"
+    rm -f "$DATEN/.skin-kaputt"      # neue Version der eigenen Ansicht – nochmal versuchen
+    samba_einrichten
     systemctl daemon-reload
     echo "DJ-Pult eingerichtet$(mixxx_da && echo " (Mixxx $(mixxx --version 2>/dev/null | grep -o -m1 '[0-9][0-9.]*'))" || echo " (Mixxx wird beim ersten Start installiert)")."
     ;;
   status)
-    echo "installiert=$(mixxx_da && echo 1 || echo 0) aktiv=$(systemctl is-active -q zynsimple-dj && echo 1 || echo 0) imres=$(imres_da && echo 1 || echo 0)"
+    echo "installiert=$(mixxx_da && echo 1 || echo 0) aktiv=$(dj_aktiv && echo 1 || echo 0) imres=$(imres_da && echo 1 || echo 0)"
     ;;
   pruefen)
     echo "== Mixxx =="; command -v mixxx && mixxx --version 2>&1 | head -2
-    echo "== Dienste =="; for D in zynsimple-dj zynthian jack2 imres-buehne; do echo "$D: $(systemctl is-active $D)"; done
-    echo "== Soundkarten =="; aplay -l 2>&1 | grep -E "^card|^Karte"
-    echo "== MIDI (DDJ-200?) =="; amidi -l 2>&1
-    echo "== Log DJ-Sitzung =="; journalctl -u zynsimple-dj -n 25 --no-pager 2>&1 | tail -25
+    echo "== Dienste =="; for D in zynsimple-dj zynthian jack2 imres-buehne smbd; do echo "$D: $(systemctl is-active $D)"; done
+    echo "== Soundkarten =="; cat /proc/asound/cards
+    echo "== MIDI (DDJ-200, VirMIDI, TR-8S) =="; amidi -l 2>&1
+    echo "== WLAN-Ordner =="; ls -la "$MUSIK" 2>&1 | head -5; grep -c "MUSIK gekauft" /etc/samba/zynsimple-dj.conf 2>/dev/null
+    echo "== Log DJ-Sitzung =="; journalctl -u zynsimple-dj -n 40 --no-pager 2>&1 | tail -40
     echo "== Installations-Log =="; tail -5 "$LOG" 2>/dev/null
     ;;
   *)
-    echo "Benutzung: zynsimple-dj dj|zynthian|imres|installieren|einrichten|status|pruefen"; exit 1 ;;
+    echo "Benutzung: zynsimple-dj dj|zynthian|imres|aus|importieren|installieren|einrichten|status|pruefen"; exit 1 ;;
 esac

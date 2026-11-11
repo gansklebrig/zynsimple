@@ -234,6 +234,7 @@
   .card select, .card input[type=text] { background: var(--bg); color: var(--tx); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 14px; }
   .btn { height: 42px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent); color: #111; font-weight: 700; font-size: 14px; }
   .btn.sec { background: var(--bg); color: var(--tx); border-color: var(--line); }
+  a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   .ins label { display: inline-flex; align-items: center; gap: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
   .ins input { accent-color: var(--accent); width: 18px; height: 18px; }
   .map { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #ffffff0d; font-size: 14px; }
@@ -330,9 +331,21 @@
 <section id="extras">
   <div class="card" id="dj-card" style="display:none">
     <h2>🎧 DJ-Pult</h2>
-    <p>Mixxx im Vollbild, gesteuert mit dem DDJ-200. Zurück: Mixxx beenden oder am Zynthian <b>BACK</b> halten (<b>MENU</b> halten → Barden Beats).</p>
-    <div class="line"><button class="btn" id="dj-go">DJ-Pult starten</button></div>
+    <p>Mixxx im Vollbild, gesteuert mit dem DDJ-200 und den Zynthian-Reglern. Zurück: Mixxx beenden oder am Zynthian <b>BACK</b> halten (<b>MENU</b> halten → Barden Beats, <b>STOP</b> 3 s → ausschalten).</p>
+    <div class="line"><button class="btn" id="dj-go">DJ-Pult starten</button><button class="btn sec" id="dj-imp">Musik vom USB-Stick übernehmen</button></div>
+    <p>Musik per WLAN: am PC <code id="dj-share">\\zynthian\MUSIK gekauft</code> öffnen und Dateien hineinziehen.</p>
     <p id="dj-info"></p>
+  </div>
+  <div class="card">
+    <h2>⏺ Aufnahmen</h2>
+    <p>Alles, was mit <b>● REC</b> aufgenommen wurde – antippen zum Herunterladen.</p>
+    <div id="rec-list"></div>
+  </div>
+  <div class="card">
+    <h2>⇩ Sicherung</h2>
+    <p>Alle Einstellungen, Szenen und der Mischer in einer Datei – vor Updates oder zum Umziehen.</p>
+    <div class="line"><a class="btn" id="bk-dl" href="/datei/sicherung" download>Sicherung herunterladen</a>
+      <button class="btn sec" id="bk-up">Sicherung einspielen …</button><input id="bk-file" type="file" accept=".zip" hidden></div>
   </div>
   <div class="card">
     <h2>🪘 Handpan anlegen</h2>
@@ -727,6 +740,43 @@
     } catch (e) { toast('Ging nicht: ' + e.message, 6000); }
   }
   document.getElementById('dj-go').onclick = djStart;
+  try { document.getElementById('dj-share').textContent = '\\\\' + location.hostname + '\\MUSIK gekauft'; } catch (e) {}
+  let impTimer = null;
+  document.getElementById('dj-imp').onclick = async () => {
+    try {
+      const r = await api('/api/dj', { aktion: 'import' });
+      if (r.error) throw new Error(r.error);
+      clearInterval(impTimer);
+      impTimer = setInterval(async () => {
+        const d = await api('/api/dj').catch(() => null); if (!d || !d.import) return;
+        const st = d.import, info = document.getElementById('dj-info');
+        if (st.phase === 'laeuft') info.textContent = 'Übernehme … ' + (st.gesamt ? st.n + ' / ' + st.gesamt : '');
+        else if (st.phase) { info.textContent = st.text || ''; clearInterval(impTimer); }
+      }, 1000);
+    } catch (e) { toast('Ging nicht: ' + e.message, 6000); }
+  };
+  async function recLoad() {
+    const d = await api('/api/aufnahmen').catch(() => null); const box = document.getElementById('rec-list');
+    if (!d) return;
+    box.innerHTML = d.liste.length ? '' : '<p>Noch keine Aufnahmen.</p>';
+    d.liste.forEach(r => {
+      const a = el('a', 'btn sec', box, r.name + ' · ' + r.mb + ' MB');
+      a.href = '/datei/aufnahme?f=' + encodeURIComponent(r.name) + (pin ? '&pin=' + encodeURIComponent(pin) : '');
+      a.setAttribute('download', '');
+      a.style.cssText = 'display:flex;margin:4px 0';
+    });
+  }
+  document.getElementById('bk-dl').onclick = (e) => { if (pin) e.target.href = '/datei/sicherung?pin=' + encodeURIComponent(pin); };
+  document.getElementById('bk-up').onclick = () => document.getElementById('bk-file').click();
+  document.getElementById('bk-file').onchange = async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    if (!confirm('Sicherung „' + f.name + '“ einspielen? Die jetzigen Einstellungen werden ersetzt, die Oberfläche startet neu.')) return;
+    try {
+      const r = await fetch('/api/restore', { method: 'POST', body: f, headers: { 'X-Zynsimple-Pin': pin, 'Content-Type': 'application/zip' } });
+      const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Fehler');
+      toast(d.message, 8000);
+    } catch (err) { toast('Ging nicht: ' + err.message, 6000); }
+  };
   document.querySelector('#dj-modes button').onclick = djStart;
   djCheck();
 
@@ -877,7 +927,7 @@
       ? 'Effekte: ' + d.handpan_plugins.join(' → ') : 'Auf diesem Zynthian wurden keine passenden Effekte gefunden.';
     fillChains();
     extrasShow(d);
-    themeLoad(); settingsLoad();
+    themeLoad(); settingsLoad(); recLoad();
   }
   function fillChains() {
     const sel = document.getElementById('ft-chain'), cur = sel.value;
