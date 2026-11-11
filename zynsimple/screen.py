@@ -892,7 +892,7 @@ class zynsimple_screen(zynthian_gui_base):
                  ("settings", f"Update {upd} bereit" if upd else "Einstellungen", "Update, Start-Logo, Bühnenbild …"),
                  ("close", "Zurück", "")]
         if self.dj_installed:
-            items.insert(0, ("dj", "🎧 DJ-Pult", "Mixxx mit dem DDJ-200"))
+            items.insert(0, ("dj", "♪ DJ-Pult", "Mixxx mit dem DDJ-200"))
         if self.imres_installed:
             items.insert(0, ("imres", "♫ Barden Beats", "Bühne & Klangwelten im Vollbild"))
         cols = 4 if len(items) > 6 else 3
@@ -1948,6 +1948,45 @@ class zynsimple_screen(zynthian_gui_base):
         if sig != getattr(self, "set_sig", None):
             self.draw_settings()
 
+    # Aufbau der Einstellungen: Reiter → Zeilen. ("set", Schlüssel, Symbol) oder ("act", Aktion, Symbol)
+    SET_PAGES = [
+        ("anzeige", "Anzeige", [("set", "replace_home", "⌂"), ("set", "splash", "✦"), ("set", "idle_seconds", "◐"),
+                                ("set", "strip_min_width", "▥"), ("act", "s_theme", "◑"), ("set", "led_recolor", "●")]),
+        ("bedienung", "Bedienung", [("set", "autosave", "↺"), ("act", "s_save", "✓"), ("set", "xy_spring", "✥"),
+                                    ("set", "synth_midi_chan", "♪")]),
+        ("system", "System & Modi", [("act", "s_dj", "♪"), ("act", "s_imres", "♫"), ("act", "s_handy", "▤"),
+                                     ("set", "update_check", "⟳"), ("act", "s_admin", "⚙")]),
+    ]
+
+    def _set_action(self, art, now):
+        """Titel, Erklärung, Knopf-Text (None = nur Info) und ob die Zeile sichtbar ist."""
+        if art == "s_theme":
+            try:
+                from . import theme
+                active = theme.status().get("active")
+            except Exception:
+                active = False
+            armed = self.set_armed.get("theme", 0) > now
+            return ("Farbschema „Glut“", "warme Farben für die ganze Zynthian-Oberfläche · sie startet dafür neu",
+                    "Wirklich?" if armed else ("Ausschalten" if active else "Einschalten"), True, armed)
+        if art == "s_save":
+            armed = self.set_armed.get("save", 0) > now
+            return ("Jetzt speichern", "Mischer, Effekte und Spuren sofort sichern",
+                    "✓ Gesichert" if armed else "Speichern", True, False)
+        if art == "s_dj":
+            return ("DJ-Pult", "Mixxx im Vollbild mit dem DDJ-200 · zurück: BACK halten", "Starten",
+                    getattr(self, "dj_installed", False), False)
+        if art == "s_imres":
+            return ("Barden Beats", "Bühne & Klangwelten im Vollbild · zurück: BACK halten", "Starten",
+                    getattr(self, "imres_installed", False), False)
+        if art == "s_handy":
+            a = getattr(self, "set_addr", {}) or {}
+            url = (a.get("url") or a.get("name") or "–") + ("  · mit PIN" if a.get("pin") else "")
+            return ("Am Handy bedienen", f"im Browser öffnen:  {url}", None, True, False)
+        if art == "s_admin":
+            return ("Zynthian-Admin", "WLAN, Audio, Backup, Neustart, Ausschalten", "Öffnen", True, False)
+        return (art, "", None, False, False)
+
     def draw_settings(self):
         from . import settings as st
         from . import VERSION
@@ -1963,78 +2002,104 @@ class zynsimple_screen(zynthian_gui_base):
         except Exception:
             us = {}
         now = time.monotonic()
-        cv.create_text(18, 26, anchor="w", text="Einstellungen", font=self.f_huge, fill=P["gold"])
-        a = getattr(self, "set_addr", {}) or {}
-        cv.create_text(W - 18, 18, anchor="e", font=self.f_tiny, fill=P["tx2"], text="Handy / Tablet:")
-        cv.create_text(W - 18, 36, anchor="e", font=self.f_small, fill=P["champ"],
-                       text=(a.get("url") or a.get("name") or "–") + ("  · PIN" if a.get("pin") else ""))
-        # Update-Leiste
-        y0, y1 = 54, 54 + max(54, int(H * 0.13))
+        page = getattr(self, "set_page", "anzeige")
+
+        # Kopf: Titel + Fertig
+        hh = max(40, int(H * 0.09))
+        cv.create_text(18, hh / 2 + 2, anchor="w", text="⚙ Einstellungen", font=self.f_big, fill=P["gold"])
+        self._tbtn(W - 150, 6, W - 8, hh, "✓ Fertig", "close", fill=P["gold"], fg=P["black"], font=self.f_small)
+
+        # Update – immer sichtbar, wie „Bühne aktualisieren“ bei Barden Beats
         avail = us.get("available")
-        self.rrect(12, y0, W - 12, y1, 14, fill="#2a2014" if avail else P["card"],
-                   outline=P["gold"] if avail else P["line"], width=2 if avail else 1)
+        y0, y1 = hh + 8, hh + 8 + max(64, int(H * 0.16))
+        self.rrect(10, y0, W - 10, y1, 14, fill="#2a2014" if avail else P["card"],
+                   outline=P["gold"] if avail else P["gold_dim"], width=2)
         if avail:
-            line = f"Update {us.get('latest')} ist da  ·  installiert: {VERSION}"
+            title, sub = f"Neue Version {us.get('latest')} ist da", f"du hast {VERSION} · antippen zum Installieren, die Oberfläche startet danach neu"
         elif us.get("error"):
-            line = f"ZynSimple {VERSION}  ·  GitHub nicht erreichbar"
+            title, sub = f"ZynSimple {VERSION}", "kein Internet? Update geht auch per USB-Stick (zynsimple….zip)"
         elif us.get("latest"):
-            line = f"ZynSimple {VERSION}  ·  aktuell"
+            title, sub = f"ZynSimple {VERSION} – aktuell", "holt die neueste Version aus dem Internet (oder vom USB-Stick)"
         else:
-            line = f"ZynSimple {VERSION}"
-        cv.create_text(28, (y0 + y1) / 2, anchor="w", text=line, font=self.f_mid, fill=P["champ"])
-        bw = max(150, int(W * 0.24))
-        self._tbtn(W - 20 - bw, y0 + 7, W - 20, y1 - 7, "Jetzt installieren" if avail else "Update suchen", "s_update",
-                   fill=P["gold"] if avail else None, fg=P["black"] if avail else P["gold"], font=self.f_small,
-                   outline=None if avail else P["gold_dim"])
-        # Einstellungen als Kacheln: antippen = nächster Wert
-        bar_h = max(40, H // 10)
-        items = st.items(self.settings)
-        cols = 3
-        rows = math.ceil(len(items) / cols)
-        gy0, gy1 = y1 + 10, H - bar_h - 8
-        gw, gh = (W - 24) / cols, (gy1 - gy0) / rows
-        for k, it in enumerate(items):
-            x0, yy = 12 + (k % cols) * gw, gy0 + (k // cols) * gh
-            on = it["value"] not in (False, 0, None) if it["kind"] == "bool" else True
-            self.rrect(x0 + 4, yy + 4, x0 + gw - 4, yy + gh - 4, 12, fill=P["card2"], outline=P["line"])
-            cv.create_text(x0 + 16, yy + 6 + gh * 0.2, anchor="w", text=self._clip_text(it["title"], gw - 30, self.f_tiny),
-                           font=self.f_tiny, fill=P["tx2"])
-            if it["kind"] == "bool":
-                pw = gw * 0.28
-                px0, py0 = x0 + gw - 16 - pw, yy + gh * 0.36
-                self.rrect(px0, py0, px0 + pw, py0 + gh * 0.32, 99, fill=P["gold"] if on else P["bg"], outline=P["line"])
-                kr = gh * 0.13
-                kx = px0 + pw - kr - 5 if on else px0 + kr + 5
-                cv.create_oval(kx - kr, py0 + gh * 0.16 - kr, kx + kr, py0 + gh * 0.16 + kr,
-                               fill=P["black"] if on else P["tx2"], outline="")
-                cv.create_text(x0 + 16, yy + gh * 0.52, anchor="w", text="an" if on else "aus", font=self.f_mid,
-                               fill=P["gold"] if on else P["tx2"])
+            title, sub = f"ZynSimple {VERSION}", "holt die neueste Version aus dem Internet (oder vom USB-Stick)"
+        bw = max(170, int(W * 0.27))
+        tw = W - 50 - bw
+        cv.create_text(28, y0 + (y1 - y0) * 0.36, anchor="w", text="⬇ " + title, font=self.f_mid, fill=P["champ"])
+        cv.create_text(28, y0 + (y1 - y0) * 0.70, anchor="w", text=self._clip_text(sub, tw, self.f_tiny),
+                       font=self.f_tiny, fill=P["tx2"])
+        self._tbtn(W - 22 - bw, y0 + 9, W - 22, y1 - 9, "Jetzt aktualisieren" if avail else "Nach Updates suchen",
+                   "s_update", fill=P["gold"] if avail else None, fg=P["black"] if avail else P["gold"],
+                   font=self.f_small, outline=None if avail else P["gold_dim"])
+        # ganze Karte antippbar
+        self.trk_hits.insert(0, (10, y0, W - 10, y1, "s_update", None))
+
+        # Reiter
+        ty0, ty1 = y1 + 8, y1 + 8 + max(34, int(H * 0.08))
+        n = len(self.SET_PAGES)
+        tw = (W - 20) / n
+        for k, (pid, ptitle, _) in enumerate(self.SET_PAGES):
+            x0 = 10 + k * tw
+            on = pid == page
+            self._tbtn(x0 + 3, ty0, x0 + tw - 3, ty1, ptitle, "s_page", pid, fill="#2a2014" if on else P["card"],
+                       fg=P["gold"] if on else P["tx2"], outline=P["gold"] if on else None, font=self.f_small)
+
+        # Zeilen der Seite (zwei Spalten)
+        rows = []
+        items = {it["key"]: it for it in st.items(self.settings)}
+        for kind, key, sym in next(p for p in self.SET_PAGES if p[0] == page)[2]:
+            if kind == "set" and key in items:
+                rows.append((kind, key, sym, items[key]))
+            elif kind == "act":
+                t = self._set_action(key, now)
+                if t[3]:
+                    rows.append((kind, key, sym, t))
+        gy0, gy1 = ty1 + 8, H - 6
+        per_col = max(1, math.ceil(len(rows) / 2))
+        gw = (W - 20) / 2
+        gh = min((gy1 - gy0) / per_col, H * 0.22)
+        for k, (kind, key, sym, d) in enumerate(rows):
+            col, r = k // per_col, k % per_col
+            x0, yy = 10 + col * gw, gy0 + r * gh
+            x1, yb = x0 + gw - 4, yy + gh - 4
+            armed = kind == "act" and d[4]
+            self.rrect(x0 + 2, yy, x1, yb, 12, fill=P["card2"], outline=P["rose"] if armed else P["line"],
+                       width=2 if armed else 1)
+            cv.create_text(x0 + 24, (yy + yb) / 2, text=sym, font=self.f_big, fill=P["gold"])
+            rw = gw * (0.38 if kind == "set" and d["kind"] == "choice" else 0.30)   # rechts: Schalter / Wert / Knopf
+            textw = gw - 46 - rw - 14
+            if kind == "set":
+                title, hint = d["title"], d["hint"] or ""
             else:
-                cv.create_text(x0 + 16, yy + gh * 0.52, anchor="w", font=self.f_mid, fill=P["gold"],
-                               text=self._clip_text(it["text"], gw - 40, self.f_mid))
-                cv.create_text(x0 + gw - 18, yy + gh * 0.52, anchor="e", text="›", font=self.f_big, fill=P["gold_dim"])
-            if it["hint"] and gh > 70:
-                cv.create_text(x0 + 16, yy + gh * 0.8, anchor="w", font=self.f_tiny, fill=P["tx2"],
-                               text=self._clip_text(it["hint"], gw - 30, self.f_tiny))
-            self.trk_hits.append((x0 + 4, yy + 4, x0 + gw - 4, yy + gh - 4, "s_cycle", it["key"]))
-        # Leiste unten
-        yb = H - bar_h
-        cv.create_line(8, yb + 1, W - 8, yb + 1, fill=P["gold_dim"])
-        try:
-            from . import theme
-            th = theme.status()
-        except Exception:
-            th = {"active": False}
-        armed = self.set_armed.get("theme", 0) > now
-        bw2 = max(150, int(W * 0.22))
-        self._tbtn(6, yb + 4, 6 + bw2, H - 4,
-                   "Wirklich? Neustart" if armed else ("Altes Design" if th.get("active") else "Design „Glut“"), "s_theme",
-                   fill=P["rose"] if armed else None, fg="#ffffff" if armed else None, font=self.f_small)
-        self._tbtn(12 + bw2, yb + 4, 12 + bw2 * 2, H - 4, "Zynthian-Admin", "s_admin", font=self.f_small)
-        armed_s = self.set_armed.get("save", 0) > now
-        self._tbtn(18 + bw2 * 2, yb + 4, 18 + bw2 * 3, H - 4, "✓ gespeichert" if armed_s else "Jetzt speichern",
-                   "s_save", font=self.f_small, fg=P["emerald"] if armed_s else None)
-        self._tbtn(W - 150, yb + 4, W - 6, H - 4, "Fertig", "close", fill=P["gold"], fg=P["black"])
+                title, hint = d[0], d[1]
+            cv.create_text(x0 + 46, yy + (yb - yy) * 0.34, anchor="w", font=self.f_small, fill=P["champ"],
+                           text=self._clip_text(title, textw, self.f_small))
+            if hint:
+                cv.create_text(x0 + 46, yy + (yb - yy) * 0.52, anchor="nw", font=self.f_tiny, fill=P["tx2"],
+                               text=hint, width=textw)
+            cx1 = x1 - 12
+            cy = (yy + yb) / 2
+            if kind == "set" and d["kind"] == "bool":
+                on = bool(d["value"])
+                pw, ph = min(rw * 0.62, 70), min(gh * 0.36, 30)
+                px0 = cx1 - pw
+                self.rrect(px0, cy - ph / 2, cx1, cy + ph / 2, 99, fill=P["gold"] if on else P["bg"], outline=P["line"])
+                kr = ph / 2 - 4
+                kx = cx1 - kr - 4 if on else px0 + kr + 4
+                cv.create_oval(kx - kr, cy - kr, kx + kr, cy + kr, fill=P["black"] if on else P["tx2"], outline="")
+                cv.create_text(px0 - 8, cy, anchor="e", text="an" if on else "aus", font=self.f_tiny,
+                               fill=P["gold"] if on else P["tx2"])
+                self.trk_hits.append((x0 + 2, yy, x1, yb, "s_cycle", key))
+            elif kind == "set":
+                cv.create_text(cx1, cy, anchor="e", text="›", font=self.f_big, fill=P["gold_dim"])
+                cv.create_text(cx1 - 18, cy, anchor="e", font=self.f_small, fill=P["gold"],
+                               text=self._clip_text(d["text"], rw - 20, self.f_small))
+                self.trk_hits.append((x0 + 2, yy, x1, yb, "s_cycle", key))
+            elif d[2]:
+                bh = min(gh * 0.5, 40)
+                self._tbtn(cx1 - rw, cy - bh / 2, cx1, cy + bh / 2, d[2], key,
+                           fill=P["rose"] if armed else None, fg="#ffffff" if armed else P["gold"],
+                           outline=None if armed else P["gold_dim"], font=self.f_tiny)
+                self.trk_hits.insert(0, (x0 + 2, yy, x1, yb, key, None))
 
     def settings_press(self, ev):
         h = None
@@ -2050,7 +2115,9 @@ class zynsimple_screen(zynthian_gui_base):
                 self.mode = "mix"
                 self.sig = None
                 return
-            if art == "s_cycle":
+            if art == "s_page":
+                self.set_page = extra
+            elif art == "s_cycle":
                 from . import settings as st
                 st.save(self.settings, {extra: st.cycle(self.settings, extra)})
                 st.apply_live(self.bridge, extra)
@@ -2064,6 +2131,19 @@ class zynsimple_screen(zynthian_gui_base):
                 self.mode = "mix"
                 self.zyngui.show_screen("admin")
                 return
+            elif art == "s_dj":
+                from . import start_dj
+                start_dj(self.zyngui)
+                return
+            elif art == "s_imres":
+                from . import imres
+                threading.Thread(target=imres.system, args=("imres",), daemon=True).start()
+                self.mode = "mix"
+                self.sig = None
+                self._flash("Barden Beats startet …")
+                return
+            elif art == "s_handy":
+                pass
             elif art == "s_save":
                 self.x.save_now("Einstellungen")
                 self.set_armed["save"] = time.monotonic() + 2

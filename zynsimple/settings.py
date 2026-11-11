@@ -15,17 +15,18 @@ log = logging.getLogger("zynsimple")
 #  Art: "bool" = an/aus · "choice" = Liste von (Wert, Text)
 SPEC = [
     ("replace_home", "Startbildschirm", "choice", [(True, "Einfacher Mischer"), (False, "Zynthian-Mischer")],
-     "was nach dem Start und bei „nach Hause“ erscheint"),
-    ("splash", "Start-Logo", "bool", None, "TheAlmightyGoose beim Hochfahren"),
+     "was nach dem Einschalten und bei „nach Hause“ erscheint"),
+    ("splash", "Start-Logo", "bool", None, "die Gans beim Hochfahren zeigen"),
     ("idle_seconds", "Bühnenbild nach", "choice", [(0, "nie"), (20, "20 s"), (45, "45 s"), (90, "1½ min"), (180, "3 min")],
-     "Animation, wenn niemand etwas bedient"),
+     "Animation, wenn eine Weile niemand etwas bedient"),
     ("autosave", "Automatisch speichern", "bool", None, "alles bleibt nach dem Ausschalten erhalten"),
     ("strip_min_width", "Kanalbreite", "choice", [(110, "schmal"), (130, "normal"), (165, "breit")],
-     "breiter = weniger Kanäle pro Seite"),
+     "breiter = leichter zu treffen, weniger Kanäle pro Seite"),
     ("xy_spring", "XY-Feld federt zurück", "bool", None, "nach dem Loslassen zurück zum Startpunkt"),
-    ("synth_midi_chan", "MIDI-Kanal für neue Synths", "choice", [(i, f"Kanal {i + 1}") for i in range(16)], None),
-    ("led_recolor", "Tasten-Farben (ohne Blau)", "bool", None, "wirkt nach einem Neustart der Oberfläche"),
-    ("update_check", "Beim Start nach Updates suchen", "bool", None, "braucht Internet"),
+    ("synth_midi_chan", "MIDI-Kanal neuer Synths", "choice", [(i, f"Kanal {i + 1}") for i in range(16)],
+     "auf diesem Kanal hören neu angelegte Synths"),
+    ("led_recolor", "Tasten-Farben ohne Blau", "bool", None, "warme LED-Farben · wirkt nach einem Neustart"),
+    ("update_check", "Updates selbst suchen", "bool", None, "beim Start und alle 6 Stunden · braucht Internet"),
 ]
 
 

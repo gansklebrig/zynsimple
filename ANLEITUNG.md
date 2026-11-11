@@ -73,6 +73,14 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 2.7 – Einstellungen neu geordnet
+
+Die Einstellungen (Zynthian-Hauptmenü → *Einstellungen & Update*) sind jetzt so aufgebaut wie das System-Menü von Barden Beats:
+
+- **Update ganz oben**, immer sichtbar: „Nach Updates suchen“ bzw. „Jetzt aktualisieren“, wenn eine neue Version da ist.
+- Drei Reiter: **Anzeige** (Startbildschirm, Logo, Bühnenbild, Kanalbreite, Farben) · **Bedienung** (Speichern, XY-Feld, MIDI-Kanal) · **System & Modi** (DJ-Pult, Barden Beats, Handy-Adresse, Zynthian-Admin).
+- Jede Zeile erklärt in einem Satz, was sie tut. Antippen schaltet um, „Fertig“ oben rechts schließt.
+
 ## Neu in Version 2.6 – DJ-Pult (Mixxx mit dem DDJ-200)
 
 Der Zynthian wird auf Knopfdruck zum DJ-Pult: Mixxx läuft im Vollbild, der Pioneer DDJ-200 steuert alles per USB.
