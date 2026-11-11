@@ -73,6 +73,18 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 3.6 – DJ-Pult: Start-Menü und USB-Stick
+
+- **☰ Menü** oben rechts im DJ-Pult (immer sichtbar) – oder **BACK 2 s halten**. Das Menü zeigt oben, wie viele Titel in der
+  Bibliothek sind und was auf dem USB-Stick liegt, und darunter große Kacheln:
+  - **Musik:** ▶ Auflegen · ⟳ USB-Stick neu einlesen · ⇩ Musik auf den Zynthian
+  - **Wechseln:** Zum Zynthian · Barden Beats · **? So geht's** (alle Tasten und Regler erklärt)
+  - **System:** Updates · Neu starten · Ausschalten
+- Ist noch keine Musik da, öffnet sich das Menü **von selbst** und sagt, was zu tun ist.
+- **USB-Stick:** Hat er keinen Ordner „MUSIK gekauft“, wird jetzt der **ganze Stick** eingelesen.
+- **USB-Stick neu einlesen:** nach dem Einstecken antippen – Mixxx startet kurz neu und zeigt die Musik.
+- Mixxx auf **Deutsch**, aufgeräumte Seitenleiste (ohne iTunes, Rekordbox, Serato …), größere Schrift, kein Blau mehr im Hintergrund.
+
 ## Neu in Version 3.5 – Stems im DJ-Pult
 
 **Was Stems sind:** Ein Track wird in vier Spuren zerlegt – **Drums, Bass, Melodie (alles andere, auch Synths) und Vocals**.

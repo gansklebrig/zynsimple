@@ -61,8 +61,16 @@ MIXXX=mixxx
 [ -x /opt/mixxx-2.6/bin/mixxx ] && [ ! -f "$DATEN/.mixxx26-aus" ] && MIXXX=/opt/mixxx-2.6/bin/mixxx
 export ZS_MIXXX="$MIXXX"
 
+# ☰-Knopf (oben rechts, über Mixxx): öffnet das DJ-Menü
+TKPY_KNOPF="${TKPY:-}"
+[ -n "$TKPY_KNOPF" ] && [ "${DJ_KNOPF:-an}" != "aus" ] && "$TKPY_KNOPF" "$HIER/dj-knopf.py" &
+KNOPF=$!
+trap 'kill $HELFER $KNOPF 2>/dev/null' EXIT
+
 # Mixxx: Einstellungen und Bibliothek liegen in $DATEN/.mixxx (wird beim Zynthian-Backup mitgesichert)
-for VERSUCH in 1 2; do
+VERSUCH=0
+while [ $VERSUCH -lt 6 ]; do
+  VERSUCH=$((VERSUCH + 1))
   START=$(date +%s)
   echo "DJ-Pult: starte Mixxx (Versuch $VERSUCH)"
   "$MIXXX" --fullScreen
@@ -75,6 +83,17 @@ for VERSUCH in 1 2; do
     echo "DJ-Pult: eigene Ansicht ging nicht – nehme LateNight"
     touch "$DATEN/.skin-kaputt"
     /usr/bin/python3 "$HIER/dj-einrichten.py"
+    continue
+  fi
+  # „USB-Stick neu einlesen“ aus dem Menü: Mixxx wurde dafür beendet → einrichten und neu starten
+  if [ -f /run/zynsimple-dj-neu ]; then
+    rm -f /run/zynsimple-dj-neu /run/zynsimple-dj.ziel
+    echo "DJ-Pult: lese USB-Sticks neu ein"
+    phase start
+    [ -n "$TKPY" ] && "$TKPY" "$HIER/dj-splash.py" &
+    phase einrichten
+    /usr/bin/python3 "$HIER/dj-einrichten.py"
+    phase mixxx
     continue
   fi
   break

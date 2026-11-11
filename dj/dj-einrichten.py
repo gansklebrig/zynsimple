@@ -245,12 +245,32 @@ def controller(data, ver):
         log(f"Controller {name} → {os.path.basename(datei)}")
 
 
-def usb_musik():
+def sticks():
+    """Eingehängte USB-Sticks (Ordner unter /media/root bzw. /media)."""
     out = []
-    for p in glob.glob("/media/*/*/MUSIK gekauft") + glob.glob("/media/*/MUSIK gekauft"):
+    for base in ("/media/root", "/media"):
+        try:
+            for d in sorted(os.listdir(base)):
+                p = os.path.join(base, d)
+                if os.path.ismount(p) and p not in out:
+                    out.append(p)
+        except OSError:
+            pass
+    return out
+
+
+def usb_musik():
+    """Musik auf USB-Sticks: der Ordner „MUSIK gekauft“, wenn es ihn gibt – sonst der ganze Stick."""
+    out = []
+    for stick in sticks():
+        p = os.path.join(stick, "MUSIK gekauft")
+        if not os.path.isdir(p):
+            p = stick
         # schon auf den Zynthian übernommen (Import-Knopf)? Dann nicht doppelt in die Bibliothek
-        if os.path.isdir(p) and not os.path.exists(os.path.join(p, ".zynsimple-importiert")):
+        if not os.path.exists(os.path.join(p, ".zynsimple-importiert")):
             out.append(p)
+    for p in out:
+        log("USB-Musik:", p)
     return out
 
 
@@ -361,6 +381,24 @@ def config_js(s):
         }) + ";\n")
 
 
+def stick_status():
+    """Kurzinfo für das DJ-Menü: welcher Stick, wie viele Musikdateien."""
+    endungen = (".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac", ".aif", ".aiff", ".opus", ".mp4")
+    info = []
+    for p in usb_musik():
+        n = 0
+        for _, _, files in os.walk(p):
+            n += sum(1 for f in files if f.lower().endswith(endungen))
+            if n > 20000:
+                break
+        info.append({"pfad": p, "name": os.path.basename(p.rstrip("/")) or p, "dateien": n})
+    try:
+        with open("/tmp/zynsimple-dj-sticks.json", "w", encoding="utf-8") as f:
+            json.dump(info, f, ensure_ascii=False)
+    except OSError:
+        pass
+
+
 def main():
     os.makedirs(MIXXX, exist_ok=True)
     os.makedirs(MUSIK, exist_ok=True)
@@ -373,7 +411,16 @@ def main():
     data, order = cfg_lesen(pfad)
     ordner = [MUSIK] + usb_musik()
     data.setdefault("[Playlist]", {})["Directory"] = ordner[-1]
-    data.setdefault("[Library]", {})["RescanOnStartup"] = "1"
+    lib = data.setdefault("[Library]", {})
+    lib["RescanOnStartup"] = "1"
+    # Seitenleiste aufräumen: nur, was man hier braucht (keine iTunes/Rekordbox/Serato/Traktor …)
+    for k in ("ShowITunesLibrary", "ShowRekordboxLibrary", "ShowSeratoLibrary", "ShowTraktorLibrary",
+              "ShowRhythmboxLibrary", "ShowBansheeLibrary"):
+        lib[k] = "0"
+    lib.setdefault("RowHeight", "30")
+    # Mixxx auf Deutsch
+    if not data.setdefault("[Config]", {}).get("Locale", "").strip():
+        data["[Config]"]["Locale"] = "de_DE"
     stick = usb_stick()
     rec = os.path.join(stick, "DJ-Sets") if stick else os.path.join(DATEN, "DJ-Sets")
     os.makedirs(rec, exist_ok=True)
@@ -386,6 +433,7 @@ def main():
     bibliothek(ordner)
     passende_kiste(s)
     stem_kiste()
+    stick_status()
     log("fertig")
 
 

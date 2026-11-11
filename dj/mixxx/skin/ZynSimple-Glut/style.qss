@@ -1,5 +1,6 @@
 /* ZynSimple Glut – warme Farben, kein Blau */
-#Mixxx, WWidget, QWidget { background-color: #100e0d; color: #f3e9d8; font-size: 12px; }
+#Mixxx, WWidget, QWidget, WWidgetGroup, QSplitter, QStackedWidget, QAbstractScrollArea, QAbstractScrollArea > QWidget {
+  background-color: #100e0d; color: #f3e9d8; font-size: 13px; }
 #DeckReihe { background-color: #16120f; border-bottom: 1px solid #2e261f; }
 #Deck1, #Deck2 { padding: 2px 6px; }
 #Deck2 { border-left: 1px solid #2e261f; }
@@ -18,11 +19,13 @@ WSearchLineEdit, QLineEdit {
   selection-background-color: #e8b04a; selection-color: #000000;
 }
 WLibrarySidebar, QTreeView {
+  font-size: 14px;
   background: #16120f; color: #f3e9d8; border: none; show-decoration-selected: 1;
   selection-background-color: #5a4524; selection-color: #ffd98a; outline: none;
 }
 WLibrarySidebar::item:selected, QTreeView::item:selected { background: #5a4524; color: #ffd98a; }
 WTrackTableView, QTableView {
+  font-size: 14px;
   background: #16120f; alternate-background-color: #1f1915; color: #f3e9d8; gridline-color: #2e261f;
   selection-background-color: #7a5a26; selection-color: #ffffff; border: none; outline: none;
 }
@@ -44,3 +47,10 @@ QToolTip { background: #2a2014; color: #f3e9d8; border: 1px solid #e8b04a; }
 #StemMelodie[displayValue="0"] { background: #34c78a; } #StemVocals[displayValue="0"] { background: #ff8a3d; }
 #StemDrums[displayValue="1"], #StemBass[displayValue="1"], #StemMelodie[displayValue="1"], #StemVocals[displayValue="1"] {
   background: #1f1915; color: #5a4524; border: 1px solid #2e261f; text-decoration: line-through; }
+
+WLibrarySidebar::item, QTreeView::item { padding: 4px 2px; min-height: 26px; }
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal { background: #5a4524; border-radius: 6px; }
+QScrollBar::add-page, QScrollBar::sub-page { background: #100e0d; }
+WOverview, WWaveformViewer { background-color: #0b0908; }
+#Wellen, #DeckReihe, #BibliothekKopf, #Bibliothek, #KnopfPlatz { background-color: #100e0d; }
+#DeckReihe { background-color: #16120f; }

@@ -121,6 +121,17 @@ case "$1" in
     sync
     systemctl poweroff
     ;;
+  neu-einlesen)
+    # USB-Sticks neu einlesen: Mixxx sauber beenden – die DJ-Sitzung richtet ein und startet Mixxx neu
+    touch /run/zynsimple-dj-neu
+    if command -v xdotool >/dev/null; then
+      DISPLAY=:0 XAUTHORITY="$DATEN/.Xauthority" xdotool search --class mixxx windowactivate --sync key --clearmodifiers ctrl+q 2>/dev/null
+      sleep 1
+      DISPLAY=:0 XAUTHORITY="$DATEN/.Xauthority" xdotool key --clearmodifiers Return 2>/dev/null
+    else
+      pkill -TERM -x mixxx
+    fi
+    ;;
   neustart)
     echo aus > "$ZIEL"
     mixxx_beenden
@@ -317,5 +328,5 @@ case "$1" in
     echo "== Stems =="; echo "Dienst: $(systemctl is-active zynsimple-stems 2>/dev/null)"; cat /tmp/zynsimple-stems.json 2>/dev/null; echo
     ;;
   *)
-    echo "Benutzung: zynsimple-dj stems-einrichten|mixxx26|dj|zynthian|imres|aus|neustart|update-zynsimple|update-zynthian|update-barden|importieren|installieren|einrichten|samba|status|pruefen"; exit 1 ;;
+    echo "Benutzung: zynsimple-dj neu-einlesen|stems-einrichten|mixxx26|dj|zynthian|imres|aus|neustart|update-zynsimple|update-zynthian|update-barden|importieren|installieren|einrichten|samba|status|pruefen"; exit 1 ;;
 esac

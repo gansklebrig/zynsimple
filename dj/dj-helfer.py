@@ -229,6 +229,7 @@ def menue_zeigen():
         if os.path.exists(py) and subprocess.call([py, "-c", "import tkinter"], stderr=subprocess.DEVNULL) == 0:
             _menue["proc"] = subprocess.Popen([py, os.path.join(HIER, "dj-menue.py")], env=dict(os.environ, DISPLAY=":0"))
             return
+            return
     umschalten("zynthian")      # ohne Tk: wie früher direkt zurück zum Zynthian
 
 

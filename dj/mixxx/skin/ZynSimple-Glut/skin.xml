@@ -21,6 +21,7 @@
     </attributes>
   </manifest>
   <ObjectName>Mixxx</ObjectName>
+  <BgColor>#100e0d</BgColor>
   <Style src="skin:style.qss"/>
   <MinimumSize>780,420</MinimumSize>
   <SizePolicy>me,me</SizePolicy>
@@ -241,6 +242,13 @@
             </WidgetGroup>
           </Children>
         </WidgetGroup>
+        <!-- Platz für den ☰-Knopf oben rechts -->
+        <WidgetGroup>
+          <ObjectName>KnopfPlatz</ObjectName>
+          <Size>98f,40f</Size>
+          <Layout>horizontal</Layout>
+          <Children/>
+        </WidgetGroup>
       </Children>
     </WidgetGroup>
 
@@ -382,7 +390,7 @@
       <Children>
         <LibrarySidebar>
           <SizePolicy>f,me</SizePolicy>
-          <Size>170f,0me</Size>
+          <Size>190f,0me</Size>
         </LibrarySidebar>
         <Library>
           <SizePolicy>me,me</SizePolicy>
