@@ -11,6 +11,8 @@
 #   zynsimple-dj importieren    Musik vom USB-Stick (Ordner „MUSIK gekauft“) auf den Zynthian kopieren
 #   zynsimple-dj installieren   Mixxx & Co. einmalig installieren (braucht Internet)
 #   zynsimple-dj einrichten     Dienst, Befehl und WLAN-Ordner nach einem ZynSimple-Update auffrischen
+#   zynsimple-dj stems-einrichten   Stem-Werkzeug (Demucs) installieren und den Hintergrund-Dienst starten
+#   zynsimple-dj mixxx26        Mixxx 2.6 (Beta, mit Stems) aus dem Quellcode bauen (1–2 Stunden)
 #   zynsimple-dj samba          nur den WLAN-Ordner „MUSIK gekauft“ einrichten (Benutzer musik, Passwort gekauft)
 #   zynsimple-dj status | pruefen
 #
@@ -213,6 +215,11 @@ case "$1" in
     cp "$SRC/zynsimple-dj.service" /etc/systemd/system/zynsimple-dj.service
     mkdir -p "$DATEN" "$MUSIK"
     rm -f "$DATEN/.skin-kaputt"      # neue Version der eigenen Ansicht – nochmal versuchen
+    if [ -x /opt/zynsimple-stems/venv/bin/python ]; then
+      cp "$SRC/zynsimple-stems.service" /etc/systemd/system/zynsimple-stems.service
+      systemctl enable zynsimple-stems.service >/dev/null 2>&1
+      systemctl restart zynsimple-stems.service >/dev/null 2>&1
+    fi
     systemctl daemon-reload
     # WLAN-Ordner im Hintergrund einrichten (beim ersten Mal wird Samba installiert)
     if command -v systemd-run >/dev/null; then
@@ -228,6 +235,70 @@ case "$1" in
     samba_einrichten > "$SAMBA_LOG" 2>&1
     cat "$SAMBA_LOG"
     ;;
+  stems-einrichten)
+    # Stem-Werkzeug (Demucs) einmalig installieren – braucht Internet, ca. 1 GB
+    exec 9>/run/zynsimple-stems-install.lock; flock -n 9 || { echo "Läuft schon."; exit 0; }
+    SLOG=/tmp/zynsimple-stems-install.log
+    {
+      echo "PHASE pakete"
+      export DEBIAN_FRONTEND=noninteractive
+      AO="-o APT::Status-Fd=1 -o Dpkg::Use-Pty=0"
+      LANG=C apt-get install -y --no-install-recommends $AO ffmpeg python3-venv python3-pip \
+        || { apt-get update $AO; LANG=C apt-get install -y --no-install-recommends $AO ffmpeg python3-venv python3-pip; }
+      echo "PHASE python"
+      FREI=$(df -Pk /opt | awk 'NR==2{print $4}')
+      [ "${FREI:-0}" -lt 3000000 ] && { echo "FEHLER Zu wenig Platz (mind. 3 GB frei nötig)"; exit 1; }
+      python3 -m venv /opt/zynsimple-stems/venv || { echo "FEHLER venv"; exit 1; }
+      /opt/zynsimple-stems/venv/bin/pip install -q --upgrade pip
+      echo "PHASE demucs"
+      # CPU-Version von PyTorch (keine Grafikkarte), dazu Demucs und eine Audio-Bibliothek fürs Speichern
+      /opt/zynsimple-stems/venv/bin/pip install --progress-bar off --extra-index-url https://download.pytorch.org/whl/cpu \
+        "torch<2.9" "torchaudio<2.9" soundfile demucs 2>&1 | sed -u 's/^/PIP /'
+      echo "PHASE modell"
+      # Modell einmal laden (≈ 80 MB), damit der erste Track nicht wartet
+      /opt/zynsimple-stems/venv/bin/python -c "from demucs.pretrained import get_model; get_model('htdemucs'); print('Modell bereit')" || { echo "FEHLER Demucs startet nicht"; exit 1; }
+      cp "$SRC/zynsimple-stems.service" /etc/systemd/system/zynsimple-stems.service
+      systemctl daemon-reload
+      systemctl enable --now zynsimple-stems.service >/dev/null 2>&1
+      echo "FERTIG"
+    } > "$SLOG" 2>&1
+    tail -2 "$SLOG"
+    ;;
+  mixxx26)
+    # Mixxx 2.6 (Beta, mit Stems) einmalig aus dem Quellcode bauen – dauert auf dem Pi 5 rund 1–2 Stunden
+    exec 9>/run/zynsimple-mixxx26.lock; flock -n 9 || { echo "Läuft schon."; exit 0; }
+    MLOG=/tmp/zynsimple-mixxx26.log
+    QUELLE=/zynthian/zynthian-my-data/dj/.mixxx-quelle
+    PREFIX=/opt/mixxx-2.6
+    {
+      echo "PHASE platz"
+      FREI=$(df -Pk /zynthian/zynthian-my-data | awk 'NR==2{print $4}')
+      [ "${FREI:-0}" -lt 6000000 ] && { echo "FEHLER Zu wenig Platz auf der SD-Karte (mind. 6 GB frei nötig)"; exit 1; }
+      echo "PHASE quelle"
+      if [ -d "$QUELLE/.git" ]; then
+        git -C "$QUELLE" fetch --progress --depth 1 origin 2.6 && git -C "$QUELLE" reset --hard FETCH_HEAD
+      else
+        rm -rf "$QUELLE"; git clone --progress --depth 1 --branch 2.6 https://github.com/mixxxdj/mixxx "$QUELLE"
+      fi || { echo "FEHLER Quellcode nicht ladbar (Internet?)"; exit 1; }
+      echo "PHASE pakete"
+      export DEBIAN_FRONTEND=noninteractive
+      command -v sudo >/dev/null || apt-get install -y -q sudo
+      (cd "$QUELLE" && LANG=C bash tools/debian_buildenv.sh setup) || { echo "FEHLER Bau-Pakete ließen sich nicht installieren"; exit 1; }
+      apt-get install -y -q --no-install-recommends libavformat-dev libavcodec-dev libavutil-dev libswresample-dev 2>/dev/null
+      echo "PHASE konfigurieren"
+      cmake -S "$QUELLE" -B "$QUELLE/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+        -DOPTIMIZE=native -DFFMPEG=ON -DSTEM=ON -DBATTERY=OFF -DQT6=ON || { echo "FEHLER cmake"; exit 1; }
+      echo "PHASE bauen"
+      MEM=$(awk '/MemTotal/{print int($2/1024/1024)}' /proc/meminfo); J=2; [ "${MEM:-4}" -ge 7 ] && J=3
+      nice -n 15 cmake --build "$QUELLE/build" --parallel $J || { echo "FEHLER Bau abgebrochen"; exit 1; }
+      echo "PHASE installieren"
+      cmake --install "$QUELLE/build" || { echo "FEHLER Installation"; exit 1; }
+      # Quellcode-Baureste weg (spart Platz), Quellcode bleibt für schnelle Updates
+      rm -rf "$QUELLE/build/CMakeFiles" 2>/dev/null
+      echo "FERTIG $("$PREFIX/bin/mixxx" --version 2>/dev/null | head -1)"
+    } > "$MLOG" 2>&1
+    tail -1 "$MLOG"
+    ;;
   status)
     echo "installiert=$(mixxx_da && echo 1 || echo 0) aktiv=$(dj_aktiv && echo 1 || echo 0) imres=$(imres_da && echo 1 || echo 0)"
     ;;
@@ -242,7 +313,9 @@ case "$1" in
     echo "Adresse: \\\\$(hostname)\\MUSIK gekauft  ·  \\\\$(hostname -I | awk '{print $1}')\\MUSIK gekauft"
     echo "== Log DJ-Sitzung =="; journalctl -u zynsimple-dj -n 40 --no-pager 2>&1 | tail -40
     echo "== Installations-Log =="; tail -5 "$LOG" 2>/dev/null
+    echo "== Mixxx 2.6 =="; [ -x /opt/mixxx-2.6/bin/mixxx ] && /opt/mixxx-2.6/bin/mixxx --version 2>&1 | head -1; tail -3 /tmp/zynsimple-mixxx26.log 2>/dev/null
+    echo "== Stems =="; echo "Dienst: $(systemctl is-active zynsimple-stems 2>/dev/null)"; cat /tmp/zynsimple-stems.json 2>/dev/null; echo
     ;;
   *)
-    echo "Benutzung: zynsimple-dj dj|zynthian|imres|aus|neustart|update-zynsimple|update-zynthian|update-barden|importieren|installieren|einrichten|samba|status|pruefen"; exit 1 ;;
+    echo "Benutzung: zynsimple-dj stems-einrichten|mixxx26|dj|zynthian|imres|aus|neustart|update-zynsimple|update-zynthian|update-barden|importieren|installieren|einrichten|samba|status|pruefen"; exit 1 ;;
 esac

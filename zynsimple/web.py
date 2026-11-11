@@ -75,6 +75,17 @@ def make_handler(bridge, pin):
                     st["log"] = []
                 st["import"] = dj.import_stand()
                 st["samba"] = dj.samba_an()
+                st["mixxx26"] = dj.mixxx26_da()
+                m = dj.mixxx26_stand()
+                g = [w for _, w in m["schritte"]]
+                st["mixxx26_bau"] = {"laeuft": m["laeuft"], "fehler": m["fehler"], "detail": m["detail"],
+                                     "schritt": m["schritte"][m["schritt"]][0],
+                                     "prozent": int(100 * (sum(g[:m["schritt"]]) + g[m["schritt"]] * m["teil"]) / sum(g))}
+                st["stems"] = dj.stems_status()
+                if not st["stems"]["bereit"]:
+                    si = dj.stems_install_stand()
+                    st["stems"]["install"] = {"laeuft": si["laeuft"], "detail": si["detail"], "fehler": si["fehler"]}
+                st["stems"]["an"] = bool(bridge.settings.get("dj_stems", True))
                 self._send(200, st)
             elif path == "/api/fortschritt":
                 from . import fortschritt as fs
@@ -192,6 +203,13 @@ def make_handler(bridge, pin):
                         dj.import_starten()
                     elif aktion == "samba":
                         dj.samba_einrichten()
+                    elif aktion == "mixxx26":
+                        dj.mixxx26_starten()
+                    elif aktion == "stems-einrichten":
+                        dj.stems_einrichten()
+                    elif aktion == "stems-umschalten":
+                        from . import settings as st_
+                        st_.save_intern(bridge.settings, "dj_stems", not bridge.settings.get("dj_stems", True))
                     else:
                         dj.system(aktion)
                     self._send(200, {"ok": True, "mixxx": dj.mixxx_da()})

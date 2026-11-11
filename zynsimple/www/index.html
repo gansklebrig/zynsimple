@@ -345,6 +345,14 @@
     <div class="line"><button class="btn" id="dj-go">DJ-Pult starten</button><button class="btn sec" id="dj-imp">Musik vom USB-Stick übernehmen</button></div>
     <p>Musik per WLAN: am PC <code id="dj-share">\\zynthian\MUSIK gekauft</code> öffnen und Dateien hineinziehen.
       Anmeldung: Benutzer <b>musik</b>, Passwort <b>gekauft</b>.</p>
+    <h2 style="margin-top:14px">◆ Stems (Mixxx 2.6)</h2>
+    <p>Bei Stem-Tracks schalten am Zynthian <b>F1–F4</b> Drums, Bass, Melodie und Vocals stumm/an (<b>ALT</b> halten: Deck B).
+      Tracks in die Mixxx-Kiste <b>„Stems vorbereiten“</b> ziehen oder per WLAN in den Ordner <code>Stems erzeugen</code> legen –
+      der Zynthian zerlegt sie im Hintergrund (pausiert beim Auflegen).</p>
+    <p id="st-info"></p>
+    <div class="line"><button class="btn sec" id="st-m26" style="display:none">Mixxx 2.6 einbauen (1–2 h)</button>
+      <button class="btn sec" id="st-ein" style="display:none">Stem-Werkzeug einrichten (≈ 1 GB)</button>
+      <button class="btn sec" id="st-toggle" style="display:none">Pause</button></div>
     <div class="line" id="dj-smb" style="display:none"><button class="btn sec" id="dj-smb-go">WLAN-Ordner einrichten</button></div>
     <p id="dj-info"></p>
   </div>
@@ -765,6 +773,20 @@
       document.getElementById('dj-modes').style.display = d.eingerichtet ? '' : 'none';
       document.getElementById('dj-info').textContent = d.mixxx ? '' : 'Beim ersten Start wird Mixxx installiert (braucht Internet, einige Minuten).';
       document.getElementById('dj-smb').style.display = d.eingerichtet && !d.samba ? '' : 'none';
+      const b26 = d.mixxx26_bau || {}, st = d.stems || {}, info = [];
+      if (d.mixxx26) info.push('Mixxx 2.6 ✓');
+      else if (b26.laeuft) info.push('Mixxx 2.6 wird gebaut: ' + b26.prozent + ' % · ' + b26.schritt + (b26.detail ? ' · ' + b26.detail : ''));
+      else if (b26.fehler) info.push('Mixxx 2.6: ' + b26.fehler);
+      if (!st.bereit) info.push(st.install && st.install.laeuft ? 'Stem-Werkzeug wird eingerichtet: ' + (st.install.detail || '…') : 'Stem-Werkzeug noch nicht eingerichtet');
+      else if (!st.an) info.push('Stems: ausgeschaltet');
+      else if (st.pause) info.push('Stems: pausiert (DJ-Pult läuft)');
+      else if (st.aktuell) info.push('Stems: ' + Math.round(st.prozent || 0) + ' % „' + st.aktuell + '“ · ' + st.warteschlange + ' in der Warteschlange' + (st.eta_s ? ' · noch ca. ' + (Math.floor(st.eta_s / 60) + 1) + ' min' : ''));
+      else info.push('Stems: nichts zu tun');
+      (st.letzte || []).slice(0, 3).forEach(x => info.push(x));
+      document.getElementById('st-info').innerHTML = info.map(x => String(x).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))).join('<br>');
+      document.getElementById('st-m26').style.display = d.eingerichtet && !d.mixxx26 && !b26.laeuft ? '' : 'none';
+      document.getElementById('st-ein').style.display = d.eingerichtet && !st.bereit && !(st.install && st.install.laeuft) ? '' : 'none';
+      const tg = document.getElementById('st-toggle'); tg.style.display = st.bereit ? '' : 'none'; tg.textContent = st.an ? 'Stems pausieren' : 'Stems weiter';
     } catch (e) {}
   }
   async function djStart() {
@@ -776,6 +798,11 @@
     } catch (e) { toast('Ging nicht: ' + e.message, 6000); }
   }
   document.getElementById('dj-go').onclick = djStart;
+  const djAkt = async (a, frage, msg) => { if (frage && !confirm(frage)) return; await api('/api/dj', { aktion: a }).catch(() => {}); toast(msg, 5000); setTimeout(djCheck, 1500); };
+  document.getElementById('st-m26').onclick = () => djAkt('mixxx26', 'Mixxx 2.6 auf dem Zynthian bauen? Dauert 1–2 Stunden, braucht Internet und 6 GB Platz. Der Zynthian bleibt währenddessen bedienbar, kann aber träger sein.', 'Mixxx 2.6 wird gebaut – Fortschritt hier und am Zynthian (Einstellungen → DJ-Pult)');
+  document.getElementById('st-ein').onclick = () => djAkt('stems-einrichten', 'Stem-Werkzeug einrichten? Lädt ca. 1 GB aus dem Internet.', 'Stem-Werkzeug wird eingerichtet');
+  document.getElementById('st-toggle').onclick = () => djAkt('stems-umschalten', null, 'Umgeschaltet');
+  setInterval(() => { if (tab === 'extras') djCheck(); }, 5000);
   document.getElementById('dj-smb-go').onclick = async () => {
     await api('/api/dj', { aktion: 'samba' }).catch(() => {});
     toast('WLAN-Ordner wird eingerichtet – dauert beim ersten Mal 1–2 Minuten', 6000);

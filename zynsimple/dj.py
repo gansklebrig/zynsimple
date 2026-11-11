@@ -197,3 +197,154 @@ def system(aktion):
         raise RuntimeError("DJ-Pult ist nicht eingerichtet – ZynSimple einmal neu installieren")
     log.info(f"ZynSimple: DJ-Modus {aktion}")
     _losgeloest([aktion])
+
+
+# ---------------------------------------------------------------------------------------------
+# Lange Hintergrund-Aufgaben: Mixxx 2.6 bauen, Stem-Werkzeug einrichten, Stems berechnen
+# ---------------------------------------------------------------------------------------------
+MIXXX26 = "/opt/mixxx-2.6/bin/mixxx"
+MIXXX26_LOG = "/tmp/zynsimple-mixxx26.log"
+STEMS_PY = "/opt/zynsimple-stems/venv/bin/python"
+STEMS_INSTALL_LOG = "/tmp/zynsimple-stems-install.log"
+STEMS_STATUS = "/tmp/zynsimple-stems.json"
+
+
+def _laeuft(lock):
+    """Hält ein Hintergrund-Job seine Sperrdatei? (flock)"""
+    import fcntl
+    try:
+        with open(lock, "a") as f:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(f, fcntl.LOCK_UN)
+        return False
+    except BlockingIOError:
+        return True
+    except OSError:
+        return False
+
+
+def _log(pfad):
+    try:
+        with open(pfad, encoding="utf-8", errors="replace") as f:
+            return f.read().replace("\r", "\n").splitlines()
+    except OSError:
+        return []
+
+
+def mixxx26_da():
+    return os.path.exists(MIXXX26)
+
+
+def mixxx26_starten():
+    _losgeloest(["mixxx26"])
+
+
+MIXXX26_SCHRITTE = [("Platz prüfen", 1), ("Quellcode laden", 7), ("Bau-Pakete", 12), ("Konfigurieren", 3),
+                    ("Kompilieren", 75), ("Installieren", 2)]
+
+
+def mixxx26_stand():
+    import re
+    z = [x.strip() for x in _log(MIXXX26_LOG) if x.strip()]
+    st = {"schritte": MIXXX26_SCHRITTE, "schritt": 0, "teil": 0.0, "detail": "", "zeile": "",
+          "laeuft": _laeuft("/run/zynsimple-mixxx26.lock"), "fertig": mixxx26_da() and any(x.startswith("FERTIG") for x in z),
+          "fehler": next((x[7:] for x in z if x.startswith("FEHLER")), None)}
+    phasen = ["platz", "quelle", "pakete", "konfigurieren", "bauen", "installieren"]
+    idx = 0
+    for i, x in enumerate(z):
+        if x.startswith("PHASE "):
+            p = x[6:]
+            if p in phasen:
+                idx = phasen.index(p)
+                st["schritt"], st["teil"], st["detail"] = idx, 0.0, ""
+            continue
+        if idx == 1:
+            m = re.search(r"(Receiving objects|Resolving deltas):\s+(\d+)%.*?(?:,\s*([\d.]+\s*[KMG]iB))?(?:\s*\|\s*([\d.]+\s*[KMG]iB/s))?", x)
+            if m:
+                pz = int(m.group(2)) / 100
+                st["teil"] = pz * 0.85 if m.group(1).startswith("Receiving") else 0.85 + pz * 0.15
+                st["detail"] = " · ".join(t.replace("iB", "B") for t in (m.group(3), m.group(4)) if t) or "Quellcode wird geladen"
+        elif idx == 2:
+            m = re.search(r"(\d+) upgraded, (\d+) newly installed", x)
+            if m:
+                st["_n"] = int(m.group(1)) + int(m.group(2))
+            if re.match(r"(Setting up|Unpacking) ", x):
+                st["_k"] = st.get("_k", 0) + 1
+                if st.get("_n"):
+                    st["teil"] = min(1.0, st["_k"] / (2 * st["_n"]))
+                st["detail"] = x[:90]
+        elif idx == 4:
+            m = re.match(r"\[\s*(\d+)%\]\s*(.*)", x)
+            if m:
+                st["teil"] = int(m.group(1)) / 100
+                st["detail"] = f"{m.group(1)} % der Dateien übersetzt"
+                st["zeile"] = re.sub(r"^Building CXX object .*?/src/", "src/", m.group(2))[-110:]
+        elif idx in (3, 5):
+            st["zeile"] = x[-110:]
+    st.pop("_n", None)
+    st.pop("_k", None)
+    if st["fertig"]:
+        st["schritt"], st["teil"], st["detail"] = len(MIXXX26_SCHRITTE) - 1, 1.0, "Mixxx 2.6 ist eingebaut"
+    return st
+
+
+def stems_bereit():
+    return os.path.exists(STEMS_PY)
+
+
+def stems_einrichten():
+    _losgeloest(["stems-einrichten"])
+
+
+STEMS_SCHRITTE = [("Pakete", 10), ("Python-Umgebung", 10), ("Demucs + PyTorch", 70), ("KI-Modell", 10)]
+
+
+def stems_install_stand():
+    import re
+    z = [x.strip() for x in _log(STEMS_INSTALL_LOG) if x.strip()]
+    st = {"schritte": STEMS_SCHRITTE, "schritt": 0, "teil": 0.0, "detail": "", "zeile": "",
+          "laeuft": _laeuft("/run/zynsimple-stems-install.lock"), "fertig": "FERTIG" in z and stems_bereit(),
+          "fehler": next((x[7:] for x in z if x.startswith("FEHLER")), None)}
+    phasen = ["pakete", "python", "demucs", "modell"]
+    idx, pakete = 0, 0
+    for x in z:
+        if x.startswith("PHASE ") and x[6:] in phasen:
+            idx = phasen.index(x[6:])
+            st["schritt"], st["teil"] = idx, 0.0
+            continue
+        m = re.match(r"pmstatus:([^:]+):([\d.]+):(.*)", x)
+        if m and idx == 0:
+            st["teil"], st["detail"] = float(m.group(2)) / 100, _deutsch(m.group(3))
+        m = re.match(r"PIP (Collecting|Downloading|Installing collected packages|Successfully installed)\s*(.*)", x)
+        if m and idx == 2:
+            if m.group(1) == "Collecting":
+                pakete += 1
+                st["detail"] = f"Paket {pakete}: {m.group(2)[:60]}"
+                st["teil"] = min(0.6, pakete / 40)
+            elif m.group(1) == "Downloading":
+                st["zeile"] = "lade " + m.group(2)[:100]
+            elif m.group(1).startswith("Installing"):
+                st["teil"], st["detail"] = 0.75, "Pakete werden installiert (dauert etwas)"
+            else:
+                st["teil"] = 1.0
+        if idx == 3 and "Modell bereit" in x:
+            st["teil"] = 1.0
+    if st["fertig"]:
+        st["schritt"], st["teil"], st["detail"] = 3, 1.0, "Stem-Werkzeug ist bereit"
+    return st
+
+
+def stems_status():
+    import json
+    try:
+        with open(STEMS_STATUS, encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception:
+        d = {}
+    try:
+        r = subprocess.run(["systemctl", "is-active", "-q", "zynsimple-stems"], timeout=2)
+        d["dienst"] = r.returncode == 0
+    except Exception:
+        d["dienst"] = False
+    d["bereit"] = stems_bereit()
+    return d

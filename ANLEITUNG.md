@@ -73,6 +73,29 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 3.5 – Stems im DJ-Pult
+
+**Was Stems sind:** Ein Track wird in vier Spuren zerlegt – **Drums, Bass, Melodie (alles andere, auch Synths) und Vocals**.
+Beim Auflegen lässt sich jede Spur einzeln stumm schalten, z. B. nur Drums und Bass unter die Handpan legen.
+
+**Einmal einrichten** (Einstellungen → DJ-Pult, oder am Handy unter Extras):
+1. **Mixxx 2.6 mit Stems → Einbauen.** Mixxx 2.6 gibt es für den Raspberry Pi nicht fertig, darum baut der Zynthian es selbst
+   aus dem Quellcode: **1–2 Stunden**, Internet und 6 GB freier Platz nötig. Der Zynthian bleibt bedienbar, kann aber träger sein.
+   Fortschritt mit echten Werten: Quellcode-MB, Pakete, „41 % der Dateien übersetzt“. Mixxx 2.6 ist noch eine Beta.
+2. **Stems vorbereiten → Einrichten.** Lädt das KI-Werkzeug Demucs (ca. 1 GB).
+
+**Stems erzeugen:** Tracks in Mixxx in die Kiste **„Stems vorbereiten“** ziehen – oder per WLAN in den Ordner
+`MUSIK gekauft\Stems erzeugen` legen. Der Zynthian zerlegt sie im Hintergrund, mit niedrigster Priorität, und **pausiert,
+solange das DJ-Pult läuft**. Die fertigen Dateien (`.stem.mp4`) landen in `MUSIK gekauft\Stems`. Auf dem Pi dauert ein Track
+eine Weile (mehrere Minuten); Status und Restzeit stehen in den Einstellungen. Stems vom PC (z. B. mit Demucs oder NI Stem Creator
+erzeugt) einfach in den Ordner `MUSIK gekauft` legen.
+
+**Beim Auflegen** (Track mit Stems auf Deck A geladen):
+- **F1–F4** = Drums · Bass · Melodie · Vocals stumm/an. **ALT halten** + F1–F4 = dasselbe für Deck B.
+- LEDs: Drums rot, Bass gold, Melodie grün, Vocals gelb – glimmt nur = stumm.
+- In der Ansicht erscheinen unter jedem Deck vier farbige Stem-Knöpfe (antippbar).
+- Ohne Stem-Track spielen F1–F4 wie bisher die Sampler.
+
 ## Neu in Version 3.4 – Fortschritt, der wirklich etwas zeigt
 
 Updates, die Mixxx-Installation und der Musik-Import zeigen jetzt echte Werte statt eines Timers:

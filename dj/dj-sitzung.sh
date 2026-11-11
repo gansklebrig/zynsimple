@@ -51,14 +51,21 @@ sleep 1   # virtueller MIDI-Anschluss steht, bevor Mixxx ihn sucht
 
 # Mixxx einrichten (Ton, Controller, Bibliothek „MUSIK gekauft“, Kiste „Passt zur Handpan“, Aufnahmen, Ansicht)
 phase einrichten
+ZS_MIXXX=mixxx; [ -x /opt/mixxx-2.6/bin/mixxx ] && [ ! -f "$DATEN/.mixxx26-aus" ] && ZS_MIXXX=/opt/mixxx-2.6/bin/mixxx
+export ZS_MIXXX
 /usr/bin/python3 "$HIER/dj-einrichten.py"
 phase mixxx
+
+# Mixxx 2.6 (mit Stems), wenn eingebaut – sonst die normale Version
+MIXXX=mixxx
+[ -x /opt/mixxx-2.6/bin/mixxx ] && [ ! -f "$DATEN/.mixxx26-aus" ] && MIXXX=/opt/mixxx-2.6/bin/mixxx
+export ZS_MIXXX="$MIXXX"
 
 # Mixxx: Einstellungen und Bibliothek liegen in $DATEN/.mixxx (wird beim Zynthian-Backup mitgesichert)
 for VERSUCH in 1 2; do
   START=$(date +%s)
   echo "DJ-Pult: starte Mixxx (Versuch $VERSUCH)"
-  mixxx --fullScreen
+  "$MIXXX" --fullScreen
   RC=$?
   echo "DJ-Pult: Mixxx beendet ($RC)"
   # Sofort wieder zu (unter 20 s, ohne dass jemand beendet hat)? Dann lag es meist an der eigenen Ansicht:

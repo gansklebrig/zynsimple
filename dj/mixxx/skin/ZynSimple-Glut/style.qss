@@ -37,3 +37,10 @@ QPushButton, QToolButton { background: #1f1915; color: #e8b04a; border: 1px soli
 QPushButton:checked, QPushButton:pressed { background: #e8b04a; color: #000000; }
 QMenu, QComboBox, QAbstractItemView { background: #1f1915; color: #f3e9d8; selection-background-color: #7a5a26; }
 QToolTip { background: #2a2014; color: #f3e9d8; border: 1px solid #e8b04a; }
+
+/* Stems: Farbe = hörbar, dunkel durchgestrichen = stumm (Drums rot, Bass gold, Melodie grün, Vocals orange) */
+#StemDrums, #StemBass, #StemMelodie, #StemVocals { border-radius: 4px; font-size: 11px; font-weight: bold; color: #000000; margin: 1px 2px; }
+#StemDrums[displayValue="0"] { background: #e0445e; } #StemBass[displayValue="0"] { background: #e8b04a; }
+#StemMelodie[displayValue="0"] { background: #34c78a; } #StemVocals[displayValue="0"] { background: #ff8a3d; }
+#StemDrums[displayValue="1"], #StemBass[displayValue="1"], #StemMelodie[displayValue="1"], #StemVocals[displayValue="1"] {
+  background: #1f1915; color: #5a4524; border: 1px solid #2e261f; text-decoration: line-through; }

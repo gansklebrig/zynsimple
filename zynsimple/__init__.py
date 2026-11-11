@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "3.4"
+VERSION = "3.5"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -41,6 +41,7 @@ DEFAULTS = {
     "dj_auto_rec": False,
     "dj_clock": True,
     "dj_handpan_fx": True,
+    "dj_stems": True,
 }
 
 SCREEN_NAME = "zynsimple"
@@ -454,6 +455,92 @@ def start_import(zyngui, *a, **k):
             pass
     import threading
     threading.Thread(target=run, daemon=True).start()
+
+
+AUFGABEN = {
+    "mixxx26": "Mixxx 2.6 mit Stems wird gebaut",
+    "stems-einrichten": "Stem-Werkzeug wird eingerichtet",
+    "stems": "Stems vorbereiten",
+}
+
+
+def start_aufgabe(zyngui, art, starten=False):
+    """Lange Hintergrund-Aufgabe anzeigen (und ggf. starten). Antippen schließt nur die Anzeige – die Aufgabe läuft weiter."""
+    import threading
+    import time
+    from . import dj
+    from . import fortschritt as fs
+    scr = zyngui.screens.get(SCREEN_NAME)
+    if starten:
+        if art == "mixxx26":
+            dj.mixxx26_starten()
+        elif art == "stems-einrichten":
+            dj.stems_einrichten()
+    if scr is None:
+        return
+
+    def stand():
+        if art == "mixxx26":
+            return dj.mixxx26_stand()
+        if art == "stems-einrichten":
+            return dj.stems_install_stand()
+        d = dj.stems_status()
+        n = d.get("warteschlange", 0)
+        st = {"schritte": [("Warten", 5), ("Trennen (Demucs)", 90), ("Stem-Datei", 5)], "schritt": 0, "teil": 0.0,
+              "detail": "", "zeile": " · ".join(d.get("letzte", [])[:2]), "fertig": False, "fehler": d.get("fehler"),
+              "titel": f"Stems vorbereiten · {n} in der Warteschlange" if n else "Stems vorbereiten"}
+        if d.get("pause"):
+            st["detail"] = "pausiert – das DJ-Pult läuft oder „Stems“ ist ausgeschaltet"
+        elif d.get("aktuell"):
+            pz = d.get("prozent", 0.0)
+            st["schritt"], st["teil"] = (2, 0.5) if pz >= 99 else (1, pz / 100)
+            eta = d.get("eta_s")
+            st["detail"] = f"„{d['aktuell']}“" + (f" · noch ca. {eta // 60 + 1} min" if eta else "")
+        elif not n:
+            st["detail"] = "Nichts zu tun – Tracks in die Mixxx-Kiste „Stems vorbereiten“ ziehen"
+            st["fertig"] = True
+        return st
+
+    def fuellen(s):
+        if not fs.STAND.get("aktiv") or fs.STAND.get("aufgabe") != art:
+            fs.start(s.get("titel") or AUFGABEN[art], s["schritte"])
+            fs.STAND["aufgabe"] = art
+            fs.STAND["hintergrund"] = True
+        if s.get("titel"):
+            fs.STAND["titel"] = s["titel"]
+        if s.get("fehler"):
+            fs.fehler(s["fehler"])
+            return
+        if s.get("fertig"):
+            fs.fertig(s.get("detail", ""))
+            return
+        fs.STAND["fertig"] = False
+        if s["schritt"] != fs.STAND.get("schritt"):
+            fs.schritt(s["schritt"])
+        fs.STAND["teil"] = s["teil"]
+        fs.teil(detail=s.get("detail", ""), zeile=s.get("zeile", ""))
+
+    def lauf():
+        time.sleep(0.6 if starten else 0)
+        while True:
+            try:
+                fuellen(stand())
+            except Exception as e:
+                log.debug(f"Aufgabe {art}: {e}")
+            time.sleep(0.6)
+            if scr.mode != "update" or fs.STAND.get("aufgabe") != art:
+                return
+
+    fs.start(AUFGABEN[art], [("Start", 1)])
+    fs.STAND["aufgabe"] = art
+    fs.STAND["hintergrund"] = True
+    scr.show_update(AUFGABEN[art], "Antippen schließt die Anzeige – die Aufgabe läuft weiter")
+    try:
+        from zyngui import zynthian_gui_config
+        zynthian_gui_config.top.after(0, lambda: zyngui.show_screen_reset(SCREEN_NAME))
+    except Exception:
+        pass
+    threading.Thread(target=lauf, daemon=True).start()
 
 
 def redirect(zyngui, screen, hmode=None):

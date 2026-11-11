@@ -1043,7 +1043,8 @@ class zynsimple_screen(zynthian_gui_base):
         if self.mode == "update":
             u = getattr(self, "upd", {})
             from . import fortschritt as fs
-            if u.get("done") or u.get("error") or fs.STAND.get("fertig") or fs.STAND.get("fehler"):
+            if u.get("done") or u.get("error") or fs.STAND.get("fertig") or fs.STAND.get("fehler") \
+                    or fs.STAND.get("hintergrund"):
                 fs.ende()
                 self.mode = "mix"
                 self.sig = None
@@ -2458,7 +2459,8 @@ class zynsimple_screen(zynthian_gui_base):
         ("bedienung", "Bedienung", [("set", "autosave", "↺"), ("act", "s_save", "✓"), ("set", "master_limiter", "▣"),
                                     ("set", "tonart", "♯"), ("set", "xy_spring", "✥"), ("set", "synth_midi_chan", "♪")]),
         ("dj", "DJ-Pult", [("act", "s_dj", "♪"), ("set", "dj_auto_rec", "●"), ("set", "dj_clock", "⏱"),
-                           ("set", "dj_handpan_fx", "◎"), ("act", "s_djimport", "⇩"), ("act", "s_djordner", "▤")]),
+                           ("set", "dj_handpan_fx", "◎"), ("act", "s_djimport", "⇩"), ("act", "s_djordner", "▤"),
+                           ("act", "s_mixxx26", "◆"), ("act", "s_stems", "≋")]),
         ("system", "System", [("act", "s_imres", "♫"), ("act", "s_handy", "▤"), ("set", "update_check", "⟳"),
                               ("act", "s_sichern", "⇩"), ("act", "s_zurueck", "⇧"), ("act", "s_admin", "⚙")]),
     ]
@@ -2497,6 +2499,44 @@ class zynsimple_screen(zynthian_gui_base):
             armed = self.set_armed.get("zurueck", 0) > now
             return ("Sicherung einspielen", "holt die neueste Sicherung vom USB-Stick zurück · startet neu",
                     "Wirklich?" if armed else "Einspielen", True, armed)
+        if art in ("s_mixxx26", "s_stems"):
+            try:
+                from . import dj
+                if not dj.eingerichtet():
+                    return ("", "", None, False, False)
+                if art == "s_mixxx26":
+                    if dj.mixxx26_da():
+                        return ("Mixxx 2.6 mit Stems", "eingebaut · bei Stem-Tracks schalten F1–F4 Drums, Bass, Melodie, Vocals",
+                                None, True, False)
+                    st = dj.mixxx26_stand()
+                    if st["laeuft"]:
+                        from . import fortschritt as fs_
+                        g = [w for _, w in st["schritte"]]
+                        p = 100 * (sum(g[:st["schritt"]]) + g[st["schritt"]] * st["teil"]) / sum(g)
+                        return ("Mixxx 2.6 wird gebaut", f"{int(p)} % · {st['schritte'][st['schritt']][0]} · {st['detail']}",
+                                "Anzeigen", True, False)
+                    return ("Mixxx 2.6 mit Stems (Beta)", "einmalig auf dem Zynthian bauen · 1–2 Stunden · Internet, 6 GB frei"
+                            + (f" · letzter Versuch: {st['fehler']}" if st.get("fehler") else ""), "Einbauen", True, False)
+                if not dj.stems_bereit():
+                    st = dj.stems_install_stand()
+                    if st["laeuft"]:
+                        return ("Stem-Werkzeug wird eingerichtet", st["detail"] or "läuft …", "Anzeigen", True, False)
+                    return ("Stems vorbereiten", "KI-Werkzeug einrichten (≈ 1 GB, Internet) – trennt Drums, Bass, Melodie, Vocals",
+                            "Einrichten", True, False)
+                d = dj.stems_status()
+                an = self.settings.get("dj_stems", True)
+                if not an:
+                    text = "ausgeschaltet"
+                elif d.get("pause"):
+                    text = "pausiert, solange das DJ-Pult läuft"
+                elif d.get("aktuell"):
+                    text = f"{int(d.get('prozent', 0))} % „{d['aktuell']}“ · {d.get('warteschlange', 1)} in der Warteschlange"
+                else:
+                    text = "nichts zu tun · Tracks in die Kiste „Stems vorbereiten“ ziehen"
+                return ("Stems vorbereiten", text, "Anzeigen" if (an and d.get("aktuell")) else ("Pause" if an else "Weiter"),
+                        True, False)
+            except Exception as e:
+                return ("Stems", str(e), None, True, False)
         if art == "s_djimport":
             return ("Musik vom USB-Stick übernehmen", "kopiert den Ordner „MUSIK gekauft“ auf den Zynthian – "
                     "lädt schneller, Stick kann danach raus", "Übernehmen", getattr(self, "dj_installed", False), False)
@@ -2718,6 +2758,27 @@ class zynsimple_screen(zynthian_gui_base):
                 from . import start_import
                 start_import(self.zyngui)
                 return
+            elif art == "s_mixxx26":
+                from . import dj, start_aufgabe
+                if not dj.mixxx26_da():
+                    st = dj.mixxx26_stand()
+                    if not st["laeuft"] and self.set_armed.get("m26", 0) < time.monotonic():
+                        self.set_armed["m26"] = time.monotonic() + 4
+                        self._flash("Dauert 1–2 Stunden, braucht Internet – zum Starten nochmal tippen")
+                    else:
+                        start_aufgabe(self.zyngui, "mixxx26", starten=not st["laeuft"])
+                        return
+            elif art == "s_stems":
+                from . import dj, start_aufgabe
+                from . import settings as st_
+                if not dj.stems_bereit():
+                    start_aufgabe(self.zyngui, "stems-einrichten", starten=not dj.stems_install_stand()["laeuft"])
+                    return
+                d = dj.stems_status()
+                if self.settings.get("dj_stems", True) and d.get("aktuell"):
+                    start_aufgabe(self.zyngui, "stems")
+                    return
+                st_.save_intern(self.settings, "dj_stems", not self.settings.get("dj_stems", True))
             elif art == "s_sichern":
                 from . import helfer
                 self._flash(helfer.sicherung_auf_stick(self.bridge))
@@ -2906,7 +2967,7 @@ class zynsimple_screen(zynthian_gui_base):
             cv.create_oval(px - gl, py - gl, px + gl, py + gl, fill=P["gold2"], outline="")
         cv.create_text(cx, cy - 6, text="✓" if fertig else ("!" if fehler else f"{int(p)} %"),
                        font=(self.f_huge[0], int(self.f_huge[1] * (1.6 if (fertig or fehler) else 1.15))), fill=col)
-        if not (fertig or fehler):
+        if not (fertig or fehler) and not d.get("hintergrund"):
             cv.create_text(cx, cy + self.f_huge[1] * 0.95, text=f"{d.get('dauer', 0)} s", font=self.f_tiny, fill=P["tx2"])
         # Schritte rechts
         sx0, sy = cx + R + 40, 70
@@ -2947,12 +3008,13 @@ class zynsimple_screen(zynthian_gui_base):
         if d.get("zeile") and not fertig:
             cv.create_text(20, by + 62, anchor="w", text=self._clip_text(d["zeile"], W - 40, self.f_tiny), font=self.f_tiny,
                            fill=P["tx2"])
-        if fertig or fehler:
-            cv.create_text(W - 20, by + 62, anchor="e", text="Antippen zum Schließen", font=self.f_tiny, fill=P["tx2"])
+        if fertig or fehler or d.get("hintergrund"):
+            cv.create_text(W - 20, by + 62, anchor="e", font=self.f_tiny, fill=P["tx2"],
+                           text="Antippen zum Schließen" if (fertig or fehler) else "Antippen schließt die Anzeige · läuft im Hintergrund weiter")
         # Kopf zuletzt, damit nichts darüber liegt
         cv.create_rectangle(0, 0, W, 50, fill=P["bg"], outline="")
         cv.create_text(20, 28, anchor="w", text=d.get("titel", "Update"), font=self.f_big, fill=P["gold"])
-        if not fertig and not fehler:
+        if not fertig and not fehler and not d.get("hintergrund"):
             cv.create_text(W - 20, 28, anchor="e", text="bitte nicht ausschalten", font=self.f_tiny, fill=P["rose"])
 
     # ------------------------------------------------------------------

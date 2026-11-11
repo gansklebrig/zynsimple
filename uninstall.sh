@@ -11,6 +11,13 @@ for PY in /zynthian/venv/bin/python3 python3 python3.11 python3.12 python3.13; d
     fi
 done
 
+# Stem-Dienst entfernen (das Werkzeug unter /opt/zynsimple-stems und Mixxx 2.6 unter /opt/mixxx-2.6 bleiben;
+# mit „rm -rf /opt/zynsimple-stems /opt/mixxx-2.6“ lassen sie sich von Hand löschen)
+if [ -f /etc/systemd/system/zynsimple-stems.service ]; then
+    systemctl disable --now zynsimple-stems 2>/dev/null
+    rm -f /etc/systemd/system/zynsimple-stems.service
+fi
+
 # DJ-Pult entfernen (Mixxx selbst bleibt installiert: sudo apt remove mixxx)
 if [ -f /etc/systemd/system/zynsimple-dj.service ]; then
     systemctl stop zynsimple-dj 2>/dev/null

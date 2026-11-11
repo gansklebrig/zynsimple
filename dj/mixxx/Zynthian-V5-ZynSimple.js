@@ -7,7 +7,8 @@
 //  Regler 2  Bereich wechseln (Liste/Seitenleiste) · drücken: Track in Deck 2 laden
 //  Regler 3  Effekt 1 (Stärke)          · drücken: Effekt 1 an/aus
 //  Regler 4  Effekt 2 – Handpan (Stärke)· drücken: Effekt 2 an/aus
-//  F1–F4     Sampler 1–4 abspielen / stoppen
+//  F1–F4     Stem-Track auf Deck A: Drums · Bass · Melodie · Vocals stumm/an (ALT halten: Deck B)
+//            ohne Stems: Sampler 1–4 abspielen / stoppen
 //  PLAY      Auto-DJ an/aus             REC   Set-Aufnahme an/aus
 //  TEMPO     Tempo tippen (führendes Deck)
 //  PAD       Handpan/Mikro im Mix an/aus
@@ -22,6 +23,27 @@ ZynV5.N = { MENU: 1, MIXER: 2, CTRL: 3, ZS3: 4, ALT: 5, TEMPO: 6, PAD: 7, F1: 8,
 ZynV5.F = [8, 12, 16, 20];
 ZynV5.verbindungen = [];
 ZynV5.fuehrend = 0;
+ZynV5.alt = false;
+// LED-Farbe je Stem, wenn hörbar (Drums rot, Bass gold, Melodie grün, Vocals gelb) – stumm: glimmen
+ZynV5.STEM_FARBE = [3, 2, 4, 5];
+
+ZynV5.stemDeck = function() { return ZynV5.alt ? 2 : 1; };
+ZynV5.hatStems = function(deck) {
+    try { return engine.getValue("[Channel" + deck + "]", "stem_count") > 0; } catch (e) { return false; }
+};
+ZynV5.fLeds = function() {
+    var deck = ZynV5.stemDeck();
+    if (ZynV5.hatStems(deck)) {
+        var n = Math.min(4, engine.getValue("[Channel" + deck + "]", "stem_count"));
+        for (var i = 0; i < 4; i++) {
+            if (i >= n) { ZynV5.led(ZynV5.F[i], 0); continue; }
+            var stumm = engine.getValue("[Channel" + deck + "_Stem" + (i + 1) + "]", "mute");
+            ZynV5.led(ZynV5.F[i], stumm ? 1 : ZynV5.STEM_FARBE[i]);
+        }
+    } else {
+        for (var k = 0; k < 4; k++) { ZynV5.samplerLed(k); }
+    }
+};
 
 ZynV5.led = function(nr, code) { midi.sendShortMsg(0x90, nr, code); };
 
@@ -46,9 +68,16 @@ ZynV5.init = function(id, debugging) {
     // LEDs: Sampler, Auto-DJ, Aufnahme, Handpan, Vorhören
     ZynV5.F.forEach(function(nr, i) {
         var g = "[Sampler" + (i + 1) + "]";
-        ZynV5.verbinde(g, "play_indicator", function() { ZynV5.samplerLed(i); });
-        ZynV5.verbinde(g, "track_loaded", function() { ZynV5.samplerLed(i); });
+        ZynV5.verbinde(g, "play_indicator", function() { ZynV5.fLeds(); });
+        ZynV5.verbinde(g, "track_loaded", function() { ZynV5.fLeds(); });
     });
+    // Stems (Mixxx 2.6): LEDs folgen stumm/an und dem geladenen Track
+    for (var dk = 1; dk <= 2; dk++) {
+        ZynV5.verbinde("[Channel" + dk + "]", "stem_count", function() { ZynV5.fLeds(); });
+        for (var st = 1; st <= 4; st++) {
+            ZynV5.verbinde("[Channel" + dk + "_Stem" + st + "]", "mute", function() { ZynV5.fLeds(); });
+        }
+    }
     ZynV5.verbinde("[AutoDJ]", "enabled", function(v) { ZynV5.led(ZynV5.N.PLAY, v ? 4 : 1); });
     ZynV5.verbinde("[Recording]", "status", function(v) { ZynV5.led(ZynV5.N.REC, v === 2 ? 3 : (v === 1 ? 5 : 1)); });
     ZynV5.verbinde("[Auxiliary1]", "main_mix", function(v) { ZynV5.led(ZynV5.N.PAD, v ? 2 : 1); });
@@ -113,6 +142,12 @@ ZynV5.umschalten = function(group, key) { engine.setValue(group, key, engine.get
 
 ZynV5.taste = function(channel, control, value, status, group) {
     var an = (status & 0xF0) === 0x90 && value > 0;
+    if (control === ZynV5.N.ALT) {   // ALT halten: F1–F4 wirken auf Deck B
+        ZynV5.alt = an;
+        ZynV5.led(ZynV5.N.ALT, an ? 2 : 1);
+        ZynV5.fLeds();
+        return;
+    }
     if (!an) { return; }
     var N = ZynV5.N;
     switch (control) {
@@ -136,6 +171,11 @@ ZynV5.taste = function(channel, control, value, status, group) {
     case N.SEL: engine.setValue("[Library]", "GoToItem", 1); return;
     }
     var f = ZynV5.F.indexOf(control);
+    if (f >= 0 && ZynV5.hatStems(ZynV5.stemDeck())) {
+        var sg = "[Channel" + ZynV5.stemDeck() + "_Stem" + (f + 1) + "]";
+        ZynV5.umschalten(sg, "mute");
+        return;
+    }
     if (f >= 0) {
         var g = "[Sampler" + (f + 1) + "]";
         if (engine.getValue(g, "play")) { engine.setValue(g, "cue_gotoandstop", 1); } else { engine.setValue(g, "cue_gotoandplay", 1); }

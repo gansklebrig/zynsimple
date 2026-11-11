@@ -94,6 +94,49 @@
                 </Key>
               </Children>
             </WidgetGroup>
+            <WidgetGroup>
+              <ObjectName>StemReihe</ObjectName>
+              <Layout>horizontal</Layout>
+              <SizePolicy>me,min</SizePolicy>
+              <Connection>
+                <ConfigKey>[Channel1],stem_count</ConfigKey>
+                <BindProperty>visible</BindProperty>
+              </Connection>
+              <Children>
+                    <PushButton>
+                      <ObjectName>StemDrums</ObjectName>
+                      <Size>54f,22f</Size>
+                      <NumberStates>2</NumberStates>
+                      <State><Number>0</Number><Text>Drums</Text></State>
+                      <State><Number>1</Number><Text>Drums</Text></State>
+                      <Connection><ConfigKey>[Channel1_Stem1],mute</ConfigKey></Connection>
+                    </PushButton>
+                    <PushButton>
+                      <ObjectName>StemBass</ObjectName>
+                      <Size>54f,22f</Size>
+                      <NumberStates>2</NumberStates>
+                      <State><Number>0</Number><Text>Bass</Text></State>
+                      <State><Number>1</Number><Text>Bass</Text></State>
+                      <Connection><ConfigKey>[Channel1_Stem2],mute</ConfigKey></Connection>
+                    </PushButton>
+                    <PushButton>
+                      <ObjectName>StemMelodie</ObjectName>
+                      <Size>54f,22f</Size>
+                      <NumberStates>2</NumberStates>
+                      <State><Number>0</Number><Text>Melodie</Text></State>
+                      <State><Number>1</Number><Text>Melodie</Text></State>
+                      <Connection><ConfigKey>[Channel1_Stem3],mute</ConfigKey></Connection>
+                    </PushButton>
+                    <PushButton>
+                      <ObjectName>StemVocals</ObjectName>
+                      <Size>54f,22f</Size>
+                      <NumberStates>2</NumberStates>
+                      <State><Number>0</Number><Text>Vocals</Text></State>
+                      <State><Number>1</Number><Text>Vocals</Text></State>
+                      <Connection><ConfigKey>[Channel1_Stem4],mute</ConfigKey></Connection>
+                    </PushButton>
+              </Children>
+            </WidgetGroup>
           </Children>
         </WidgetGroup>
 
@@ -151,6 +194,49 @@
                   <SizePolicy>min,min</SizePolicy>
                   <Connection><ConfigKey>[Channel2],visual_key</ConfigKey></Connection>
                 </Key>
+              </Children>
+            </WidgetGroup>
+            <WidgetGroup>
+              <ObjectName>StemReihe</ObjectName>
+              <Layout>horizontal</Layout>
+              <SizePolicy>me,min</SizePolicy>
+              <Connection>
+                <ConfigKey>[Channel2],stem_count</ConfigKey>
+                <BindProperty>visible</BindProperty>
+              </Connection>
+              <Children>
+                    <PushButton>
+                      <ObjectName>StemDrums</ObjectName>
+                      <Size>54f,22f</Size>
+                      <NumberStates>2</NumberStates>
+                      <State><Number>0</Number><Text>Drums</Text></State>
+                      <State><Number>1</Number><Text>Drums</Text></State>
+                      <Connection><ConfigKey>[Channel2_Stem1],mute</ConfigKey></Connection>
+                    </PushButton>
+                    <PushButton>
+                      <ObjectName>StemBass</ObjectName>
+                      <Size>54f,22f</Size>
+                      <NumberStates>2</NumberStates>
+                      <State><Number>0</Number><Text>Bass</Text></State>
+                      <State><Number>1</Number><Text>Bass</Text></State>
+                      <Connection><ConfigKey>[Channel2_Stem2],mute</ConfigKey></Connection>
+                    </PushButton>
+                    <PushButton>
+                      <ObjectName>StemMelodie</ObjectName>
+                      <Size>54f,22f</Size>
+                      <NumberStates>2</NumberStates>
+                      <State><Number>0</Number><Text>Melodie</Text></State>
+                      <State><Number>1</Number><Text>Melodie</Text></State>
+                      <Connection><ConfigKey>[Channel2_Stem3],mute</ConfigKey></Connection>
+                    </PushButton>
+                    <PushButton>
+                      <ObjectName>StemVocals</ObjectName>
+                      <Size>54f,22f</Size>
+                      <NumberStates>2</NumberStates>
+                      <State><Number>0</Number><Text>Vocals</Text></State>
+                      <State><Number>1</Number><Text>Vocals</Text></State>
+                      <Connection><ConfigKey>[Channel2_Stem4],mute</ConfigKey></Connection>
+                    </PushButton>
               </Children>
             </WidgetGroup>
           </Children>

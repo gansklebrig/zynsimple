@@ -55,9 +55,13 @@ def einstellungen():
     return s
 
 
+MIXXX_BIN = os.environ.get("ZS_MIXXX", "mixxx")
+MIXXX_SHARE = ["/opt/mixxx-2.6/share/mixxx"] if MIXXX_BIN.startswith("/opt/mixxx-2.6") else []
+
+
 def mixxx_version():
     try:
-        out = subprocess.run(["mixxx", "--version"], capture_output=True, text=True, timeout=20).stdout
+        out = subprocess.run([MIXXX_BIN, "--version"], capture_output=True, text=True, timeout=20).stdout
         m = re.search(r"(\d+)\.(\d+)", out)
         if m:
             return int(m.group(1)), int(m.group(2))
@@ -220,7 +224,7 @@ def controller(data, ver):
     for f in glob.glob(os.path.join(HIER, "mixxx", "*.midi.xml")) + glob.glob(os.path.join(HIER, "mixxx", "*.js")):
         shutil.copy(f, ziel)
     ddj = None
-    for basis in ("/usr/share/mixxx/controllers", "/usr/local/share/mixxx/controllers"):
+    for basis in [b + "/controllers" for b in MIXXX_SHARE] + ["/usr/share/mixxx/controllers", "/usr/local/share/mixxx/controllers"]:
         kand = sorted(f for f in glob.glob(os.path.join(basis, "*DDJ-200*.midi.xml")) if "lternative" not in f)
         if kand:
             ddj = kand[0]
@@ -312,11 +316,28 @@ def passende_kiste(s):
         log("Kiste:", e)
 
 
+def stem_kiste():
+    """Kiste „Stems vorbereiten“ anlegen: Tracks hineinziehen → werden im Hintergrund in Stems zerlegt."""
+    db = os.path.join(MIXXX, "mixxxdb.sqlite")
+    if not os.path.exists(db):
+        return
+    try:
+        con = sqlite3.connect(db, timeout=5)
+        if not con.execute("SELECT id FROM crates WHERE name='Stems vorbereiten'").fetchone():
+            con.execute("INSERT INTO crates (name, count, show, locked, autodj_source) VALUES ('Stems vorbereiten', 0, 1, 0, 0)")
+        con.commit()
+        con.close()
+    except Exception as e:
+        log("Stem-Kiste:", e)
+    for d in ("Stems", "Stems erzeugen"):
+        os.makedirs(os.path.join(MUSIK, d), exist_ok=True)
+
+
 def skin(data, s):
     wahl = s.get("DJ_SKIN") or SKIN
     if wahl == SKIN:
         quelle = os.path.join(HIER, "mixxx", "skin", SKIN)
-        for basis in ("/usr/share/mixxx/skins", "/usr/local/share/mixxx/skins"):
+        for basis in [b + "/skins" for b in MIXXX_SHARE] + ["/usr/share/mixxx/skins", "/usr/local/share/mixxx/skins"]:
             if os.path.isdir(basis):
                 ziel = os.path.join(basis, SKIN)
                 shutil.rmtree(ziel, ignore_errors=True)
@@ -364,6 +385,7 @@ def main():
     config_js(s)
     bibliothek(ordner)
     passende_kiste(s)
+    stem_kiste()
     log("fertig")
 
 
