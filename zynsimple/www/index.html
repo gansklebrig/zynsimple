@@ -343,7 +343,7 @@
   <div class="card" id="dj-card" style="display:none">
     <h2>🎧 DJ-Pult</h2>
     <p>Mixxx im Vollbild, gesteuert mit dem DDJ-200 und den Zynthian-Reglern. Zurück: Mixxx beenden oder am Zynthian <b>BACK</b> 2 s halten → System-Menü (Zynthian, Barden Beats, Updates, Neustart, Ausschalten).</p>
-    <div class="line"><button class="btn" id="dj-go">DJ-Pult starten</button><button class="btn sec" id="dj-imp">Musik vom USB-Stick übernehmen</button></div>
+    <div class="line"><button class="btn" id="dj-go">DJ-Pult starten</button><a class="btn sec" href="/import">⇩ Musik vom Stick / von der SD-Karte übernehmen</a></div>
     <h2 style="margin-top:14px">♫ DJ + Instrumente</h2>
     <p>Mixxx läuft <b>neben</b> dem Zynthian: die Musik kommt als Kanal <b>„DJ-Pult“</b> in den Mischer (Fader, Mute, Effekte, Szenen),
       Handpan, Mikro und Looper laufen wie immer daneben. Der DDJ-200 steuert nur Mixxx. Am Zynthian-Display: ⋯ → <b>Mixxx zeigen</b>,
@@ -851,20 +851,6 @@
     setTimeout(djCheck, 90000);
   };
   try { document.getElementById('dj-share').textContent = '\\\\' + location.hostname + '\\MUSIK gekauft'; } catch (e) {}
-  let impTimer = null;
-  document.getElementById('dj-imp').onclick = async () => {
-    try {
-      const r = await api('/api/dj', { aktion: 'import' });
-      if (r.error) throw new Error(r.error);
-      clearInterval(impTimer);
-      impTimer = setInterval(async () => {
-        const d = await api('/api/dj').catch(() => null); if (!d || !d.import) return;
-        const st = d.import, info = document.getElementById('dj-info');
-        if (st.phase === 'laeuft') info.textContent = 'Übernehme … ' + (st.gesamt ? st.n + ' / ' + st.gesamt : '');
-        else if (st.phase) { info.textContent = st.text || ''; clearInterval(impTimer); }
-      }, 1000);
-    } catch (e) { toast('Ging nicht: ' + e.message, 6000); }
-  };
   async function recLoad() {
     const d = await api('/api/aufnahmen').catch(() => null); const box = document.getElementById('rec-list');
     if (!d) return;

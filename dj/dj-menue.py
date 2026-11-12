@@ -265,7 +265,7 @@ class Menue:
         reihen = [
             ("MUSIK", [("auflegen", "▶  Auflegen", "Menü schließen, zurück zu Mixxx", GOLD, True),
                        ("einlesen", "⟳  USB-Stick neu einlesen", "nach dem Einstecken – Mixxx startet kurz neu", GRUEN, False),
-                       ("importieren", "⇩  Musik auf den Zynthian", "kopiert den Stick – danach ohne Stick", None, False)]),
+                       ("importieren", "⇩  Musik auf den Zynthian", "„MUSIK gekauft“ ganz · Auswahl am Handy: …:8090/import", None, False)]),
             ("WECHSELN", [("zynthian", "◼  Zum Zynthian", "Mischer und Synths", None, False),
                           ("hybrid", "♫  DJ + Instrumente", "Mixxx als Kanal im Mischer", None, False),
                           ("imres", "♫  Barden Beats", "Bühne & Klangwelten", None, False) if os.path.exists(IMRES) else None,

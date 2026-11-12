@@ -8,6 +8,7 @@
 #   zynsimple-dj aus            Mixxx sauber beenden und ausschalten
 #   zynsimple-dj neustart       Mixxx sauber beenden und neu starten
 #   zynsimple-dj update-zynsimple|update-zynthian|update-barden   Updates aus dem System-Menü (BACK 2 s)
+#   zynsimple-dj importieren [liste]  Musik vom Stick übernehmen (mit Liste: nur die Auswahl aus dem Stick-Browser)
 #   zynsimple-dj hybrid         zum Zynthian und dort „DJ + Instrumente“ starten
 #   zynsimple-dj importieren    Musik vom USB-Stick (Ordner „MUSIK gekauft“) auf den Zynthian kopieren
 #   zynsimple-dj installieren   Mixxx & Co. einmalig installieren (braucht Internet)
@@ -172,6 +173,30 @@ case "$1" in
   importieren)
     # Musik vom Stick auf den Zynthian (nur Neues/Geändertes). Danach lädt nichts mehr vom Stick.
     exec 9>/run/zynsimple-dj-import.lock; flock -n 9 || { echo "Der Import läuft schon."; exit 1; }
+    # mit Liste (vom Stick-Browser: Größe<TAB>Quelle<TAB>Ziel): nur das Ausgewählte übernehmen
+    if [ -n "${2:-}" ] && [ -f "$2" ]; then
+      LISTE="$2"; mkdir -p "$MUSIK"
+      GESAMT=$(grep -c . "$LISTE"); GESAMT_B=$(awk -F'\t' '{s+=$1} END{printf "%d", s}' "$LISTE")
+      N=0; KOPIERT_B=0; NEU=0
+      echo "START $GESAMT $GESAMT_B" > "$IMPORT_LOG"
+      while IFS=$'\t' read -r GR F REL; do
+        [ -n "$F" ] || continue
+        N=$((N + 1)); Z="$MUSIK/$REL"
+        if [ ! -f "$F" ]; then echo "FEHLER Stick abgezogen? $(basename "$F") fehlt" >> "$IMPORT_LOG"; exit 1; fi
+        if [ ! -f "$Z" ] || [ "$GR" != "$(stat -c %s "$Z")" ]; then
+          echo "DATEI $N $GESAMT $KOPIERT_B $GESAMT_B $REL" >> "$IMPORT_LOG"
+          mkdir -p "$(dirname "$Z")" && cp -p "$F" "$Z.teil" && mv "$Z.teil" "$Z" \
+            || { echo "FEHLER Kopieren ging nicht: $REL" >> "$IMPORT_LOG"; rm -f "$Z.teil"; exit 1; }
+          NEU=$((NEU + 1))
+        fi
+        KOPIERT_B=$((KOPIERT_B + GR))
+        echo "STAND $N $GESAMT $KOPIERT_B $GESAMT_B $REL" >> "$IMPORT_LOG"
+      done < "$LISTE"
+      sync
+      echo "FERTIG $N $NEU" >> "$IMPORT_LOG"
+      echo "$N Titel übernommen ($NEU neu)."
+      exit 0
+    fi
     QUELLE=""
     for Q in /media/*/*/"MUSIK gekauft" /media/*/"MUSIK gekauft"; do [ -d "$Q" ] && { QUELLE="$Q"; break; }; done
     if [ -z "$QUELLE" ]; then

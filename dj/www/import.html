@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0908">
+<title>Musik übernehmen</title>
+<style>
+  :root {
+    --bg: #0b0908; --panel: #16120f; --panel2: #1f1915; --line: #2e261f; --sel: #2a2014;
+    --tx: #f3e9d8; --tx2: #a69a8a; --gold: #e8b04a; --gold2: #ffd98a; --rot: #e0445e; --gruen: #34c78a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--tx); font: 16px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 12px 16px 8px; border-bottom: 1px solid var(--line); }
+  h1 { margin: 0 0 4px; font-size: 20px; color: var(--gold); display: flex; align-items: center; gap: 10px; }
+  h1 a { margin-left: auto; font-size: 14px; color: var(--tx2); text-decoration: none; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; }
+  .pfad { color: var(--tx2); font-size: 13px; overflow-wrap: anywhere; }
+  main { padding: 6px 12px 110px; }
+  .zeile { display: flex; align-items: center; gap: 10px; padding: 8px 8px; margin: 6px 0; border: 1px solid var(--line);
+    border-radius: 12px; background: var(--panel); }
+  .zeile.an { background: var(--sel); border-color: var(--gold); }
+  .box { flex: none; width: 40px; height: 40px; border-radius: 9px; border: 2px solid #7a5a26; background: var(--panel2);
+    color: #000; font-size: 22px; font-weight: 700; }
+  .an .box { background: var(--gold); border-color: var(--gold); }
+  .info { flex: 1; min-width: 0; }
+  .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sub { font-size: 13px; color: var(--tx2); }
+  .sub.da { color: var(--gruen); }
+  .auf { flex: none; width: 44px; height: 40px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel2);
+    color: var(--gold); font-size: 22px; }
+  .hoch { width: 100%; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel2); color: var(--tx); font-size: 15px; }
+  .leer { text-align: center; color: var(--tx2); padding: 40px 10px; }
+  footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg); border-top: 1px solid var(--line);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); display: flex; gap: 8px; align-items: center; }
+  footer .sum { flex: 1; font-size: 13px; color: var(--tx2); }
+  footer .sum b { color: var(--tx); }
+  footer button { padding: 12px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel2); color: var(--tx); font-size: 14px; }
+  footer button.los { background: var(--gold); color: #000; border-color: var(--gold); font-weight: 700; font-size: 16px; }
+  footer button:disabled { opacity: .45; }
+  #balken { display: none; padding: 16px; margin: 10px 0; border: 1px solid var(--gold); border-radius: 12px; background: var(--panel); }
+  #balken .bar { height: 10px; background: var(--panel2); border-radius: 6px; overflow: hidden; margin: 10px 0 6px; }
+  #balken .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--rot), var(--gold), var(--gruen)); }
+  #toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); max-width: calc(100% - 32px); background: #2a2014;
+    color: var(--tx); border: 1px solid var(--gold); border-radius: 12px; padding: 12px 16px; font-size: 15px; opacity: 0;
+    transition: opacity .2s; pointer-events: none; text-align: center; }
+  #toast.da { opacity: 1; }
+  #toast.fehler { border-color: var(--rot); }
+</style>
+</head>
+<body class="__MODUS__">
+<header>
+  <h1>⇩ Musik übernehmen <a href="/" id="zurueck">⟵ zurück</a></h1>
+  <div class="pfad" id="pfad">Stick wird gelesen …</div>
+</header>
+<main>
+  <div id="balken"><b id="bTitel">Wird übernommen …</b><div class="bar"><i id="bI"></i></div><div class="sub" id="bText"></div></div>
+  <div id="liste"><div class="leer">Lädt …</div></div>
+</main>
+<footer>
+  <button id="alle">Alle hier</button>
+  <div class="sum" id="sum">Alben oder Titel antippen ☐</div>
+  <button class="los" id="los" disabled>⇩ Übernehmen</button>
+</footer>
+<div id="toast"></div>
+<script>
+const modus = document.body.className;
+let pin = ""; try { pin = localStorage.getItem("zs_pin") || ""; } catch (e) {}
+const kopf = x => Object.assign({"X-Zynsimple-Pin": pin}, x || {});
+const liste = document.getElementById("liste"), toastEl = document.getElementById("toast");
+let daten = null, wahl = new Set(), erst = true;
+
+function toast(t, f) { toastEl.textContent = t; toastEl.className = "da" + (f ? " fehler" : ""); clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.className = "", 4000); }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"})[c]); }
+function gr(b) { return b >= 2 ** 30 ? (b / 2 ** 30).toFixed(1).replace(".", ",") + " GB" : b >= 2 ** 20 ? Math.round(b / 2 ** 20) + " MB" : Math.max(1, Math.round(b / 1024)) + " kB"; }
+function gewaehlt(p) { for (const w of wahl) if (p === w || p.startsWith(w + "/")) return true; return false; }
+async function post(url, body) {
+  const r = await fetch(url, {method: "POST", headers: kopf({"Content-Type": "application/json"}), body: JSON.stringify(body)});
+  return r.json();
+}
+
+async function laden(pfad) {
+  liste.innerHTML = '<div class="leer">Lädt …</div>';
+  try {
+    const r = await fetch("/api/stick?pfad=" + encodeURIComponent(pfad || ""), {headers: kopf()});
+    let d = await r.json();
+    if (d.fehler || d.error) throw new Error(d.fehler || d.error);
+    if (!pfad && erst && d.eintraege.length === 1) { erst = false; return laden(d.eintraege[0].pfad); }
+    erst = false; daten = d; zeigen();
+  } catch (e) { liste.innerHTML = '<div class="leer">' + esc(e.message) + '</div>'; }
+}
+
+function zeigen() {
+  const d = daten;
+  document.getElementById("pfad").textContent = d.name;
+  let h = "";
+  if (d.eltern !== null && d.eltern !== undefined) h += '<button class="hoch" data-hoch="1">⟵ eine Ebene hoch</button>';
+  if (!d.eintraege.length) h += '<div class="leer">' + (d.pfad ? "Hier ist keine Musik (mp3, flac, wav, m4a, ogg …)." : "Kein USB-Stick und keine SD-Karte gefunden.<br>Einstecken und neu laden.") + "</div>";
+  for (const e of d.eintraege) {
+    const an = gewaehlt(e.pfad), alle = e.da && e.da >= e.titel;
+    h += `<div class="zeile${an ? " an" : ""}" data-p="${esc(e.pfad)}">
+      <button class="box" data-wahl="1">${an ? "✓" : ""}</button>
+      <div class="info" ${e.ordner ? 'data-auf="1"' : 'data-wahl="1"'}><div class="name">${e.ordner ? "▸ " : "♪ "}${esc(e.name)}</div>
+        <div class="sub${alle ? " da" : ""}">${e.ordner ? e.titel + " Titel · " : ""}${gr(e.bytes)}${alle ? " · ✓ schon auf dem Zynthian" : e.da ? " · " + e.da + " schon da" : ""}</div></div>
+      ${e.ordner ? '<button class="auf" data-auf="1">›</button>' : ""}</div>`;
+  }
+  liste.innerHTML = h;
+  summe();
+}
+
+async function summe() {
+  const los = document.getElementById("los"), s = document.getElementById("sum");
+  los.disabled = !wahl.size;
+  if (!wahl.size) { s.innerHTML = "Alben oder Titel antippen ☐"; return; }
+  try {
+    const d = await post("/api/stick/summe", {pfade: [...wahl]});
+    s.innerHTML = "<b>" + d.titel + " Titel</b> · " + gr(d.bytes) + (d.da ? "<br>" + d.neu + " neu" : "");
+  } catch (e) {}
+}
+
+liste.addEventListener("click", async ev => {
+  if (ev.target.closest("[data-hoch]")) return laden(daten.eltern || "");
+  const z = ev.target.closest(".zeile"); if (!z) return;
+  const p = z.dataset.p;
+  if (ev.target.closest("[data-auf]") && !ev.target.closest("[data-wahl]")) return laden(p);
+  if (gewaehlt(p)) {
+    // ist ein Ordner darüber gewählt, teilt der Zynthian ihn auf – alles andere darin bleibt gewählt
+    const d = await post("/api/stick/abwaehlen", {wahl: [...wahl], pfad: p}).catch(() => null);
+    if (d && d.wahl) wahl = new Set(d.wahl);
+  } else {
+    wahl.add(p);
+    for (const w of [...wahl]) if (w.startsWith(p + "/")) wahl.delete(w);
+  }
+  zeigen();
+});
+document.getElementById("alle").onclick = () => { if (daten) { daten.eintraege.forEach(e => { if (!gewaehlt(e.pfad)) wahl.add(e.pfad); }); zeigen(); } };
+document.getElementById("los").onclick = async () => {
+  const d = await post("/api/stick/import", {pfade: [...wahl]}).catch(e => ({fehler: e.message}));
+  if (d.fehler || d.error) return toast(d.fehler || d.error, true);
+  toast(d.text || "Wird übernommen …");
+  verfolgen();
+};
+
+async function verfolgen() {
+  const b = document.getElementById("balken"); b.style.display = "block"; window.scrollTo(0, 0);
+  for (;;) {
+    await new Promise(r => setTimeout(r, 800));
+    let s; try { s = await (await fetch("/api/stick/stand", {headers: kopf()})).json(); } catch (e) { continue; }
+    if (s.phase === "fehler") { document.getElementById("bTitel").textContent = "Ging nicht"; document.getElementById("bText").textContent = s.text; return; }
+    if (s.phase === "fertig") {
+      document.getElementById("bTitel").textContent = "✓ Fertig"; document.getElementById("bI").style.width = "100%";
+      document.getElementById("bText").textContent = s.text + " · der Stick kann raus";
+      wahl.clear(); if (daten) laden(daten.pfad); return;
+    }
+    const p = s.gesamt_b ? s.bytes / s.gesamt_b : (s.gesamt ? s.n / s.gesamt : 0);
+    document.getElementById("bI").style.width = Math.round(p * 100) + "%";
+    document.getElementById("bText").textContent = (s.n || 0) + " von " + (s.gesamt || "?") + " Titeln · " + Math.round(p * 100) + " %" + (s.datei ? " · " + s.datei : "");
+  }
+}
+laden("");
+</script>
+</body>
+</html>

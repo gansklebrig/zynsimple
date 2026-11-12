@@ -73,6 +73,19 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 4.2 – Stick durchblättern, Alben und Titel auswählen
+
+- **⇩ Musik übernehmen** zeigt jetzt den **ganzen Inhalt** von USB-Stick oder SD-Karte (im Kartenleser) –
+  nicht mehr nur „MUSIK gekauft“. Zu finden: ⋯-Menü (sobald etwas steckt), Einstellungen → Bühne oder
+  DJ-Pult, am Handy unter **…:8090/import** (auch im DJ-Modus).
+- **Kästchen ☐ antippen** = Album/Ordner oder einzelnen Titel auswählen, **Name/›** = Ordner öffnen.
+  Ein gewählter Ordner nimmt alles darin mit; einen Teil darin abwählen geht trotzdem.
+- Unten steht, wie viel es ist (Titel, MB, wie viel davon neu). **⇩ Übernehmen** kopiert alles gesammelt,
+  mit Fortschritt. Was schon auf dem Zynthian ist, zeigt ein grünes „✓ schon auf dem Zynthian“ und wird
+  nicht nochmal kopiert. Liegt etwas in „MUSIK gekauft“ auf dem Stick, landet es ohne diesen Ordnernamen
+  in der Bibliothek – sonst mit derselben Ordnerstruktur wie auf dem Stick.
+- Im DJ-Modus (Handy): die neuen Titel erscheinen in Mixxx nach ☰ → *USB-Stick neu einlesen*.
+
 ## Neu in Version 4.1 – Musik übernehmen in jedem Modus
 
 - **⇩ Musik übernehmen** gibt es jetzt auch auf der Seite **Einstellungen → Bühne** (neben *DJ + Instrumente*)

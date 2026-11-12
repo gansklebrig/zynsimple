@@ -157,46 +157,46 @@ def samba_einrichten():
 
 
 def musik_stick():
-    """Eingesteckter USB-Stick oder SD-Karte (im USB-Kartenleser) mit Ordner „MUSIK gekauft“ – oder None."""
-    import glob
-    for q in sorted(glob.glob("/media/*/*/MUSIK gekauft") + glob.glob("/media/*/MUSIK gekauft")):
-        if os.path.isdir(q):
-            return os.path.basename(os.path.dirname(q))
-    return None
+    """Name des eingesteckten USB-Sticks / der SD-Karte (im USB-Kartenleser) – oder None."""
+    try:
+        st = stick_modul().sticks()
+    except Exception:
+        return None
+    return st[0]["name"] if st else None
 
 
-def import_starten():
-    """Musik vom USB-Stick übernehmen (läuft losgelöst; Fortschritt über import_stand())."""
+def stick_modul():
+    """dj/stick.py – Stick/Karte durchblättern und Auswahl übernehmen (gemeinsam mit der DJ-Handy-Seite)."""
+    import importlib.util
+    import sys
+    mod = sys.modules.get("zs_dj_stick")
+    if mod is None:
+        pfad = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dj", "stick.py")
+        spec = importlib.util.spec_from_file_location("zs_dj_stick", pfad)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        sys.modules["zs_dj_stick"] = mod
+    return mod
+
+
+def import_starten(auswahl=None):
+    """Musik vom USB-Stick übernehmen (läuft losgelöst; Fortschritt über import_stand()).
+    auswahl: Liste von Ordnern/Dateien auf dem Stick – sonst der ganze Ordner „MUSIK gekauft“."""
     if not eingerichtet():
         raise RuntimeError("DJ-Pult ist nicht eingerichtet")
+    if _laeuft("/run/zynsimple-dj-import.lock"):
+        raise RuntimeError("Es wird gerade schon Musik übernommen")
+    liste = stick_modul().auswahl_vorbereiten(auswahl) if auswahl else None
     try:
         os.remove(IMPORT_LOG)
     except OSError:
         pass
-    _losgeloest(["importieren"])
+    _losgeloest(["importieren"] + ([liste] if liste else []))
 
 
 def import_stand():
     """{"phase": "laeuft"|"fertig"|"fehler"|None, "n", "gesamt", "bytes", "gesamt_b", "datei", "text"}"""
-    try:
-        with open(IMPORT_LOG, encoding="utf-8", errors="replace") as f:
-            zeilen = [z.rstrip("\n") for z in f if z.strip()]
-    except OSError:
-        return {"phase": None}
-    if not zeilen:
-        return {"phase": "laeuft", "n": 0, "gesamt": 0, "datei": ""}
-    letzte = zeilen[-1]
-    if letzte.startswith("FEHLER"):
-        return {"phase": "fehler", "text": letzte[7:]}
-    if letzte.startswith("FERTIG"):
-        t = letzte.split()
-        neu = t[2] if len(t) > 2 else t[1]
-        return {"phase": "fertig", "text": f"{t[1]} Dateien geprüft, {neu} neu auf den Zynthian kopiert"}
-    teile = letzte.split(" ", 5)
-    if teile[0] in ("STAND", "DATEI") and len(teile) >= 5:
-        return {"phase": "laeuft", "n": int(teile[1]), "gesamt": int(teile[2]), "bytes": int(teile[3]),
-                "gesamt_b": int(teile[4] or 0), "datei": teile[5] if len(teile) > 5 else "", "kopiert": teile[0] == "DATEI"}
-    return {"phase": "laeuft", "n": 0, "gesamt": 0, "datei": ""}
+    return stick_modul().import_stand()
 
 
 def system(aktion):

@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "4.1"
+VERSION = "4.2"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -503,8 +503,9 @@ def start_dj(zyngui, *a, **k):
     threading.Thread(target=run, daemon=True).start()
 
 
-def start_import(zyngui, *a, **k):
-    """Musik vom USB-Stick auf den Zynthian kopieren – mit Fortschritt auf dem Display."""
+def start_import(zyngui, *a, auswahl=None, **k):
+    """Musik vom USB-Stick auf den Zynthian kopieren – mit Fortschritt auf dem Display.
+    auswahl: Ordner/Titel aus dem Stick-Browser; ohne = der ganze Ordner „MUSIK gekauft“."""
     scr = zyngui.screens.get(SCREEN_NAME)
 
     def show(text, sub="", done=False, error=False):
@@ -516,10 +517,10 @@ def start_import(zyngui, *a, **k):
         from . import dj
         from . import fortschritt as fs
         fs.start("Musik vom USB-Stick übernehmen", [("Stick prüfen", 5), ("Kopieren", 92), ("Fertig", 3)])
-        fs.schritt(0, "Ordner „MUSIK gekauft“ wird gesucht")
-        show("Musik wird übernommen …", "vom USB-Stick (Ordner „MUSIK gekauft“)")
+        fs.schritt(0, "Auswahl wird geprüft" if auswahl else "Ordner „MUSIK gekauft“ wird gesucht")
+        show("Musik wird übernommen …", "deine Auswahl vom Stick" if auswahl else "vom USB-Stick (Ordner „MUSIK gekauft“)")
         try:
-            dj.import_starten()
+            dj.import_starten(auswahl)
         except Exception as e:
             fs.fehler(str(e))
             show("Import ging nicht", f"{e} Antippen zum Schließen.", error=True)

@@ -22,6 +22,7 @@ from urllib.parse import parse_qs, urlparse
 HIER = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HIER)
 import bibliothek  # noqa: E402
+import stick  # noqa: E402
 
 BEFEHL_SOCK = "/tmp/zynsimple-dj-befehl.sock"
 ZS_JSON = "/zynthian/zynthian-my-data/zynsimple/zynsimple.json"
@@ -59,6 +60,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         u = urlparse(self.path)
+        if u.path == "/import":
+            with open(os.path.join(HIER, "www", "import.html"), "rb") as f:
+                return self.antwort(200, f.read().replace(b"__MODUS__", b"dj"), "text/html; charset=utf-8")
+        if u.path == "/api/stick":
+            try:
+                return self.antwort(200, stick.liste(parse_qs(u.query).get("pfad", [""])[0] or None))
+            except Exception as e:
+                return self.antwort(200, {"fehler": str(e)})
+        if u.path == "/api/stick/stand":
+            return self.antwort(200, stick.import_stand())
         if u.path in ("/", "/bibliothek", "/index.html"):
             with open(os.path.join(HIER, "www", "bibliothek.html"), "rb") as f:
                 return self.antwort(200, f.read().replace(b"__MODUS__", b"dj"), "text/html; charset=utf-8")
@@ -81,6 +92,21 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/bib/laden":
                 with _lade_lock:
                     return self.antwort(200, {"text": bibliothek.laden(body.get("id"), body.get("deck", 1), senden)})
+            if u.path == "/api/stick/summe":
+                return self.antwort(200, stick.summe(body.get("pfade") or []))
+            if u.path == "/api/stick/abwaehlen":
+                return self.antwort(200, {"wahl": stick.abwaehlen(body.get("wahl") or [], body.get("pfad"))})
+            if u.path == "/api/stick/import":
+                liste = stick.auswahl_vorbereiten(body.get("pfade") or [])
+                try:
+                    os.remove(stick.IMPORT_LOG)
+                except OSError:
+                    pass
+                subprocess.Popen(["systemd-run", "--no-block", "--collect", "--quiet", "/usr/local/bin/zynsimple-dj",
+                                  "importieren", liste], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                 start_new_session=True)
+                return self.antwort(200, {"text": "Wird übernommen … neue Titel erscheinen in Mixxx nach "
+                                                  "☰ → USB-Stick neu einlesen"})
             if u.path == "/api/system":
                 aktion = body.get("aktion")
                 if aktion not in ("zynthian", "neu-einlesen"):

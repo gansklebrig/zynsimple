@@ -119,6 +119,22 @@ def make_handler(bridge, pin):
                         self._send(200, f.read().replace(b"__MODUS__", b"hybrid"), "text/html; charset=utf-8")
                 except OSError:
                     self._send(404, "DJ-Bibliothek fehlt", "text/plain; charset=utf-8")
+            elif path == "/import":
+                with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dj", "www",
+                                       "import.html"), "rb") as f:
+                    self._send(200, f.read().replace(b"__MODUS__", b"zynthian"), "text/html; charset=utf-8")
+            elif path in ("/api/stick", "/api/stick/stand"):
+                if not self._authorized():
+                    return self._send(401, {"error": "pin"})
+                from . import dj
+                try:
+                    if path == "/api/stick/stand":
+                        return self._send(200, dj.stick_modul().import_stand())
+                    from urllib.parse import parse_qs
+                    q = parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
+                    self._send(200, dj.stick_modul().liste(q.get("pfad", [""])[0] or None))
+                except Exception as e:
+                    self._send(200, {"fehler": str(e)})
             elif path == "/api/bib":
                 if not self._authorized():
                     return self._send(401, {"error": "pin"})
@@ -268,6 +284,26 @@ def make_handler(bridge, pin):
                     self._send(200, {"ok": True, "mixxx": dj.mixxx_da()})
                 except Exception as e:
                     self._send(400, {"error": str(e)})
+                return
+            if self.path.split("?", 1)[0] in ("/api/stick/summe", "/api/stick/abwaehlen", "/api/stick/import"):
+                if not self._authorized():
+                    return self._send(401, {"error": "pin"})
+                from . import dj, start_import
+                try:
+                    n = min(int(self.headers.get("Content-Length", 0)), 4 * 1024 * 1024)
+                    req = json.loads(self.rfile.read(n) or b"{}")
+                    sm = dj.stick_modul()
+                    weg = self.path.split("?", 1)[0]
+                    if weg.endswith("summe"):
+                        return self._send(200, sm.summe(req.get("pfade") or []))
+                    if weg.endswith("abwaehlen"):
+                        return self._send(200, {"wahl": sm.abwaehlen(req.get("wahl") or [], req.get("pfad"))})
+                    pfade = req.get("pfade") or []
+                    sm.auswahl_vorbereiten(pfade)       # prüft Auswahl und Platz
+                    start_import(bridge.zyngui, auswahl=pfade)
+                    self._send(200, {"text": "Wird übernommen – Fortschritt auch am Zynthian-Display"})
+                except Exception as e:
+                    self._send(200, {"fehler": str(e)})
                 return
             if self.path.split("?", 1)[0] == "/api/bib/laden":
                 if not self._authorized():

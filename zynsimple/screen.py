@@ -11,6 +11,7 @@ Aufbau (800 × 440):
 
 import logging
 import math
+import os
 import random
 import re
 import threading
@@ -170,7 +171,7 @@ class zynsimple_screen(zynthian_gui_base):
     # ------------------------------------------------------------------
     # Bedienung mit den Zynthian-Tasten: Drehregler/Pfeile wählen, SEL löst aus, BACK zurück
     # ------------------------------------------------------------------
-    FOKUS_MODES = ("more", "settings", "track", "newtrack", "autogain", "tuner", "looper")
+    FOKUS_MODES = ("more", "settings", "track", "newtrack", "autogain", "tuner", "looper", "stick")
 
     def _fokus_ziele(self):
         roh = [(h[0], h[1], h[2], h[3], h[4], None) for h in getattr(self, "more_hits", [])] if self.mode == "more" \
@@ -428,6 +429,10 @@ class zynsimple_screen(zynthian_gui_base):
                 self.edit_tick += 1
                 if self.edit_tick % 12 == 1:
                     self.tick_settings()
+            elif self.mode == "stick":
+                if self.stick.get("neu"):
+                    self.stick["neu"] = False
+                    self.draw_stick()
             elif self.mode == "update":
                 self.draw_update()
                 delay = 40
@@ -523,6 +528,204 @@ class zynsimple_screen(zynthian_gui_base):
         self.warn_items = (wb, wt)
         if self.mode == "help":
             self.draw_help()
+
+    # ------------------------------------------------------------------
+    # Stick-Browser: Inhalt von USB-Stick / SD-Karte, Alben und Titel antippen, gesammelt übernehmen
+    # ------------------------------------------------------------------
+    def open_stick(self, pfad=None):
+        self.stick = {"pfad": pfad, "daten": None, "wahl": set(), "seite": 0, "fehler": None, "neu": False,
+                      "summe": None, "erst": pfad is None}
+        self.mode = "stick"
+        self.fokus_i = 0
+        self._stick_laden(pfad)
+        self.draw_stick()
+
+    def _stick_laden(self, pfad):
+        st = self.stick
+        st["daten"], st["fehler"], st["pfad"], st["seite"] = None, None, pfad, 0
+
+        def lauf():
+            try:
+                from . import dj
+                d = dj.stick_modul().liste(pfad)
+                # nur ein Stick steckt → gleich hinein
+                if pfad is None and len(d["eintraege"]) == 1 and st.get("erst"):
+                    st["erst"] = False
+                    st["pfad"] = d["eintraege"][0]["pfad"]
+                    d = dj.stick_modul().liste(st["pfad"])
+                st["daten"] = d
+            except Exception as e:
+                st["fehler"] = str(e)
+            st["neu"] = True
+        threading.Thread(target=lauf, daemon=True).start()
+
+    def _stick_summe(self):
+        st = self.stick
+        try:
+            from . import dj
+            st["summe"] = dj.stick_modul().summe(st["wahl"]) if st["wahl"] else None
+        except Exception:
+            st["summe"] = None
+
+    def _stick_gewaehlt(self, pfad):
+        """Gewählt – selbst oder weil ein Ordner darüber gewählt ist."""
+        return any(pfad == w or pfad.startswith(w + os.sep) for w in self.stick["wahl"])
+
+    def draw_stick(self):
+        cv = self.canvas
+        cv.delete("all")
+        self.trk_hits = []
+        W, H = self._geom()
+        st = self.stick
+        from . import dj
+        gr = dj.stick_modul().groesse
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        cv.create_text(20, 28, anchor="w", text="⇩ Musik übernehmen", font=self.f_big, fill=P["gold"])
+        self._tbtn(W - 170, 8, W - 12, 50, "✕ Schließen", "k_close", font=self.f_small)
+        d = st["daten"]
+        if st["fehler"] or d is None:
+            text = st["fehler"] or "Stick wird gelesen …"
+            cv.create_text(W / 2, H / 2, text=text, font=self.f_mid, fill=P["rose"] if st["fehler"] else P["tx2"],
+                           width=W - 80, justify="center")
+            if st["fehler"]:
+                self._tbtn(W / 2 - 110, H / 2 + 40, W / 2 + 110, H / 2 + 90, "⟳ Nochmal", "k_neu", font=self.f_small)
+            return
+        cv.create_text(20, 66, anchor="w", text=self._clip_text(d["name"], W - 40, self.f_small), font=self.f_small,
+                       fill=P["tx2"])
+        zeilen = []
+        if d["eltern"] is not None and not (d["eltern"] == "" and len(dj.stick_modul().sticks()) <= 1):
+            zeilen.append(("hoch", None))
+        zeilen += [("eintrag", e) for e in d["eintraege"]]
+        y0, y1 = 84, H - 74
+        rh = max(46, int(H / 9.5))
+        pro = max(1, int((y1 - y0) // rh))
+        seiten = max(1, math.ceil(len(zeilen) / pro))
+        st["seite"] = min(st["seite"], seiten - 1)
+        if not d["eintraege"]:
+            cv.create_text(W / 2, (y0 + y1) / 2, text="Hier ist keine Musik (mp3, flac, wav, m4a, ogg …)",
+                           font=self.f_mid, fill=P["tx2"])
+        for k, (art, e) in enumerate(zeilen[st["seite"] * pro:(st["seite"] + 1) * pro]):
+            ya, yb = y0 + k * rh + 2, y0 + (k + 1) * rh - 2
+            if art == "hoch":
+                self._tbtn(14, ya, W - 14, yb, "⟵  eine Ebene hoch", "k_hoch", font=self.f_small)
+                continue
+            an = self._stick_gewaehlt(e["pfad"])
+            self.rrect(14, ya, W - 14, yb, 12, fill="#2a2014" if an else P["card"],
+                       outline=P["gold"] if an else P["line"], width=2 if an else 1)
+            # Auswahl-Kästchen
+            bw = yb - ya - 8
+            self.rrect(22, ya + 4, 22 + bw, yb - 4, 8, fill=P["gold"] if an else P["card2"],
+                       outline=P["gold"] if an else P["gold_dim"], width=2)
+            cv.create_text(22 + bw / 2, (ya + yb) / 2, text="✓" if an else "", font=self.f_mid, fill=P["black"])
+            self.trk_hits.append((14, ya, 30 + bw, yb, "k_wahl", e["pfad"]))
+            # Name und Angaben
+            tx = 36 + bw
+            name = ("▸ " if e["ordner"] else "♪ ") + e["name"]
+            cv.create_text(tx, ya + (yb - ya) * 0.36, anchor="w", font=self.f_small, fill=P["champ"],
+                           text=self._clip_text(name, W - tx - 70, self.f_small))
+            info = (f"{e['titel']} Titel · " if e["ordner"] else "") + gr(e["bytes"])
+            if e["da"] and e["da"] >= e["titel"]:
+                info += " · ✓ schon auf dem Zynthian"
+            elif e["da"]:
+                info += f" · {e['da']} schon da"
+            cv.create_text(tx, ya + (yb - ya) * 0.72, anchor="w", font=self.f_tiny,
+                           fill=P["emerald"] if e["da"] and e["da"] >= e["titel"] else P["tx2"], text=info)
+            if e["ordner"]:
+                cv.create_text(W - 34, (ya + yb) / 2, text="›", font=self.f_big, fill=P["gold"])
+                self.trk_hits.append((30 + bw, ya, W - 14, yb, "k_auf", e["pfad"]))
+            else:
+                self.trk_hits.append((30 + bw, ya, W - 14, yb, "k_wahl", e["pfad"]))
+        # Leiste unten
+        by0, by1 = H - 64, H - 10
+        bx = 14
+        if seiten > 1:
+            self._tbtn(bx, by0, bx + 56, by1, "▲", "k_seite", -1, font=self.f_small)
+            cv.create_text(bx + 92, (by0 + by1) / 2, text=f"{st['seite'] + 1}/{seiten}", font=self.f_tiny, fill=P["tx2"])
+            self._tbtn(bx + 128, by0, bx + 184, by1, "▼", "k_seite", 1, font=self.f_small)
+            bx += 196
+        self._tbtn(bx, by0, bx + 130, by1, "Alle hier", "k_alle", font=self.f_small)
+        bx += 138
+        su = st.get("summe")
+        if st["wahl"]:
+            self._tbtn(bx, by0, bx + 100, by1, "Nichts", "k_nichts", font=self.f_small)
+            bx += 108
+        lw = 230
+        if su:
+            txt = f"{su['titel']} Titel · {gr(su['bytes'])}" + (f"\n{su['neu']} neu" if su["da"] else "")
+            cv.create_text((bx + W - lw - 20) / 2, (by0 + by1) / 2, text=txt, font=self.f_tiny, fill=P["champ"],
+                           justify="center")
+        else:
+            cv.create_text((bx + W - lw - 20) / 2, (by0 + by1) / 2, text="Alben/Titel antippen ☐",
+                           font=self.f_tiny, fill=P["tx2"])
+        if st["wahl"]:
+            self._tbtn(W - lw - 14, by0, W - 14, by1, "⇩ Übernehmen", "k_los", fill=P["gold"], fg=P["black"],
+                       font=self.f_mid)
+        else:
+            self.rrect(W - lw - 14, by0, W - 14, by1, 14, fill=P["card"], outline=P["line"])
+            cv.create_text(W - lw / 2 - 14, (by0 + by1) / 2, text="⇩ Übernehmen", font=self.f_mid, fill=P["tx2"])
+
+    def stick_press(self, ev):
+        h = None
+        for hh in reversed(getattr(self, "trk_hits", [])):
+            if hh[0] <= ev.x <= hh[2] and hh[1] <= ev.y <= hh[3]:
+                h = hh
+                break
+        if not h:
+            return
+        art, extra = h[4], h[5]
+        st = self.stick
+        if art == "k_close":
+            return self.close_stick()
+        if art == "k_neu":
+            self._stick_laden(st["pfad"])
+        elif art == "k_hoch":
+            self._stick_hoch()
+        elif art == "k_auf":
+            self.fokus_i = 0
+            self._stick_laden(extra)
+        elif art == "k_seite":
+            st["seite"] = max(0, st["seite"] + extra)
+            self.fokus_i = 0
+        elif art == "k_wahl":
+            from . import dj
+            sm = dj.stick_modul()
+            if self._stick_gewaehlt(extra):
+                st["wahl"] = set(sm.abwaehlen(st["wahl"], extra))
+            else:
+                st["wahl"] = set(sm.waehlen(st["wahl"], extra))
+            self._stick_summe()
+        elif art == "k_alle":
+            for e in (st["daten"] or {}).get("eintraege", []):
+                if not self._stick_gewaehlt(e["pfad"]):
+                    st["wahl"].add(e["pfad"])
+            self._stick_summe()
+        elif art == "k_nichts":
+            st["wahl"].clear()
+            st["summe"] = None
+        elif art == "k_los":
+            from . import start_import
+            auswahl = sorted(st["wahl"])
+            try:
+                from . import dj
+                dj.stick_modul().auswahl_vorbereiten(auswahl)      # prüft Platz, bevor es losgeht
+            except Exception as e:
+                self._flash(str(e))
+                return
+            start_import(self.zyngui, auswahl=auswahl)
+            return
+        self.draw_stick()
+
+    def _stick_hoch(self):
+        d = self.stick.get("daten") or {}
+        if d.get("eltern") is None:
+            return self.close_stick()
+        self.fokus_i = 0
+        self._stick_laden(d["eltern"] or None)
+        self.draw_stick()
+
+    def close_stick(self):
+        self.mode = "mix"
+        self.sig = None
 
     def open_help(self, willkommen=False):
         self.mode = "help"
@@ -1195,6 +1398,8 @@ class zynsimple_screen(zynthian_gui_base):
             return self.track_press(ev)
         if self.mode == "settings":
             return self.settings_press(ev)
+        if self.mode == "stick":
+            return self.stick_press(ev)
         if self.mode == "help":
             if self.help_page == 0:
                 self.help_page = 1
@@ -1515,7 +1720,7 @@ class zynsimple_screen(zynthian_gui_base):
             except Exception:
                 stick_ = None
             if stick_:
-                items.insert(0, ("djimport", "⇩ Musik übernehmen", f"von „{stick_}“ auf den Zynthian"))
+                items.insert(0, ("djimport", "⇩ Musik übernehmen", f"„{stick_}“: Alben/Titel auswählen"))
             hy = getattr(self.bridge, "hybrid", None)
             if hy is not None and hy.laeuft():
                 items.insert(0, ("hybrid_aus", "DJ + Instr. beenden", "Mixxx schließen · Spuren bleiben"))
@@ -1559,8 +1764,7 @@ class zynsimple_screen(zynthian_gui_base):
                     from . import start_dj
                     start_dj(self.zyngui)
                 elif art == "djimport":
-                    from . import start_import
-                    start_import(self.zyngui)
+                    return self.open_stick()
                 elif art in ("hybrid", "hybrid_zeigen", "hybrid_aus"):
                     hy = self.bridge.hybrid
                     try:
@@ -2742,8 +2946,9 @@ class zynsimple_screen(zynthian_gui_base):
             from . import dj
             stick = dj.musik_stick()
             return ("Musik übernehmen",
-                    (f"„{stick}“ steckt – " if stick else "Ordner „MUSIK gekauft“ von USB-Stick oder SD-Karte (Kartenleser) · ")
-                    + "kopiert nur Neues, danach kann er raus", "Übernehmen", getattr(self, "dj_installed", False), False)
+                    (f"„{stick}“ steckt – Alben und Titel auswählen" if stick else
+                     "USB-Stick oder SD-Karte (Kartenleser) einstecken · Alben und Titel auswählen")
+                    + " · nur Neues wird kopiert", "Auswählen", getattr(self, "dj_installed", False), False)
         if art == "s_djordner":
             a = getattr(self, "set_addr", {}) or {}
             ip = a.get("ip") or "zynthian"
@@ -2979,9 +3184,7 @@ class zynsimple_screen(zynthian_gui_base):
                     dj.samba_einrichten()
                     self._flash("WLAN-Ordner wird eingerichtet – dauert beim ersten Mal 1–2 Minuten")
             elif art == "s_djimport":
-                from . import start_import
-                start_import(self.zyngui)
-                return
+                return self.open_stick()
             elif art == "s_mixxx26":
                 from . import dj, start_aufgabe
                 if not dj.mixxx26_da():
@@ -3691,6 +3894,8 @@ class zynsimple_screen(zynthian_gui_base):
             self.close_help()
         elif self.mode in ("autogain", "tuner", "looper"):
             self.close_tool()
+        elif self.mode == "stick":
+            self._stick_hoch()
         elif self.mode in ("more", "xy", "fxview", "track", "newtrack", "settings"):
             self.mode = "mix"
             self.sig = None
@@ -3786,5 +3991,5 @@ def _mit_fokus(name):
     setattr(zynsimple_screen, name, neu)
 
 
-for _n in ("draw_more", "draw_track", "draw_newtrack", "draw_tool", "draw_settings"):
+for _n in ("draw_more", "draw_track", "draw_newtrack", "draw_tool", "draw_settings", "draw_stick"):
     _mit_fokus(_n)
