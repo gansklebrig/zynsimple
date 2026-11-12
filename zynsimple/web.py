@@ -315,7 +315,7 @@ def make_handler(bridge, pin):
                     n = min(int(self.headers.get("Content-Length", 0)), 1024)
                     req = json.loads(self.rfile.read(n) or b"{}")
                     with _bib_lock:
-                        self._send(200, {"text": _bibliothek().laden(req.get("id"), req.get("deck", 1), hy.senden)})
+                        self._send(200, {"text": hy.laden(req.get("id"), req.get("deck", 1))})
                 except Exception as e:
                     self._send(200, {"fehler": str(e)})
                 return

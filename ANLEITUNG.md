@@ -73,6 +73,15 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 4.6 – Titel laden bei DJ + Instrumente
+
+- Im Mischer hat der Kanal **„DJ-Pult“** jetzt oben einen goldenen Knopf **♫ Titel laden** (auch im ⋯-Menü).
+- Reiter **Neu dazu** (zuletzt übernommene Musik zuerst), **★ Favoriten** und **A – Z** (mit Buchstaben-Leiste
+  nach Künstler). **A** oder **B** antippen = Titel landet in Deck A oder B. Mixxx blitzt dabei kurz auf
+  (der Titel wird dort gesucht), danach ist der Mischer wieder vorne.
+- Mit Drehregler/Pfeilen bedienbar; ▲ ▼ unten blättern. Suchen per Texteingabe geht am Handy: …:8090/bibliothek.
+- Frisch übernommene Musik erscheint, sobald Mixxx sie eingelesen hat (passiert automatisch, sobald kein Deck spielt).
+
 ## Neu in Version 4.5 – USB-Stick wird zuverlässiger gefunden
 
 - Sticks und Karten werden jetzt über das Gerät selbst erkannt (nicht nur über den Ordner /media) und, falls

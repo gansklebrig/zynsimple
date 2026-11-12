@@ -179,6 +179,20 @@ def stick_modul():
     return mod
 
 
+def bibliothek_modul():
+    """dj/bibliothek.py – Mixxx-Bibliothek durchsuchen und Titel ins Deck laden."""
+    import importlib.util
+    import sys
+    mod = sys.modules.get("zs_dj_bibliothek")
+    if mod is None:
+        pfad = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dj", "bibliothek.py")
+        spec = importlib.util.spec_from_file_location("zs_dj_bibliothek", pfad)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        sys.modules["zs_dj_bibliothek"] = mod
+    return mod
+
+
 def tasten_modul():
     """dj/tastenbelegung.py – eigene Tastenbelegung (Mischer, DJ-Pult, Barden Beats)."""
     import importlib.util

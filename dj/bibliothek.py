@@ -30,23 +30,38 @@ def woerter(text):
     return [w for w in re.findall(r"[^\W_]+(?:'[^\W_]+)?", str(text or ""), re.U) if w][:8]
 
 
-def suche(q="", favoriten=False, limit=60):
+def suche(q="", favoriten=False, limit=60, sortierung="sterne", buchstabe=None, start=0):
+    """sortierung: „sterne“ (Favoriten zuerst), „neu“ (zuletzt dazugekommen), „az“ (Künstler A–Z).
+    buchstabe: nur Künstler (bzw. Titel ohne Künstler), die mit diesem Buchstaben beginnen („#“ = Ziffern/Zeichen)."""
     w = woerter(q)
-    sql = ("SELECT l.id, l.artist, l.title, l.bpm, l.key_id, l.key, l.rating, l.duration, t.filename "
-           "FROM library l JOIN track_locations t ON l.location = t.id "
-           "WHERE l.mixxx_deleted = 0 AND IFNULL(t.fs_deleted, 0) = 0")
+    wo = " WHERE l.mixxx_deleted = 0 AND IFNULL(t.fs_deleted, 0) = 0"
     args = []
     for x in w:
-        sql += (" AND (IFNULL(l.artist,'') || ' ' || IFNULL(l.title,'') || ' ' || IFNULL(l.album,'') || ' ' || "
-                "IFNULL(t.filename,'')) LIKE ?")
+        wo += (" AND (IFNULL(l.artist,'') || ' ' || IFNULL(l.title,'') || ' ' || IFNULL(l.album,'') || ' ' || "
+               "IFNULL(t.filename,'')) LIKE ?")
         args.append(f"%{x}%")
     if favoriten:
-        sql += " AND l.rating >= 4"
-    sql += " ORDER BY l.rating DESC, l.artist COLLATE NOCASE, l.title COLLATE NOCASE LIMIT ?"
-    args.append(int(limit))
+        wo += " AND l.rating >= 4"
+    name = "UPPER(COALESCE(NULLIF(TRIM(l.artist),''), NULLIF(TRIM(l.title),''), t.filename))"
+    if buchstabe == "#":
+        wo += f" AND SUBSTR({name}, 1, 1) NOT BETWEEN 'A' AND 'Z'"
+    elif buchstabe:
+        wo += f" AND SUBSTR({name}, 1, 1) = ?"
+        args.append(str(buchstabe)[:1].upper())
+    ordnung = {"neu": "l.datetime_added DESC, l.id DESC",
+               "az": f"{name}, l.album COLLATE NOCASE, l.tracknumber, l.title COLLATE NOCASE"}.get(
+        sortierung, "l.rating DESC, l.artist COLLATE NOCASE, l.title COLLATE NOCASE")
+    von = " FROM library l JOIN track_locations t ON l.location = t.id"
+    sql = ("SELECT l.id, l.artist, l.title, l.bpm, l.key_id, l.key, l.rating, l.duration, t.filename" + von + wo +
+           f" ORDER BY {ordnung} LIMIT ? OFFSET ?")
     con = _db()
     try:
-        rows = con.execute(sql, args).fetchall()
+        try:
+            rows = con.execute(sql, args + [int(limit), int(start)]).fetchall()
+        except sqlite3.OperationalError:          # ältere Bibliothek ohne Spalte (tracknumber/datetime_added)
+            sql = sql.replace(", l.tracknumber", "").replace("l.datetime_added DESC, ", "")
+            rows = con.execute(sql, args + [int(limit), int(start)]).fetchall()
+        treffer = con.execute("SELECT COUNT(*)" + von + wo, args).fetchone()[0]
         gesamt = con.execute("SELECT COUNT(*) FROM library WHERE mixxx_deleted = 0").fetchone()[0]
     finally:
         con.close()
@@ -57,7 +72,7 @@ def suche(q="", favoriten=False, limit=60):
         ton = TONARTEN[key_id] if isinstance(key_id, int) and 0 < key_id < len(TONARTEN) else (key or "")
         out.append({"id": tid, "artist": artist or "", "title": title or "", "bpm": round(bpm or 0, 1),
                     "tonart": ton, "sterne": int(rating or 0), "dauer": int(dauer or 0)})
-    return {"titel": out, "gesamt": gesamt}
+    return {"titel": out, "gesamt": gesamt, "treffer": treffer}
 
 
 def _x_env():

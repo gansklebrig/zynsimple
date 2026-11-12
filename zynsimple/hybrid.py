@@ -432,6 +432,24 @@ class Hybrid:
             self._xdo("search", "--class", "mixxx").split()
         return ids[-1] if ids else None
 
+    def laden(self, track_id, deck):
+        """Titel aus der Bibliothek in Deck 1 (A) oder 2 (B) laden. Mixxx muss dafür kurz sichtbar sein
+        (der Titel wird in sein Suchfeld getippt); war ZynSimple vorne, kommt es danach wieder nach vorne."""
+        if not self.laeuft():
+            raise RuntimeError("Mixxx läuft gerade nicht – erst „DJ + Instrumente“ starten")
+        from . import dj
+        vorher = self.vorne
+        w = self._mixxx_fenster()
+        if w:
+            self._xdo("windowmap", w)
+            self._xdo("windowraise", w)
+            time.sleep(0.3)
+        try:
+            return dj.bibliothek_modul().laden(track_id, deck, self.senden)
+        finally:
+            if not vorher:
+                self.verstecken()
+
     def zeigen(self):
         if not self.laeuft():
             raise RuntimeError("DJ + Instrumente läuft nicht")
