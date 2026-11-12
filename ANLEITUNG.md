@@ -73,6 +73,26 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 4.3 – BeatStep Pro, Keytar und Ton-Anzeige
+
+Alles unter **Einstellungen → Geräte** (oder ⋯ → Neue Spur).
+
+**🎛 BeatStep Pro** – „Spuren anlegen“ legt auf einmal an:
+- **BSP 1 · Bass** auf MIDI-Kanal 1 (SEQ 1) und **BSP 2 · Melodie** auf Kanal 2 (SEQ 2),
+- auf Wunsch **BSP Drums** auf Kanal 10 (Schalter „BeatStep-Drums im Zynthian“ – aus, wenn die TR-8S trommelt).
+- Den Klang jeder Spur wählst du wie immer über die Spur. Der BeatStep Pro wird im Zynthian automatisch auf
+  „mehrere Kanäle gleichzeitig“ gestellt, damit jede Spur nur ihren Kanal hört.
+- Im Takt: am BeatStep Pro die Clock auf USB bzw. MIDI stellen – er folgt dann dem Zynthian bzw. der TR-8S.
+
+**🎸 Keytar** (MIDI-Kabel an den DIN-Eingang)
+- „Keytar anlernen“ → **eine Taste auf der Keytar drücken**. Der Zynthian erkennt Buchse und MIDI-Kanal selbst,
+  danach wählst du den Klang. Den Kanal musst du nicht kennen; stellst du ihn an der Keytar um, einfach neu anlernen.
+
+**♪ Ton-Anzeige**
+- Sobald du spielst, steht oben groß, **welche Töne gerade klingen** (z. B. A3 · C♯4 · E4), nach dem Loslassen
+  noch kurz zum Ablesen. Ist eine Tonart eingestellt, sind passende Töne **grün**, nicht passende **rot**.
+- Einstellung „Ton-Anzeige“: nur Keytar, alle MIDI-Geräte oder aus.
+
 ## Neu in Version 4.2 – Stick durchblättern, Alben und Titel auswählen
 
 - **⇩ Musik übernehmen** zeigt jetzt den **ganzen Inhalt** von USB-Stick oder SD-Karte (im Kartenleser) –

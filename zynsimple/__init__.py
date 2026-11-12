@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "4.2"
+VERSION = "4.3"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -42,6 +42,11 @@ DEFAULTS = {
     "dj_clock": True,
     "takt": "senden",
     "start_modus": "zynthian",
+    "ton_anzeige": "keytar",
+    "bsp_an": False,
+    "bsp_drums": False,
+    "keytar_geraet": None,
+    "keytar_kanal": None,
     "dj_handpan_fx": True,
     "dj_stems": True,
 }
@@ -99,6 +104,14 @@ def setup(zyngui):
     except Exception as e:
         bridge.hybrid = None
         log.warning(f"ZynSimple: DJ + Instrumente nicht verfügbar ({e})")
+    try:
+        from .geraete import Geraete
+        bridge.geraete = Geraete(bridge, settings)
+        if settings.get("keytar_geraet") or settings.get("bsp_an") or settings.get("ton_anzeige") == "alle":
+            bridge.geraete.start()
+    except Exception as e:
+        bridge.geraete = None
+        log.warning(f"ZynSimple: MIDI-Geräte nicht verfügbar ({e})")
     _buehne(zyngui, bridge, settings)
 
     if settings.get("led_recolor", True):

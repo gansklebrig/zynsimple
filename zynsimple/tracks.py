@@ -21,6 +21,8 @@ NEW_TRACKS = [
     ("instrument", "🎸", "Instrument", "Low-Cut und etwas Raum", "Instrument"),
     ("synth", "🎹", "Synth", "spielt über MIDI mit", ""),
     ("looper", "🔁", "Looper", "Schichten aufnehmen und übereinanderlegen", "Looper"),
+    ("beatstep", "🎛", "BeatStep Pro", "Bass auf Kanal 1, Melodie auf Kanal 2 – auf einmal", ""),
+    ("keytar", "🎸", "Keytar", "eine Taste drücken – Kanal wird erkannt, Töne am Display", ""),
 ]
 
 
@@ -88,7 +90,7 @@ class Tracks:
         out = []
         for key, icon, title, sub, _ in NEW_TRACKS:
             item = {"key": key, "icon": icon, "title": title, "sub": sub}
-            if key not in ("audio", "synth", "looper"):
+            if key not in ("audio", "synth", "looper", "beatstep", "keytar"):
                 try:
                     item["plugins"] = [e.replace("JV/", "") for _, e in x.plan_handpan(key)]
                 except Exception:

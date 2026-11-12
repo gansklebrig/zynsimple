@@ -171,7 +171,7 @@ class zynsimple_screen(zynthian_gui_base):
     # ------------------------------------------------------------------
     # Bedienung mit den Zynthian-Tasten: Drehregler/Pfeile wählen, SEL löst aus, BACK zurück
     # ------------------------------------------------------------------
-    FOKUS_MODES = ("more", "settings", "track", "newtrack", "autogain", "tuner", "looper", "stick")
+    FOKUS_MODES = ("more", "settings", "track", "newtrack", "autogain", "tuner", "looper", "stick", "lernen")
 
     def _fokus_ziele(self):
         roh = [(h[0], h[1], h[2], h[3], h[4], None) for h in getattr(self, "more_hits", [])] if self.mode == "more" \
@@ -400,8 +400,10 @@ class zynsimple_screen(zynthian_gui_base):
                     sig = self._signature()
                     if sig != self.sig:
                         self.sig = sig
+                        self._ton_sig = None
                         self.draw()
                     self.update_dynamic()
+                    self._ton_anzeige()
             elif self.mode == "edit":
                 self.edit_tick += 1
                 if self.edit_tick % 3 == 1:
@@ -429,6 +431,8 @@ class zynsimple_screen(zynthian_gui_base):
                 self.edit_tick += 1
                 if self.edit_tick % 12 == 1:
                     self.tick_settings()
+            elif self.mode == "lernen":
+                self.tick_lernen()
             elif self.mode == "stick":
                 if self.stick.get("neu"):
                     self.stick["neu"] = False
@@ -726,6 +730,108 @@ class zynsimple_screen(zynthian_gui_base):
     def close_stick(self):
         self.mode = "mix"
         self.sig = None
+
+    # ------------------------------------------------------------------
+    # Keytar anlernen: Taste drücken → Gerät und Kanal erkannt → Synth wählen
+    # ------------------------------------------------------------------
+    def open_lernen(self):
+        g = getattr(self.bridge, "geraete", None)
+        if g is None:
+            self._flash("MIDI mithören geht hier nicht")
+            return
+        self.lern = {"t0": time.monotonic(), "ergebnis": None}
+        lern = self.lern
+
+        def treffer(geraet, kanal):
+            lern["ergebnis"] = (geraet, kanal)
+        g.lernen(treffer)
+        self.mode = "lernen"
+        self.fokus_i = 0
+        self.draw_lernen()
+
+    def draw_lernen(self):
+        cv = self.canvas
+        cv.delete("all")
+        self.trk_hits = []
+        W, H = self._geom()
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        cv.create_text(W / 2, H * 0.2, text="🎸 Keytar anlernen", font=self.f_huge, fill=P["gold"])
+        n = int((time.monotonic() - self.lern["t0"]) * 2) % 4
+        cv.create_text(W / 2, H * 0.42, text="Drück jetzt eine Taste auf der Keytar" + "." * n, font=self.f_big,
+                       fill=P["champ"])
+        cv.create_text(W / 2, H * 0.55, width=W - 80, justify="center", font=self.f_small, fill=P["tx2"],
+                       text="Der Zynthian merkt sich, an welcher Buchse und auf welchem MIDI-Kanal sie sendet. "
+                            "Danach suchst du den Klang aus – und am Display steht immer, welcher Ton gerade spielt.")
+        self._tbtn(W / 2 - 120, H * 0.72, W / 2 + 120, H * 0.72 + 56, "Abbrechen", "l_ab", font=self.f_mid)
+
+    def tick_lernen(self):
+        r = self.lern.get("ergebnis")
+        if not r:
+            return self.draw_lernen()
+        geraet, kanal = r
+        from . import settings as st
+        st.save(self.settings, {"keytar_geraet": geraet, "keytar_kanal": kanal,
+                                "ton_anzeige": self.settings.get("ton_anzeige") if self.settings.get("ton_anzeige") != "aus"
+                                else "keytar"})
+        try:
+            self.bridge.geraete.multi_setzen({geraet})
+        except Exception:
+            pass
+        self._flash(f"Keytar erkannt: „{geraet}“, Kanal {kanal + 1} – jetzt den Klang wählen")
+        self.open_synth_browser(kanal=kanal, titel="Keytar")
+
+    def lern_press(self, ev):
+        h = next((hh for hh in reversed(self.trk_hits) if hh[0] <= ev.x <= hh[2] and hh[1] <= ev.y <= hh[3]), None)
+        if h and h[4] == "l_ab":
+            self.lern_ab()
+
+    def lern_ab(self):
+        try:
+            self.bridge.geraete.lernen_abbrechen()
+        except Exception:
+            pass
+        self.mode = "mix"
+        self.sig = None
+
+    # ------------------------------------------------------------------
+    # Ton-Anzeige (oben in der Mitte, über dem Mischer)
+    # ------------------------------------------------------------------
+    def _ton_anzeige(self):
+        g = getattr(self.bridge, "geraete", None)
+        cv = self.canvas
+        r = g.gespielt() if g is not None else None
+        sig = (r[0], r[1], tuple(r[2])) if r else None
+        if sig == getattr(self, "_ton_sig", None):
+            if sig:
+                cv.tag_raise("tonanz")
+            return
+        self._ton_sig = sig
+        cv.delete("tonanz")
+        if not r or not r[2]:
+            return
+        self._touch()
+        from . import helfer
+        from .geraete import notenname
+        geraet, kanal, noten = r
+        leiter = helfer.tonleiter(self.settings.get("tonart"))
+        W, H = self._geom()
+        teile = noten[-6:]
+        fb = (self.f_huge[0], max(18, int(H / 9)))
+        breite = max(W * 0.22, min(W * 0.9, len(teile) * fb[1] * 2.4 + 40))
+        x0, x1 = (W - breite) / 2, (W + breite) / 2
+        y0, y1 = H * 0.16, H * 0.16 + fb[1] * 2.2 + 26
+        self.rrect(x0, y0, x1, y1, 18, fill="#16120f", outline=P["gold"], width=3, tags="tonanz")
+        schritt = (breite - 40) / len(teile)
+        for i, n in enumerate(teile):
+            passt = leiter is None or (n % 12) in leiter
+            cv.create_text(x0 + 20 + schritt * (i + 0.5), y0 + fb[1] * 1.2, text=notenname(n), font=fb,
+                           fill=(P["emerald"] if leiter is not None else P["gold2"]) if passt else P["rose"],
+                           tags="tonanz")
+        name = "Keytar" if (geraet, kanal) == (self.settings.get("keytar_geraet"), self.settings.get("keytar_kanal")) \
+            else geraet
+        zusatz = "" if leiter is None else ("  ·  " + helfer.tonart_name(self.settings.get("tonart")))
+        cv.create_text(W / 2, y1 - 16, text=f"{name} · Kanal {kanal + 1}{zusatz}", font=self.f_tiny, fill=P["tx2"],
+                       tags="tonanz")
 
     def open_help(self, willkommen=False):
         self.mode = "help"
@@ -1400,6 +1506,8 @@ class zynsimple_screen(zynthian_gui_base):
             return self.settings_press(ev)
         if self.mode == "stick":
             return self.stick_press(ev)
+        if self.mode == "lernen":
+            return self.lern_press(ev)
         if self.mode == "help":
             if self.help_page == 0:
                 self.help_page = 1
@@ -2016,14 +2124,15 @@ class zynsimple_screen(zynthian_gui_base):
     # Effekt-Auswahl (9 Kacheln pro Seite)
     # ------------------------------------------------------------------
 
-    def open_synth_browser(self):
+    def open_synth_browser(self, kanal=None, titel=None):
         items = [dict(t) for t in self.x.synth_tiles()]
         known = {t["eng"] for t in items}
         for c in self.x.all_synths():
             for it in c["items"]:
                 if it["eng"] not in known:
                     items.append({"group": c["cat"], "label": it["name"], "icon": "", "eng": it["eng"]})
-        self.browser = {"chain": None, "page": 0, "items": items, "busy": None, "synth": True}
+        self.browser = {"chain": None, "page": 0, "items": items, "busy": None, "synth": True, "kanal": kanal,
+                        "titel": titel}
         self.mode = "browse"
         self.draw_browser()
 
@@ -2121,7 +2230,9 @@ class zynsimple_screen(zynthian_gui_base):
         def run():
             try:
                 if synth:
-                    result["chain"] = self.x.create_synth(eng, int(self.settings.get("synth_midi_chan", 0)))
+                    kanal = b.get("kanal")
+                    result["chain"] = self.x.create_synth(
+                        eng, int(kanal if kanal is not None else self.settings.get("synth_midi_chan", 0)), b.get("titel"))
                 else:
                     result["fx"] = self.x.try_fx(self.bridge._chain(cid), eng)
             except Exception as e:
@@ -2687,6 +2798,26 @@ class zynsimple_screen(zynthian_gui_base):
                 if extra == "synth":
                     self.open_synth_browser()
                     return
+                if extra == "keytar":
+                    self.open_lernen()
+                    return
+                if extra == "beatstep":
+                    from . import settings as st
+                    st.save(self.settings, {"bsp_an": True})
+                    try:
+                        self.bridge.geraete.start()
+                    except Exception:
+                        pass
+                    drums = bool(self.settings.get("bsp_drums"))
+
+                    def fertig(res):
+                        if "e" not in res:
+                            self.mode = "mix"
+                            self.sig = None
+                    self._run_track(lambda: {"chain": self.x.create_beatstep(drums)},
+                                    "BeatStep Pro ist da: Bass auf Kanal 1, Melodie auf Kanal 2" +
+                                    (", Drums auf Kanal 10" if drums else ""), fertig)
+                    return
                 title = next((t["title"] for t in self.ntrk["tpl"]["templates"] if t["key"] == extra), "Spur")
                 ins = list(self.ntrk["inputs"])
 
@@ -2823,6 +2954,8 @@ class zynsimple_screen(zynthian_gui_base):
                            ("act", "s_mixxx26", "◆"), ("act", "s_stems", "≋")]),
         ("buehne", "Bühne", [("act", "s_hybrid", "♫"), ("act", "s_djimport", "⇩"), ("set", "takt", "⏱"), ("set", "start_modus", "⏻"),
                              ("act", "s_gig_merken", "✓"), ("act", "s_gig_laden", "↺"), ("act", "s_strom", "⚡")]),
+        ("geraete", "Geräte", [("act", "s_keytar", "🎸"), ("set", "ton_anzeige", "♪"), ("act", "s_bsp", "🎛"),
+                               ("set", "bsp_drums", "🥁")]),
         ("system", "System", [("act", "s_imres", "♫"), ("act", "s_handy", "▤"), ("set", "update_check", "⟳"),
                               ("act", "s_sichern", "⇩"), ("act", "s_zurueck", "⇧"), ("act", "s_admin", "⚙")]),
     ]
@@ -2899,6 +3032,19 @@ class zynsimple_screen(zynthian_gui_base):
                         True, False)
             except Exception as e:
                 return ("Stems", str(e), None, True, False)
+        if art == "s_keytar":
+            g_, k_ = self.settings.get("keytar_geraet"), self.settings.get("keytar_kanal")
+            if g_:
+                return ("Keytar", f"„{g_}“, MIDI-Kanal {int(k_) + 1} · neu anlernen: Taste drücken",
+                        "Neu anlernen", True, False)
+            return ("Keytar anlernen", "MIDI-Kabel an den DIN-Eingang · eine Taste drücken – Kanal wird erkannt",
+                    "Anlernen", True, False)
+        if art == "s_bsp":
+            g = getattr(self.bridge, "geraete", None)
+            da = g.bsp_da() if g is not None else None
+            return ("BeatStep Pro", (f"„{da}“ steckt · " if da else "per USB anstecken · ")
+                    + "legt Bass (Kanal 1) und Melodie (Kanal 2) an" +
+                    (" + Drums (Kanal 10)" if self.settings.get("bsp_drums") else ""), "Spuren anlegen", True, False)
         if art == "s_djhandy":
             a = getattr(self, "set_addr", {}) or {}
             url = (a.get("url") or a.get("name") or "http://zynthian.local:8090") + "/bibliothek"
@@ -3158,6 +3304,20 @@ class zynsimple_screen(zynthian_gui_base):
                 return
             elif art == "s_handy":
                 pass
+            elif art == "s_keytar":
+                return self.open_lernen()
+            elif art == "s_bsp":
+                from . import settings as st_
+                st_.save(self.settings, {"bsp_an": True})
+                if getattr(self.bridge, "geraete", None):
+                    self.bridge.geraete.start()
+                drums = bool(self.settings.get("bsp_drums"))
+                self.mode = "mix"
+                self.sig = None
+                self._run_track(lambda: {"chain": self.x.create_beatstep(drums)},
+                                "BeatStep Pro ist da: Bass auf Kanal 1, Melodie auf Kanal 2" +
+                                (", Drums auf Kanal 10" if drums else ""))
+                return
             elif art == "s_hybrid":
                 hy = self.bridge.hybrid
                 if hy.laeuft():
@@ -3896,6 +4056,8 @@ class zynsimple_screen(zynthian_gui_base):
             self.close_tool()
         elif self.mode == "stick":
             self._stick_hoch()
+        elif self.mode == "lernen":
+            self.lern_ab()
         elif self.mode in ("more", "xy", "fxview", "track", "newtrack", "settings"):
             self.mode = "mix"
             self.sig = None
@@ -3991,5 +4153,5 @@ def _mit_fokus(name):
     setattr(zynsimple_screen, name, neu)
 
 
-for _n in ("draw_more", "draw_track", "draw_newtrack", "draw_tool", "draw_settings", "draw_stick"):
+for _n in ("draw_more", "draw_track", "draw_newtrack", "draw_tool", "draw_settings", "draw_stick", "draw_lernen"):
     _mit_fokus(_n)

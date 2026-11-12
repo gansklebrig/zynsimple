@@ -33,6 +33,11 @@ SPEC = [
     ("takt", "Wer gibt den Takt vor?", "choice",
      [("senden", "Zynthian führt"), ("folgen", "TR-8S führt"), ("aus", "aus")],
      "Zynthian führt: TR-8S läuft mit · TR-8S führt: Zynthian, Looper und Mixxx folgen ihr (MIDI-Clock, USB/DIN)"),
+    ("ton_anzeige", "Ton-Anzeige", "choice",
+     [("keytar", "nur Keytar"), ("alle", "alle MIDI-Geräte"), ("aus", "aus")],
+     "zeigt groß, welcher Ton gerade gespielt wird · grün = passt zur Tonart, rot = nicht"),
+    ("bsp_drums", "BeatStep-Drums im Zynthian", "bool", None,
+     "an: die Drum-Spur (Kanal 10) spielt ein Drumkit im Zynthian · aus: Drums macht die TR-8S"),
     ("start_modus", "Nach dem Einschalten", "choice",
      [("zynthian", "Mischer"), ("hybrid", "DJ + Instrumente"), ("dj", "DJ-Pult")],
      "womit der Zynthian startet – praktisch für den Auftritt"),
@@ -140,6 +145,8 @@ def apply_live(bridge, key):
     try:
         if key == "autosave" and bridge.extras:
             bridge.extras.autosave_info["enabled"] = bool(s.get("autosave"))
+        if key == "ton_anzeige" and s.get("ton_anzeige") != "aus" and getattr(bridge, "geraete", None):
+            bridge.geraete.start()
         if key == "takt":
             from . import takt
             if s.get("takt") == "aus":

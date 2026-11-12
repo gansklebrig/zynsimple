@@ -328,6 +328,23 @@ class Extras:
         return [{"cat": c, "items": sorted(items, key=lambda x: (not x["on"], x["name"].lower()))}
                 for c, items in sorted(cats.items())]
 
+    def create_beatstep(self, drums=False):
+        """BeatStep Pro: Bass (Kanal 1), Melodie (Kanal 2) und auf Wunsch Drums (Kanal 10) auf einmal."""
+        from .geraete import BSP_SPUREN
+        info = getattr(self.b.cm, "engine_info", None) or {}
+        neu = []
+        for key, titel, kanal, engs in BSP_SPUREN:
+            if key == "drums" and not drums:
+                continue
+            eng = next((e for e in engs if e in info), None)
+            if eng is None:
+                log.warning(f"ZynSimple: kein Synth für {titel}")
+                continue
+            neu.append(self.create_synth(eng, kanal, titel))
+        if not neu:
+            raise RuntimeError("Keiner der passenden Synths ist auf diesem Zynthian")
+        return neu[0]
+
     def create_synth(self, eng, midi_chan=0, title=None):
         """Neuer Kanal mit einem Synth, der über den MIDI-Eingang mitspielt."""
         info = getattr(self.b.cm, "engine_info", None) or {}
