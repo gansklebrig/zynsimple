@@ -407,6 +407,10 @@ class zynsimple_screen(zynthian_gui_base):
 
     def show(self):
         super().show()
+        try:
+            self.zyngui._zs_modus = "simple"
+        except Exception:
+            pass
         # Lange Drücke selbst messen (BACK 3 s), statt dass der Zynthian nach 2 s von sich aus „lang“ meldet
         try:
             self._autolong_vorher = getattr(self.zyngui, "zynswitch_autolong_disabled", False)
@@ -2287,7 +2291,7 @@ class zynsimple_screen(zynthian_gui_base):
             hy = getattr(self.bridge, "hybrid", None)
             if hy is not None and hy.laeuft():
                 items.insert(0, ("hybrid_aus", "DJ + Instr. beenden", "Mixxx schließen · Spuren bleiben"))
-                items.insert(0, ("hybrid_zeigen", "Mixxx zeigen", "zurück: beliebige Zynthian-Taste"))
+                items.insert(0, ("hybrid_zeigen", "Mixxx zeigen", "zurück: MENU-Taste"))
                 items.insert(0, ("bib", "♫ Titel laden", "Musik in Deck A oder B"))
             elif hy is not None and hy.status()["moeglich"]:
                 items.insert(1, ("hybrid", "♫ DJ + Instrumente", "Mixxx im Kanal „DJ-Pult“ · Spuren laufen weiter"))
@@ -2337,7 +2341,7 @@ class zynsimple_screen(zynthian_gui_base):
                         if art == "hybrid":
                             hy.starten()
                             self._flash("DJ + Instrumente startet – Mixxx spielt gleich im Kanal „DJ-Pult“ · "
-                                        "beliebige Zynthian-Taste = zurück zum Mischer")
+                                        "MENU = zurück zum Mischer")
                         elif art == "hybrid_zeigen":
                             threading.Thread(target=hy.zeigen, daemon=True).start()
                         else:
@@ -2356,6 +2360,7 @@ class zynsimple_screen(zynthian_gui_base):
 
     def open_expert(self):
         self.zyngui._zs_allow_home = True
+        self.zyngui._zs_modus = "profi"     # bleibt im Profi-Mischer, bis ZynSimple ausdrücklich gewählt wird
         home = "mixer" if self.bridge.vangelis else "audio_mixer"
         self.zyngui.show_screen(home)
 
@@ -3794,7 +3799,7 @@ class zynsimple_screen(zynthian_gui_base):
                 if hy.laeuft():
                     self._flash(hy.stoppen())
                 else:
-                    self._flash(hy.starten() + " · beliebige Zynthian-Taste = zurück zum Mischer")
+                    self._flash(hy.starten() + " · MENU = zurück zum Mischer")
             elif art == "s_gig_merken":
                 from . import helfer
                 self._flash(helfer.auftritt_merken(self.bridge))
@@ -4238,7 +4243,7 @@ class zynsimple_screen(zynthian_gui_base):
     # ------------------------------------------------------------------
 
     def _mixxx_weg(self):
-        """Hybrid: Ist Mixxx vorne, holt jede Zynthian-Taste/jeder Regler zuerst den Mischer zurück."""
+        """Hybrid: Mixxx vorne → nur MENU holt den Mischer zurück (Regler und Tasten wechseln nie die Ansicht)."""
         hy = getattr(self.bridge, "hybrid", None)
         if hy is not None and hy.vorne:
             hy.vorne = False
@@ -4255,8 +4260,6 @@ class zynsimple_screen(zynthian_gui_base):
                 self.zyngui.zynpot_pr_state[i] += 1
         except Exception:
             pass
-        if self._mixxx_weg():
-            return True
         if self.mode == "splash":
             self.stop_splash()
             return True
@@ -4353,12 +4356,6 @@ class zynsimple_screen(zynthian_gui_base):
             return self.LED_INDEX[rolle]
 
     def switch(self, i, t):
-        if self._mixxx_weg():
-            self._schluck = None if t in ("S", "B", "L") else i   # Druck und Loslassen gehören zusammen
-            return True
-        if getattr(self, "_schluck", None) == i and t in ("S", "B", "L"):
-            self._schluck = None
-            return True
         if self.mode == "splash":
             if t == "P":
                 self.stop_splash()
@@ -4501,11 +4498,12 @@ class zynsimple_screen(zynthian_gui_base):
             return True
         self._touch()
         if re.search(r"(^|\s)MENU(\s|$)", txt):
-            if self.mode == "more":
+            hy_ = getattr(self.bridge, "hybrid", None)
+            if self.mode == "more" and not (hy_ is not None and hy_.vorne):
                 self.mode = "mix"
                 self.sig = None
             else:
-                self._mixxx_weg()
+                self._mixxx_weg()                         # MENU: Mixxx (falls vorne) weg, ⋯ auf
                 self.mode = "more"
                 self.fokus_i = 0
                 self.draw_more()
@@ -4523,8 +4521,6 @@ class zynsimple_screen(zynthian_gui_base):
         try:
             i, t = int(params[0]), str(params[1]).upper()
         except Exception:
-            return True
-        if self._mixxx_weg():
             return True
         self._touch()
         if t not in ("S", "B"):

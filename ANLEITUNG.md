@@ -73,6 +73,14 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 5.4 – Drehen wechselt nie die Ansicht
+
+- **Drehregler und Tasten wechseln nie mehr die Ansicht.** Ist Mixxx vorne, wirken sie weiter auf den Mischer
+  (Regler, Effekte, Freeze …), aber das Bild bleibt, wie es ist.
+- **Zurück aus Mixxx: nur die Taste MENU** (öffnet ⋯ im Mischer).
+- **Profi-Mischer**: Wer ihn über ⋯ öffnet, bleibt dort. ZynSimple springt nicht mehr von selbst zurück –
+  zurück zu ZynSimple geht über das Zynthian-Menü („Einfacher Mischer“) oder BACK 3 s → System-Menü.
+
 ## Neu in Version 5.3 – Startbild schöner, Gans auch als Lade-Animation
 
 - Startbild neu gestaltet: alles untereinander – Gans im goldenen Ring, darunter „zynthian“, darunter
@@ -145,7 +153,7 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
   im DJ-Pult und in Barden Beats. (In den Original-Zynthian-Seiten bleiben es 2 s.)
 - **Drehregler oder Pfeile** = Auswahl bewegen; am Ende einer Liste blättert es von selbst auf die nächste Seite.
 - **SEL** = das Ausgewählte antippen.
-- Ist Mixxx vorne, holt jede Zynthian-Taste den Mischer zurück.
+- Ist Mixxx vorne, holt nur MENU den Mischer zurück.
 
 **DJ + Instrumente – so spielt man damit:**
 1. **ALT + PLAY** (oder der goldene Knopf „♫ Titel laden“ im Kanal DJ-Pult) öffnet die Musik.

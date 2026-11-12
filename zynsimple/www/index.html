@@ -347,7 +347,7 @@
     <h2 style="margin-top:14px">♫ DJ + Instrumente</h2>
     <p>Mixxx läuft <b>neben</b> dem Zynthian: die Musik kommt als Kanal <b>„DJ-Pult“</b> in den Mischer (Fader, Mute, Effekte, Szenen),
       Handpan, Mikro und Looper laufen wie immer daneben. Der DDJ-200 steuert nur Mixxx. Am Zynthian-Display: ⋯ → <b>Mixxx zeigen</b>,
-      beliebige Zynthian-Taste = zurück. Kopfhörer-Vorhören gibt es hier nicht – dafür ist das reine DJ-Pult da.</p>
+      Taste MENU = zurück; Regler und Tasten wirken weiter, ohne die Ansicht zu wechseln. Kopfhörer-Vorhören gibt es hier nicht – dafür ist das reine DJ-Pult da.</p>
     <p id="hy-info"></p>
     <div class="line"><button class="btn" id="hy-go">Starten</button><button class="btn sec" id="hy-show" style="display:none">Mixxx am Display zeigen</button>
       <a class="btn sec" href="/bibliothek">🔎 Musik suchen &amp; laden</a></div>
@@ -831,7 +831,7 @@
     setTimeout(djCheck, 2500);
   }
   document.getElementById('hy-go').onclick = hyStart;
-  document.getElementById('hy-show').onclick = () => djAkt('hybrid-zeigen', null, 'Mixxx ist am Zynthian vorne – beliebige Taste holt den Mischer zurück');
+  document.getElementById('hy-show').onclick = () => djAkt('hybrid-zeigen', null, 'Mixxx ist am Zynthian vorne – MENU holt den Mischer zurück');
   document.getElementById('bu-merk').onclick = async () => {
     const r = await api('/api/dj', { aktion: 'auftritt-merken' }).catch(e => ({ error: e.message }));
     toast(r.error || r.message, 5000); djCheck();

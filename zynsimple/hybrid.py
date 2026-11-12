@@ -8,7 +8,7 @@ ZynSimple – Hybrid-Modus „DJ + Instrumente“: Mixxx läuft neben der Zynthi
   - Der DDJ-200 steuert nur Mixxx (wird aus den Zynthian-Spuren herausgenommen, damit keine Synths mitspielen).
   - Tempo: Mixxx führt → Zynthian-Tempo (Sequenzer, Delays, Looper) folgt; bei „Takt: folgen“ gibt die TR-8S
     den Takt vor, der Zynthian folgt ihr und Mixxx folgt dem Zynthian.
-  - Bildschirm: Mixxx und ZynSimple wechseln sich ab (⋯ → Mixxx zeigen · jede Zynthian-Taste → zurück).
+  - Bildschirm: Mixxx und ZynSimple wechseln sich ab (⋯ → Mixxx zeigen · MENU → zurück).
     Gesucht und geladen wird am bequemsten am Handy (…:8090/bibliothek).
 
 Ohne Kopfhörer-Vorhören (das macht der externe Mischer bzw. der DDJ-200 im reinen DJ-Modus).
@@ -553,7 +553,7 @@ class Hybrid:
         self._xdo("windowraise", w)
         self._xdo("windowfocus", w)
         self.vorne = True
-        return "Mixxx vorne · beliebige Zynthian-Taste = zurück zum Mischer"
+        return "Mixxx vorne · MENU = zurück zum Mischer (Regler und Tasten wirken weiter)"
 
     def verstecken(self):
         w = self._mixxx_fenster()

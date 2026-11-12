@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "5.3"
+VERSION = "5.4"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -680,6 +680,9 @@ def redirect(zyngui, screen, hmode=None):
         if SCREEN_NAME not in zyngui.screens:
             return screen
         if screen not in HOME_NAMES:
+            return screen
+        # Profi-Mischer bewusst gewählt: nie von selbst in ZynSimple zurückspringen (Regler, BACK, Menüs …)
+        if getattr(zyngui, "_zs_modus", "simple") == "profi":
             return screen
         # Ausdrücklich gewünscht (Taste „Profi-Mischer“)
         if getattr(zyngui, "_zs_allow_home", False):
