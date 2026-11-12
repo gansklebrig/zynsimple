@@ -1073,7 +1073,7 @@ class zynsimple_screen(zynthian_gui_base):
 
     def _bib_deckhoehe(self):
         W, H = self._geom()
-        return max(54, int(H * 0.12))
+        return max(62, int(H * 0.14))
 
     def _bib_pro(self):
         W, H = self._geom()
@@ -1098,14 +1098,20 @@ class zynsimple_screen(zynthian_gui_base):
             cv.create_text(x0 + 24, y0 + dh / 2, text="A" if k == 0 else "B", font=self.f_huge, fill=farbe)
             tx = x0 + 50
             if z.get("geladen"):
-                cv.create_text(tx, y0 + dh * 0.32, anchor="w", font=self.f_small, fill=P["champ"],
-                               text=self._clip_text(z.get("titel", ""), bw - 130, self.f_small))
-                info = " · ".join(x for x in (z.get("kuenstler"), f"{z['bpm']:.1f} BPM" if z.get("bpm") else "") if x)
-                cv.create_text(tx, y0 + dh * 0.62, anchor="w", font=self.f_tiny, fill=P["tx2"],
-                               text=self._clip_text(info, bw - 130, self.f_tiny))
+                cv.create_text(tx, y0 + dh * 0.3, anchor="w", font=self.f_small, fill=P["champ"],
+                               text=self._clip_text(z.get("titel", ""), bw - 175, self.f_small))
+                cv.create_text(tx, y0 + dh * 0.6, anchor="w", font=self.f_tiny, fill=P["tx2"],
+                               text=self._clip_text(z.get("kuenstler", ""), bw - 175, self.f_tiny))
                 r = int(z.get("rest", 0))
-                cv.create_text(x1 - 12, y0 + dh * 0.32, anchor="e", font=self.f_mid, fill=farbe,
+                cv.create_text(x1 - 12, y0 + dh * 0.3, anchor="e", font=self.f_mid, fill=farbe,
                                text=("▶ " if an else "❚❚ ") + f"−{r // 60}:{r % 60:02d}")
+                # Tempo und Tonart groß – grün, wenn die Tonart zur Band passt
+                ton = z.get("tonart") or ""
+                passt = (z.get("key_id") or 0) in self._passende_keys()
+                cv.create_text(x1 - 12, y0 + dh * 0.62, anchor="e", font=self.f_small,
+                               fill=P["emerald"] if passt else P["champ"], text=ton or "–")
+                cv.create_text(x1 - 12 - max(52, W * 0.07), y0 + dh * 0.62, anchor="e", font=self.f_small,
+                               fill=farbe, text=f"{z['bpm']:.1f} BPM" if z.get("bpm") else "– BPM")
                 py = y0 + dh - 9
                 cv.create_rectangle(tx, py, x1 - 12, py + 4, fill=P["line"], outline="")
                 cv.create_rectangle(tx, py, tx + (x1 - 12 - tx) * min(1, max(0, z.get("pos", 0))), py + 4,
@@ -1175,11 +1181,18 @@ class zynsimple_screen(zynthian_gui_base):
                 gew = b.get("ddj") == k
                 self.rrect(14, ya, W - 14, yb, 12, fill="#2a2014" if hier or gew else P["card"],
                            outline=P["gold"] if hier or gew else P["line"], width=2 if gew else 1)
-                tx_w = W - 50 - 2 * bw - 20
+                spw = max(110, W * 0.15)                   # Spalte Tempo / Tonart
+                tx_w = W - 50 - 2 * bw - 20 - spw
                 cv.create_text(28, ya + (yb - ya) * 0.34, anchor="w", font=self.f_small, fill=P["champ"],
                                text=self._clip_text(t["title"], tx_w, self.f_small))
-                info = " · ".join(x for x in (t["artist"], f"{t['bpm']:g} BPM" if t["bpm"] else "", t["tonart"],
-                                              "★" * t["sterne"]) if x)
+                info = " · ".join(x for x in (t["artist"], "★" * t["sterne"]) if x)
+                sx = W - 22 - 2 * (bw + 8) - 8
+                cv.create_text(sx, ya + (yb - ya) * 0.34, anchor="e", font=self.f_small, fill=P["gold"],
+                               text=f"{t['bpm']:.1f} BPM" if t["bpm"] else "– BPM")
+                passt = t.get("key_id") in self._passende_keys()
+                cv.create_text(sx, ya + (yb - ya) * 0.72, anchor="e", font=self.f_tiny,
+                               fill=P["emerald"] if passt else P["tx2"],
+                               text=(t["tonart"] + (" · passt" if passt else "")) if t["tonart"] else "Tonart –")
                 cv.create_text(28, ya + (yb - ya) * 0.72, anchor="w", font=self.f_tiny, fill=P["tx2"],
                                text=self._clip_text(info, tx_w, self.f_tiny))
                 for j, deck in enumerate((1, 2)):
@@ -1269,6 +1282,18 @@ class zynsimple_screen(zynthian_gui_base):
             b["meldung"] = txt
         threading.Thread(target=lauf, daemon=True).start()
         self.draw_bib()
+
+    def _passende_keys(self):
+        """Mixxx-Tonarten (1–12 Dur, 13–24 Moll ab C), die zur eingestellten Tonart der Band passen."""
+        wert = self.settings.get("tonart")
+        if getattr(self, "_pk_cache", (None,))[0] != wert:
+            try:
+                from .helfer import passende_tonarten
+                ks = {ton + 1 if art == "dur" else ton + 13 for ton, art in passende_tonarten(wert)}
+            except Exception:
+                ks = set()
+            self._pk_cache = (wert, ks)
+        return self._pk_cache[1]
 
     def _ddj_tick(self):
         """DJ-Controller bei „DJ + Instrumente“: SHIFT + Jog wählt den Titel, SHIFT + Kopfhörer A/B lädt ihn.

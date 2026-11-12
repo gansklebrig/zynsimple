@@ -428,7 +428,7 @@ ZynV5.befehl = function(channel, control, value, status, group) {
 
 // ---------------------------------------------------------------------------------------------
 // Deck-Zustand für ZynSimple (DJ + Instrumente): Kanal 2 = Deck A, Kanal 3 = Deck B
-// CC 20 geladen · 21 läuft · 22/23 Länge in s · 24/25 Tempo × 10 · 26/27 Position (0–16383)
+// CC 20 geladen · 21 läuft · 22/23 Länge in s · 24/25 Tempo × 10 · 26/27 Position (0–16383) · 28 Tonart (Mixxx 1–24)
 // ---------------------------------------------------------------------------------------------
 ZynV5.deckSenden = function() {
     ZynV5.deckTakt = (ZynV5.deckTakt + 1) % 5;
@@ -439,12 +439,14 @@ ZynV5.deckSenden = function() {
             laeuft: ZynV5.hole(g, "play") ? 1 : 0,
             dauer: Math.max(0, Math.min(16383, Math.round(ZynV5.hole(g, "duration") || 0))),
             bpm: Math.max(0, Math.min(16383, Math.round((ZynV5.hole(g, "bpm") || 0) * 10))),
-            pos: Math.max(0, Math.min(16383, Math.round((ZynV5.hole(g, "playposition") || 0) * 16383)))
+            pos: Math.max(0, Math.min(16383, Math.round((ZynV5.hole(g, "playposition") || 0) * 16383))),
+            key: Math.max(0, Math.min(24, Math.round(ZynV5.hole(g, "key") || 0)))
         };
         if (neu.geladen !== alt.geladen) { midi.sendShortMsg(st, 20, neu.geladen); }
         if (neu.laeuft !== alt.laeuft) { midi.sendShortMsg(st, 21, neu.laeuft); }
         if (neu.dauer !== alt.dauer) { midi.sendShortMsg(st, 22, neu.dauer >> 7); midi.sendShortMsg(st, 23, neu.dauer & 0x7F); }
         if (neu.bpm !== alt.bpm) { midi.sendShortMsg(st, 24, neu.bpm >> 7); midi.sendShortMsg(st, 25, neu.bpm & 0x7F); }
+        if (neu.key !== alt.key) { midi.sendShortMsg(st, 28, neu.key); }
         if (ZynV5.deckTakt === 0 && neu.pos !== alt.pos) { midi.sendShortMsg(st, 26, neu.pos >> 7); midi.sendShortMsg(st, 27, neu.pos & 0x7F); }
         else { neu.pos = alt.pos; }
         ZynV5.deckAlt[d] = neu;

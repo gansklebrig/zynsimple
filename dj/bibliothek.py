@@ -71,7 +71,8 @@ def suche(q="", favoriten=False, limit=60, sortierung="sterne", buchstabe=None, 
             title = os.path.splitext(datei or "")[0]
         ton = TONARTEN[key_id] if isinstance(key_id, int) and 0 < key_id < len(TONARTEN) else (key or "")
         out.append({"id": tid, "artist": artist or "", "title": title or "", "bpm": round(bpm or 0, 1),
-                    "tonart": ton, "sterne": int(rating or 0), "dauer": int(dauer or 0)})
+                    "tonart": ton, "key_id": key_id if isinstance(key_id, int) else 0,
+                    "sterne": int(rating or 0), "dauer": int(dauer or 0)})
     return {"titel": out, "gesamt": gesamt, "treffer": treffer}
 
 

@@ -73,6 +73,14 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 5.7 – Tempo und Tonart groß
+
+- **„♫ Decks & Titel“ zeigt Tempo (BPM) und Tonart** – in den Deck-Karten oben und in jeder Zeile der Titelliste.
+- **Grün = passt zur Tonart der Band** (Einstellung „Tonart der Band“; passend sind dieselbe Tonart, eine Quinte
+  daneben und die Paralleltonart). In der Liste steht dann „· passt“ dahinter.
+- Die Tonart kommt aus der Analyse von Mixxx. Steht „–“ da, ist der Titel noch nicht analysiert – Mixxx holt das
+  beim ersten Laden nach.
+
 ## Neu in Version 5.6 – DDJ-200 auch bei „DJ + Instrumente“, Diagnose lädt sich selbst hoch
 
 - **DDJ-200 bei „DJ + Instrumente“ geht jetzt wirklich.** Bisher kam kein einziger Tastendruck bei Mixxx an:

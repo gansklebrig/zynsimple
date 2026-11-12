@@ -498,6 +498,13 @@ class Hybrid:
                 z["titel"] = name.get("title") or "Titel geladen"
                 z["kuenstler"] = name.get("artist") or ""
                 z["rest"] = max(0, int(z["dauer"] * (1 - z.get("pos", 0))))
+            k = z.get("key_id") or 0
+            if z.get("geladen") and k:
+                try:
+                    from . import dj
+                    z["tonart"] = dj.bibliothek_modul().TONARTEN[k]
+                except Exception:
+                    z["tonart"] = ""
             out.append(z)
         return out
 
@@ -535,7 +542,9 @@ class Hybrid:
                 if len(puffer) == 3:
                     st, d1, d2 = puffer
                     puffer = [st]
-                    if st in (0xB1, 0xB2) and 20 <= d1 <= 27:
+                    if st in (0xB1, 0xB2) and d1 == 28:
+                        self._deck.setdefault(st - 0xB0, {})["key_id"] = d2
+                    elif st in (0xB1, 0xB2) and 20 <= d1 <= 27:
                         dz = self._deck.setdefault(st - 0xB0, {})
                         if d1 in (22, 24, 26):
                             self._deck_msb[(st, d1)] = d2
