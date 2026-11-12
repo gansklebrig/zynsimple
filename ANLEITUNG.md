@@ -73,6 +73,16 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 4.9 – Tasten wechseln nie mehr von selbst die Ansicht
+
+- **Ansicht wechseln geht nur noch über ⋯** (oder die Taste **MENU**, die ⋯ öffnet): DJ-Pult, DJ + Instrumente,
+  Mixxx zeigen, Barden Beats, Profi-Mischer, Zynthian-Menü, Einstellungen.
+- **Drehregler drücken + drehen** löst beim Loslassen nichts mehr aus. Langes Drücken eines Drehreglers öffnet
+  nicht mehr das XY-Feld oder den Profi-Mischer.
+- **Drehregler kurz drücken**: in Listen = antippen (wie SEL), im Mischer = zeigt, was der Regler gerade steuert.
+- **SEL lang** öffnet nicht mehr den Profi-Mischer.
+- **MIXER, CTRL, ZS3, PAD** springen nicht mehr in Zynthian-Seiten. Bei DJ + Instrumente ist **MIXER = ♫ Titel laden**.
+
 ## Neu in Version 4.8 – Ton bei DJ + Instrumente
 
 - Mixxx meldete im Modus DJ + Instrumente „ohne Tonausgabegeräte konfiguriert“: ZynSimple hatte den

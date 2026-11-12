@@ -64,7 +64,9 @@ class zynsimple_screen(zynthian_gui_base):
         ("ALT + F1 – F4", "Szene 1–4 laden · lang: aktuellen Klang als Szene speichern"),
         ("◀  ▶", "anderen Kanal wählen"),
         ("▲  ▼", "Tiefe (Regler 1) des Kanals hoch / runter"),
-        ("SEL", "kurz: stumm · doppelt: Solo · lang: Profi-Mischer"),
+        ("SEL", "kurz: stumm · doppelt: Solo"),
+        ("MENU", "⋯ – von hier aus zu DJ-Pult, DJ + Instrumente, Barden Beats, Profi-Mischer, Einstellungen"),
+        ("Drehregler drücken", "in Listen: antippen · im Mischer: zeigt, was der Regler gerade steuert"),
         ("REC", "❄ Freeze – tippen = an/aus, halten = nur solange gedrückt"),
         ("PLAY", "↯ Echo-Wurf, solange gedrückt"),
         ("STOP", "Panik: Hall, Echos und hängende Töne aus"),
@@ -4184,6 +4186,12 @@ class zynsimple_screen(zynthian_gui_base):
         return False
 
     def zynpot_cb(self, i, dval):
+        # Drücken + Drehen: das Loslassen danach darf nichts auslösen (kein Ansichtswechsel, kein Klick)
+        try:
+            if self.zyngui.zynpot_pr_state[i] > 0:
+                self.zyngui.zynpot_pr_state[i] += 1
+        except Exception:
+            pass
         if self._mixxx_weg():
             return True
         if self.mode == "splash":
@@ -4300,7 +4308,7 @@ class zynsimple_screen(zynthian_gui_base):
             return False
         role = self._pad_role(i)
         if role is None:
-            return False
+            return self._fremde_taste(i, t)
         if role == "BACK":
             # BACK: kurz = eine Ebene zurück (überall), 3 s halten = System-Menü
             if t == "P":
@@ -4415,6 +4423,68 @@ class zynsimple_screen(zynthian_gui_base):
         self.sig = None
         return True
 
+    def _fremde_taste(self, i, t):
+        """Tasten, die sonst die Zynthian-Oberfläche bedient (MENU, MIXER, CTRL, ZS3, PAD): in ZynSimple
+        wechseln sie nicht mehr die Ansicht. MENU öffnet ⋯ – nur von dort geht es in andere Ansichten.
+        ALT und die Drehknöpfe bleiben beim Zynthian."""
+        try:
+            acts = cfg.custom_switch_ui_actions[i - 4] or {}
+        except Exception:
+            return False
+        txt = " ".join(str(v) for v in acts.values() if v).upper()
+        if not txt or "ALT" in txt or "ZYNPOT" in txt:
+            return False
+        if t != "S":
+            return True
+        self._touch()
+        if re.search(r"(^|\s)MENU(\s|$)", txt):
+            if self.mode == "more":
+                self.mode = "mix"
+                self.sig = None
+            else:
+                self._mixxx_weg()
+                self.mode = "more"
+                self.fokus_i = 0
+                self.draw_more()
+            return True
+        hy = getattr(self.bridge, "hybrid", None)
+        if re.search(r"MIXER", txt) and hy is not None and hy.laeuft() and self.mode == "mix":
+            self.open_bib()                               # bei DJ + Instrumente: MIXER = ♫ Titel laden
+            return True
+        self._flash("Diese Taste hat hier keine Aufgabe · andere Ansicht: MENU (⋯)")
+        return True
+
+    def cuia_v5_zynpot_switch(self, params):
+        """Drehknopf drücken (V5). In ZynSimple nur Funktionen der aktuellen Seite – nie eine andere Ansicht
+        (der Zynthian würde sonst z. B. bei langem Drücken das XY-Feld oder den Profi-Mischer öffnen)."""
+        try:
+            i, t = int(params[0]), str(params[1]).upper()
+        except Exception:
+            return True
+        if self._mixxx_weg():
+            return True
+        self._touch()
+        if t not in ("S", "B"):
+            return True                                   # lang gedrückt: bewusst nichts
+        if self.mode == "splash":
+            self.stop_splash()
+        elif self.mode == "idle":
+            self.stop_idle()
+        elif self.mode in self.FOKUS_MODES:
+            self.fokus_ausloesen()                        # wie SEL: das Ausgewählte antippen
+        elif self.mode in ("edit", "help", "update", "browse", "xy", "fxview"):
+            if i == 3:
+                self.switch_select(t)
+        elif self.mode == "mix":
+            ch = self._sel_chain()
+            if ch is not None:
+                try:
+                    sl = self.pf.slot_info(ch, self.pf.live_slots(ch)[i])
+                    self._flash(f"Regler {i + 1}: {sl['name']} {sl.get('text', '')}".strip())
+                except Exception:
+                    pass
+        return True
+
     def _back_lang(self):
         self._back_timer = None
         self._back_lang_erledigt = True
@@ -4475,7 +4545,7 @@ class zynsimple_screen(zynthian_gui_base):
             if s["solo"] is not None:
                 self.bridge.action(s["id"], "solo")
         elif t == "L":
-            self.open_expert()
+            self._flash("Profi-Mischer und Zynthian-Menü: MENU oder ⋯")
         return True
 
     def select(self, index=None):
