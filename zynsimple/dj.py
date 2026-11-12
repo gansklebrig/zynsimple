@@ -10,7 +10,7 @@ log = logging.getLogger("zynsimple")
 
 BEFEHL = "/usr/local/bin/zynsimple-dj"
 INSTALL_LOG = "/tmp/zynsimple-dj-install.log"
-ERLAUBT = ("dj", "zynthian", "imres", "aus", "neustart")
+ERLAUBT = ("dj", "zynthian", "imres", "aus", "neustart", "hybrid")
 
 
 def eingerichtet():

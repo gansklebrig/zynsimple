@@ -46,7 +46,10 @@ for k in /zynthian/venv/bin/python3 /usr/bin/python3; do [ -x "$k" ] && "$k" -c 
 # Zynthian-Tasten als Controller, LEDs, TR-8S-Clock, BACK/MENU/STOP halten
 "$PY" "$HIER/dj-helfer.py" &
 HELFER=$!
-trap 'kill $HELFER 2>/dev/null' EXIT
+# Handy-Seite (gleiche Adresse wie ZynSimple, Port 8090): Musik suchen und ins Deck laden
+/usr/bin/python3 "$HIER/dj-web.py" &
+WEB=$!
+trap 'kill $HELFER $WEB 2>/dev/null' EXIT
 sleep 1   # virtueller MIDI-Anschluss steht, bevor Mixxx ihn sucht
 
 # Mixxx einrichten (Ton, Controller, Bibliothek „MUSIK gekauft“, Kiste „Passt zur Handpan“, Aufnahmen, Ansicht)
@@ -68,7 +71,7 @@ KNOPF=$!
 # Hinweisleiste unten: was die Regler und F1–F4 gerade tun, plus kurze Einblendungen
 [ -n "$TKPY_KNOPF" ] && [ "${DJ_LEISTE:-an}" != "aus" ] && "$TKPY_KNOPF" "$HIER/dj-hud.py" &
 LEISTE=$!
-trap 'kill $HELFER $KNOPF $LEISTE 2>/dev/null' EXIT
+trap 'kill $HELFER $WEB $KNOPF $LEISTE 2>/dev/null' EXIT
 
 # Mixxx: Einstellungen und Bibliothek liegen in $DATEN/.mixxx (wird beim Zynthian-Backup mitgesichert)
 VERSUCH=0

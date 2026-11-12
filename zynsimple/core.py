@@ -383,8 +383,18 @@ class Bridge:
         if op == "hf_looper":
             chain = self._chain(chain_id)
             if value:
-                helfer.looper_druck(self, chain, str(value))
-            return {"tasten": helfer.looper_tasten(self, chain)}
+                v = str(value)
+                if ":" in v:
+                    art, n = v.split(":", 1)
+                    if art == "takt":
+                        helfer.looper_takt(self, chain, takte=int(n))
+                    elif art == "loops":
+                        helfer.looper_takt(self, chain, loops=int(n))
+                    elif art == "wahl":
+                        helfer.looper_takt(self, chain, waehlen=int(n))
+                else:
+                    helfer.looper_druck(self, chain, v)
+            return {"tasten": helfer.looper_tasten(self, chain), "takt": helfer.looper_takt_info(self, chain)}
         raise ValueError(f"Unbekannte Aktion {op}")
 
     def _track_action(self, chain_id, op, value):

@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "3.8"
+VERSION = "4.0"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -40,6 +40,8 @@ DEFAULTS = {
     "master_limiter": False,
     "dj_auto_rec": False,
     "dj_clock": True,
+    "takt": "senden",
+    "start_modus": "zynthian",
     "dj_handpan_fx": True,
     "dj_stems": True,
 }
@@ -52,11 +54,16 @@ def load_settings():
     s = dict(DEFAULTS)
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            s.update(json.load(f))
+            gespeichert = json.load(f)
+        s.update(gespeichert)
+        if "takt" not in gespeichert and gespeichert.get("dj_clock") is False:
+            s["takt"] = "aus"
     except FileNotFoundError:
         pass
     except Exception as e:
         log.error(f"ZynSimple: Einstellungen fehlerhaft ({e}), nutze Standardwerte")
+    if s.get("takt") not in ("senden", "folgen", "aus"):
+        s["takt"] = "senden" if s.get("dj_clock", True) else "aus"
     return s
 
 
@@ -86,6 +93,13 @@ def setup(zyngui):
         _hook_exit(zyngui, bridge.extras)
     except Exception as e:
         log.exception(f"ZynSimple: Extras fehlgeschlagen: {e}")
+    try:
+        from .hybrid import Hybrid
+        bridge.hybrid = Hybrid(bridge, settings)
+    except Exception as e:
+        bridge.hybrid = None
+        log.warning(f"ZynSimple: DJ + Instrumente nicht verfügbar ({e})")
+    _buehne(zyngui, bridge, settings)
 
     if settings.get("led_recolor", True):
         try:
@@ -112,6 +126,63 @@ def setup(zyngui):
 
 
 START_AKTION = "/run/zynsimple-start-aktion"
+GESTARTET = "/run/zynsimple-gestartet"
+
+
+def _buehne(zyngui, bridge, settings):
+    """Für den Auftritt: Takt (MIDI-Clock) halten, Unterspannung melden und sichern, Startmodus nach dem Einschalten."""
+    try:
+        from zyngui import zynthian_gui_config
+        top = zynthian_gui_config.top
+    except Exception:
+        return
+    zustand = {"n": 0, "gesichert": 0.0}
+
+    def schleife():
+        import time
+        zustand["n"] += 1
+        try:
+            from . import takt
+            if takt.wert(settings) != "aus":
+                takt.anwenden(settings)          # auch, wenn die TR-8S erst später eingesteckt wird
+        except Exception as e:
+            log.debug(f"ZynSimple: Takt: {e}")
+        if getattr(bridge, "hybrid", None) is not None and zustand["n"] % 3 == 1:
+            bridge.hybrid.kanal_pruefen()
+        try:
+            from . import helfer
+            st = helfer.strom()
+            if st and st["jetzt"]:
+                scr = zyngui.screens.get(SCREEN_NAME)
+                if scr is not None:
+                    scr._warn("⚡ Strom zu schwach – Netzteil/Akku prüfen · alles ist gesichert")
+                if time.monotonic() - zustand["gesichert"] > 60 and getattr(bridge, "extras", None):
+                    zustand["gesichert"] = time.monotonic()
+                    bridge.extras.save_now("Unterspannung")
+                    os.sync()
+        except Exception as e:
+            log.debug(f"ZynSimple: Strom: {e}")
+        top.after(10000, schleife)
+
+    top.after(12000, schleife)
+
+    # Startmodus: nur beim ersten Start der Oberfläche nach dem Einschalten
+    if os.path.exists(GESTARTET):
+        return
+    try:
+        open(GESTARTET, "w").close()
+    except OSError:
+        return
+    modus = settings.get("start_modus", "zynthian")
+    if modus == "dj":
+        top.after(9000, lambda: start_dj(zyngui))
+    elif modus == "hybrid" and getattr(bridge, "hybrid", None):
+        def hybrid_los():
+            try:
+                _info(zyngui, bridge.hybrid.starten())
+            except Exception as e:
+                _info(zyngui, str(e))
+        top.after(12000, hybrid_los)
 
 
 def system_menue(zyngui):
@@ -149,6 +220,14 @@ def system_menue(zyngui):
         from . import dj
         if dj.eingerichtet():
             items.append({"icon": "audio_generator.png", "title": "DJ-Pult", "action": lambda *a, **k: start_dj(zyngui)})
+            hy = getattr(getattr(zyngui, "_zs_bridge", None), "hybrid", None)
+            if hy is not None and dj.mixxx_da():
+                if hy.laeuft():
+                    items.append({"icon": "audio_generator.png", "title": "DJ + Instrumente beenden",
+                                  "action": lambda *a, **k: (_info(zyngui, hy.stoppen()), zyngui.close_screen())})
+                else:
+                    items.append({"icon": "audio_generator.png", "title": "DJ + Instrumente",
+                                  "action": lambda *a, **k: (zyngui.show_screen_reset(SCREEN_NAME), _info(zyngui, hy.starten()))})
     except Exception:
         pass
     items.append({"icon": "mixer.png", "title": "Einfacher Mischer",
@@ -237,6 +316,13 @@ def _start_aktion(zyngui):
                 adm.update_software()
         elif aktion == "menue":
             system_menue(zyngui)
+        elif aktion == "hybrid":
+            hy = getattr(getattr(zyngui, "_zs_bridge", None), "hybrid", None)
+            if hy is not None:
+                try:
+                    _info(zyngui, hy.starten())
+                except Exception as e:
+                    _info(zyngui, str(e))
     try:
         from zyngui import zynthian_gui_config
         zynthian_gui_config.top.after(6000, los)

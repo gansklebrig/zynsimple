@@ -327,7 +327,8 @@
     <button data-mode="hintergrund">⇄ Zusammen<small>Zynthian + Imres</small></button>
     <button data-mode="zynthian">◼ Nur Zynthian<small>Imres aus</small></button>
   </div>
-  <div id="dj-modes" style="display:none"><button data-dj="dj">🎧 DJ-Pult<small>Mixxx im Vollbild · DDJ-200</small></button></div>
+  <div id="dj-modes" style="display:none"><button data-dj="dj">🎧 DJ-Pult<small>Mixxx im Vollbild · DDJ-200</small></button>
+    <button data-dj="hybrid" id="hy-mode" style="margin-top:8px">♫ DJ + Instrumente<small>Mixxx als Kanal im Mischer · Spuren laufen weiter</small></button></div>
   <div id="imres-msg"></div>
   <iframe id="fern" title="Imres Fernbedienung"></iframe>
 </section>
@@ -343,6 +344,16 @@
     <h2>🎧 DJ-Pult</h2>
     <p>Mixxx im Vollbild, gesteuert mit dem DDJ-200 und den Zynthian-Reglern. Zurück: Mixxx beenden oder am Zynthian <b>BACK</b> 2 s halten → System-Menü (Zynthian, Barden Beats, Updates, Neustart, Ausschalten).</p>
     <div class="line"><button class="btn" id="dj-go">DJ-Pult starten</button><button class="btn sec" id="dj-imp">Musik vom USB-Stick übernehmen</button></div>
+    <h2 style="margin-top:14px">♫ DJ + Instrumente</h2>
+    <p>Mixxx läuft <b>neben</b> dem Zynthian: die Musik kommt als Kanal <b>„DJ-Pult“</b> in den Mischer (Fader, Mute, Effekte, Szenen),
+      Handpan, Mikro und Looper laufen wie immer daneben. Der DDJ-200 steuert nur Mixxx. Am Zynthian-Display: ⋯ → <b>Mixxx zeigen</b>,
+      beliebige Zynthian-Taste = zurück. Kopfhörer-Vorhören gibt es hier nicht – dafür ist das reine DJ-Pult da.</p>
+    <p id="hy-info"></p>
+    <div class="line"><button class="btn" id="hy-go">Starten</button><button class="btn sec" id="hy-show" style="display:none">Mixxx am Display zeigen</button>
+      <a class="btn sec" href="/bibliothek">🔎 Musik suchen &amp; laden</a></div>
+    <h2 style="margin-top:14px">🎤 Bühne</h2>
+    <p id="bu-info"></p>
+    <div class="line"><button class="btn sec" id="bu-merk">Auftritts-Stand merken</button><button class="btn sec" id="bu-lade">Zurückholen</button></div>
     <p>Musik per WLAN: am PC <code id="dj-share">\\zynthian\MUSIK gekauft</code> öffnen und Dateien hineinziehen.
       Anmeldung: Benutzer <b>musik</b>, Passwort <b>gekauft</b>.</p>
     <h2 style="margin-top:14px">◆ Stems (Mixxx 2.6)</h2>
@@ -787,6 +798,16 @@
       document.getElementById('st-m26').style.display = d.eingerichtet && !d.mixxx26 && !b26.laeuft ? '' : 'none';
       document.getElementById('st-ein').style.display = d.eingerichtet && !st.bereit && !(st.install && st.install.laeuft) ? '' : 'none';
       const tg = document.getElementById('st-toggle'); tg.style.display = st.bereit ? '' : 'none'; tg.textContent = st.an ? 'Stems pausieren' : 'Stems weiter';
+      const hy = d.hybrid || {};
+      hyAn = !!hy.an;
+      document.getElementById('hy-go').textContent = hy.an ? 'Beenden' : (hy.phase === 'start' ? 'Startet …' : 'Starten');
+      document.getElementById('hy-show').style.display = hy.an ? '' : 'none';
+      document.getElementById('hy-mode').style.display = d.mixxx && hy.moeglich !== false ? '' : 'none';
+      document.getElementById('hy-info').textContent = hy.an ? ('läuft' + (hy.tempo ? ' · ' + hy.tempo + ' BPM' : '') + ' · ' + (d.takt || ''))
+        : (hy.fehler ? 'zuletzt: ' + hy.fehler : (d.mixxx ? '' : 'Erst einmal das DJ-Pult starten – dabei wird Mixxx installiert.'));
+      const sm = d.strom || {};
+      document.getElementById('bu-info').innerHTML = (sm.jetzt ? '<b style="color:var(--mute)">⚡ Strom zu schwach – Netzteil/Akku prüfen!</b><br>' : '')
+        + 'Takt: ' + (d.takt || '–') + '<br>Auftritts-Stand: ' + (d.auftritt ? 'gemerkt ' + d.auftritt : 'noch keiner – vor dem Auftritt „merken“');
     } catch (e) {}
   }
   async function djStart() {
@@ -798,6 +819,27 @@
     } catch (e) { toast('Ging nicht: ' + e.message, 6000); }
   }
   document.getElementById('dj-go').onclick = djStart;
+  let hyAn = false;
+  async function hyStart() {
+    try {
+      const r = await api('/api/dj', { aktion: hyAn ? 'hybrid-aus' : 'hybrid-an' });
+      if (r.error) throw new Error(r.error);
+      toast(r.message || 'OK', 6000);
+    } catch (e) { toast('Ging nicht: ' + e.message, 6000); }
+    setTimeout(djCheck, 2500);
+  }
+  document.getElementById('hy-go').onclick = hyStart;
+  document.getElementById('hy-show').onclick = () => djAkt('hybrid-zeigen', null, 'Mixxx ist am Zynthian vorne – beliebige Taste holt den Mischer zurück');
+  document.getElementById('bu-merk').onclick = async () => {
+    const r = await api('/api/dj', { aktion: 'auftritt-merken' }).catch(e => ({ error: e.message }));
+    toast(r.error || r.message, 5000); djCheck();
+  };
+  document.getElementById('bu-lade').onclick = async () => {
+    if (!confirm('Auftritts-Stand zurückholen? Spuren, Effekte und Szenen werden wie beim Merken.')) return;
+    toast('Wird geladen …', 3000);
+    const r = await api('/api/dj', { aktion: 'auftritt-laden' }).catch(e => ({ error: e.message }));
+    toast(r.error || r.message, 5000);
+  };
   const djAkt = async (a, frage, msg) => { if (frage && !confirm(frage)) return; await api('/api/dj', { aktion: a }).catch(() => {}); toast(msg, 5000); setTimeout(djCheck, 1500); };
   document.getElementById('st-m26').onclick = () => djAkt('mixxx26', 'Mixxx 2.6 auf dem Zynthian bauen? Dauert 1–2 Stunden, braucht Internet und 6 GB Platz. Der Zynthian bleibt währenddessen bedienbar, kann aber träger sein.', 'Mixxx 2.6 wird gebaut – Fortschritt hier und am Zynthian (Einstellungen → DJ-Pult)');
   document.getElementById('st-ein').onclick = () => djAkt('stems-einrichten', 'Stem-Werkzeug einrichten? Lädt ca. 1 GB aus dem Internet.', 'Stem-Werkzeug wird eingerichtet');
@@ -845,7 +887,8 @@
       toast(d.message, 8000);
     } catch (err) { toast('Ging nicht: ' + err.message, 6000); }
   };
-  document.querySelector('#dj-modes button').onclick = djStart;
+  document.querySelector('#dj-modes button[data-dj="dj"]').onclick = djStart;
+  document.getElementById('hy-mode').onclick = hyStart;
   djCheck();
 
   // ---- Effekt-Regler (Blatt von unten) ----

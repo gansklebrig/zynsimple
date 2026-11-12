@@ -67,6 +67,16 @@ if [ -f "$DEST/dj/zynsimple-dj" ] && [ -d /run/systemd/system ]; then
     ZS_DIR="$DEST" bash "$DEST/dj/zynsimple-dj" einrichten || echo "DJ-Pult: Einrichtung übersprungen"
 fi
 
+# 2c) Bühnen-Sicherheit: Speicherkarte nach Stromausfall beim Start automatisch prüfen und reparieren
+for CMDLINE in /boot/firmware/cmdline.txt /boot/cmdline.txt; do
+    [ -f "$CMDLINE" ] || continue
+    if ! grep -q "fsck.repair" "$CMDLINE"; then
+        cp "$CMDLINE" "$CMDLINE.vor-zynsimple" && sed -i '1 s/$/ fsck.repair=yes/' "$CMDLINE" \
+            && echo "Speicherkarte: wird nach Stromausfall beim Start geprüft (fsck.repair=yes)"
+    fi
+    break
+done
+
 echo "SCHRITT 4/6 Hänge ZynSimple in die Oberfläche ein"
 # 3) Startdatei (.pth) anlegen – wird bei jedem Python-Start gelesen,
 #    hängt sich aber nur in die Zynthian-Oberfläche ein.

@@ -614,7 +614,8 @@ class zynsimple_screen(zynthian_gui_base):
                 self.tuner = helfer.Stimmgeraet()
                 self.tuner.start(self.tool["eingang"])
             elif art == "looper":
-                self.tool["loop"] = self.bridge.action(cid, "hf_looper")["tasten"]
+                r = self.bridge.action(cid, "hf_looper")
+                self.tool["loop"], self.tool["takt"] = r["tasten"], r.get("takt")
         except Exception as e:
             self.tool["fehler"] = str(e)
         self.draw_tool()
@@ -715,16 +716,46 @@ class zynsimple_screen(zynthian_gui_base):
             t["n"] += 1
             if t["n"] % 8 == 1:
                 try:
-                    t["loop"] = self.bridge.action(t["chain"], "hf_looper")["tasten"]
+                    r = self.bridge.action(t["chain"], "hf_looper")
+                    t["loop"], t["takt"] = r["tasten"], r.get("takt")
                 except Exception as e:
                     t["fehler"] = str(e)
             tasten = [x_ for x_ in t["loop"] if x_["key"] != "_state"]
             st_ = next((x_["label"] for x_ in t["loop"] if x_["key"] == "_state"), "")
-            if st_:
+            tk = t.get("takt") or {}
+            gy0 = 96
+            if tk.get("kann_takt"):
+                from . import helfer
+                # Länge: frei oder im Takt (1/2/4 Takte) · Loops: wählen, ＋ = weiterer Loop
+                yy0, yy1 = 62, 104
+                cv.create_text(18, (yy0 + yy1) / 2, anchor="w", text="LÄNGE", font=self.f_tiny, fill=P["gold"])
+                bx = 18 + int(self.f_tiny[1] * 5.5)
+                cw = max(60, int(W * 0.09))
+                for n_, txt in helfer.LOOP_LAENGEN:
+                    on = tk.get("takte") == n_
+                    self._tbtn(bx, yy0, bx + cw, yy1, txt, "t_takt", n_, fill=P["gold"] if on else None,
+                               fg=P["black"] if on else P["champ"], font=self.f_tiny)
+                    bx += cw + 6
+                bx += 18
+                cv.create_text(bx, (yy0 + yy1) / 2, anchor="w", text="LOOP", font=self.f_tiny, fill=P["gold"])
+                bx += int(self.f_tiny[1] * 4.5)
+                lw = max(44, int(W * 0.055))
+                for k_ in range(1, tk.get("loops", 1) + 1):
+                    on = tk.get("gewaehlt") == k_
+                    self._tbtn(bx, yy0, bx + lw, yy1, str(k_), "t_wahl", k_, fill=P["emerald"] if on else None,
+                               fg=P["black"] if on else P["champ"], font=self.f_small)
+                    bx += lw + 6
+                if tk.get("loops", 1) < min(4, tk.get("max_loops", 1)) and bx + lw < W - 10:
+                    self._tbtn(bx, yy0, bx + lw, yy1, "＋", "t_loops", tk.get("loops", 1) + 1, font=self.f_small)
+                info = ("im Takt: Aufnahme startet und endet auf der Eins · Tempo vom Zynthian" if tk.get("takte")
+                        else "frei: Aufnahme so lang, wie du drückst")
+                cv.create_text(W / 2, yy1 + 14, text=info + (f"  ·  {st_}" if st_ else ""), font=self.f_tiny, fill=P["tx2"])
+                gy0 = yy1 + 30
+            elif st_:
                 cv.create_text(W / 2, 74, text=f"Zustand: {st_}", font=self.f_small, fill=P["tx2"])
             cols = 3
             rows = max(1, math.ceil(len(tasten) / cols))
-            gy0, gy1 = 96, H - 20
+            gy1 = H - 20
             gw, gh = (W - 24) / cols, (gy1 - gy0) / rows
             for k, b_ in enumerate(tasten):
                 x0, y0 = 12 + (k % cols) * gw, gy0 + (k // cols) * gh
@@ -754,8 +785,10 @@ class zynsimple_screen(zynthian_gui_base):
             elif art == "t_in" and self.tuner:
                 self.tool["eingang"] = extra
                 self.tuner.start(extra)
-            elif art == "t_loop":
-                self.tool["loop"] = self.bridge.action(self.tool["chain"], "hf_looper", extra)["tasten"]
+            elif art in ("t_loop", "t_takt", "t_wahl", "t_loops"):
+                wert = extra if art == "t_loop" else f"{ {'t_takt': 'takt', 't_wahl': 'wahl', 't_loops': 'loops'}[art] }:{extra}"
+                r = self.bridge.action(self.tool["chain"], "hf_looper", wert)
+                self.tool["loop"], self.tool["takt"] = r["tasten"], r.get("takt")
         except Exception as e:
             self._flash(str(e))
         self.draw_tool()
@@ -1476,6 +1509,12 @@ class zynsimple_screen(zynthian_gui_base):
                  ("close", "Zurück", "")]
         if self.dj_installed:
             items.insert(0, ("dj", "♪ DJ-Pult", "Mixxx mit dem DDJ-200"))
+            hy = getattr(self.bridge, "hybrid", None)
+            if hy is not None and hy.laeuft():
+                items.insert(0, ("hybrid_aus", "DJ + Instr. beenden", "Mixxx schließen · Spuren bleiben"))
+                items.insert(0, ("hybrid_zeigen", "♫ Mixxx zeigen", "zurück: beliebige Zynthian-Taste"))
+            elif hy is not None and hy.status()["moeglich"]:
+                items.insert(1, ("hybrid", "♫ DJ + Instrumente", "Mixxx im Kanal „DJ-Pult“ · Spuren laufen weiter"))
         if self.imres_installed:
             items.insert(0, ("imres", "♫ Barden Beats", "Bühne & Klangwelten im Vollbild"))
         cols = 4 if len(items) > 6 else 3
@@ -1483,7 +1522,7 @@ class zynsimple_screen(zynthian_gui_base):
         gw, gh = (W - 40) / cols, (H - 70) / rows
         for k, (art, title, sub) in enumerate(items):
             cx, cy = 20 + (k % cols) * gw, 52 + (k // cols) * gh
-            gold = art in ("imres", "dj") or (art == "settings" and upd)
+            gold = art in ("imres", "dj", "hybrid", "hybrid_zeigen") or (art == "settings" and upd)
             self.rrect(cx + 5, cy + 5, cx + gw - 5, cy + gh - 5, 14, fill=P["card2"] if not gold else "#2a2014",
                        outline=P["gold"] if gold else P["line"], width=2 if gold else 1)
             cv.create_text(cx + gw / 2, cy + gh * 0.42, text=title, font=self.f_mid, fill=P["champ"],
@@ -1512,6 +1551,19 @@ class zynsimple_screen(zynthian_gui_base):
                 elif art == "dj":
                     from . import start_dj
                     start_dj(self.zyngui)
+                elif art in ("hybrid", "hybrid_zeigen", "hybrid_aus"):
+                    hy = self.bridge.hybrid
+                    try:
+                        if art == "hybrid":
+                            hy.starten()
+                            self._flash("DJ + Instrumente startet – Mixxx spielt gleich im Kanal „DJ-Pult“ · "
+                                        "beliebige Zynthian-Taste = zurück zum Mischer")
+                        elif art == "hybrid_zeigen":
+                            hy.zeigen()
+                        else:
+                            self._flash(hy.stoppen())
+                    except Exception as e:
+                        self._flash(str(e))
                 elif art == "newtrack":
                     self.open_newtrack()
                 elif art == "idle":
@@ -2552,9 +2604,11 @@ class zynsimple_screen(zynthian_gui_base):
                                 ("set", "strip_min_width", "▥"), ("act", "s_theme", "◑"), ("set", "led_recolor", "●")]),
         ("bedienung", "Bedienung", [("set", "autosave", "↺"), ("act", "s_save", "✓"), ("set", "master_limiter", "▣"),
                                     ("set", "tonart", "♯"), ("set", "xy_spring", "✥"), ("set", "synth_midi_chan", "♪")]),
-        ("dj", "DJ-Pult", [("act", "s_dj", "♪"), ("set", "dj_auto_rec", "●"), ("set", "dj_clock", "⏱"),
+        ("dj", "DJ-Pult", [("act", "s_dj", "♪"), ("set", "dj_auto_rec", "●"), ("act", "s_djhandy", "⌕"),
                            ("set", "dj_handpan_fx", "◎"), ("act", "s_djimport", "⇩"), ("act", "s_djordner", "▤"),
                            ("act", "s_mixxx26", "◆"), ("act", "s_stems", "≋")]),
+        ("buehne", "Bühne", [("act", "s_hybrid", "♫"), ("set", "takt", "⏱"), ("set", "start_modus", "⏻"),
+                             ("act", "s_gig_merken", "✓"), ("act", "s_gig_laden", "↺"), ("act", "s_strom", "⚡")]),
         ("system", "System", [("act", "s_imres", "♫"), ("act", "s_handy", "▤"), ("set", "update_check", "⟳"),
                               ("act", "s_sichern", "⇩"), ("act", "s_zurueck", "⇧"), ("act", "s_admin", "⚙")]),
     ]
@@ -2631,6 +2685,49 @@ class zynsimple_screen(zynthian_gui_base):
                         True, False)
             except Exception as e:
                 return ("Stems", str(e), None, True, False)
+        if art == "s_djhandy":
+            a = getattr(self, "set_addr", {}) or {}
+            url = (a.get("url") or a.get("name") or "http://zynthian.local:8090") + "/bibliothek"
+            return ("Musik am Handy suchen", f"{url} · Titel antippen → A/B = ins Deck laden · ★ Favoriten",
+                    None, getattr(self, "dj_installed", False), False)
+        if art == "s_hybrid":
+            hy = getattr(self.bridge, "hybrid", None)
+            if hy is None or not getattr(self, "dj_installed", False):
+                return ("", "", None, False, False)
+            st_ = hy.status()
+            if not st_["moeglich"]:
+                return ("DJ + Instrumente", "erst einmal das DJ-Pult starten (installiert Mixxx)", None, True, False)
+            if st_["an"]:
+                return ("DJ + Instrumente läuft", "Mixxx spielt im Kanal „DJ-Pult“ · ⋯ → Mixxx zeigen",
+                        "Beenden", True, False)
+            return ("DJ + Instrumente", "Mixxx und alle Spuren gleichzeitig · Musik als Kanal im Mischer"
+                    + (f" · zuletzt: {st_['fehler']}" if st_.get("fehler") else ""), "Starten", True, False)
+        if art == "s_gig_merken":
+            from . import helfer
+            armed = self.set_armed.get("gig", 0) > now
+            w = helfer.auftritt_info()
+            return ("Auftritts-Stand merken", f"Spuren, Effekte, Szenen wie jetzt sichern · gemerkt: {w}" if w else
+                    "Spuren, Effekte, Szenen wie jetzt sichern – vor dem Auftritt", "✓ Gemerkt" if armed else "Merken",
+                    True, False)
+        if art == "s_gig_laden":
+            from . import helfer
+            armed = self.set_armed.get("gigladen", 0) > now
+            return ("Auftritts-Stand zurückholen", "falls etwas verstellt ist: alles wie beim Merken",
+                    "Wirklich?" if armed else "Zurückholen", helfer.auftritt_info() is not None, armed)
+        if art == "s_strom":
+            from . import helfer
+            if not hasattr(self, "_strom") or now - self._strom[0] > 5:
+                self._strom = (now, helfer.strom())
+            st_ = self._strom[1]
+            if st_ is None:
+                return ("Strom", "nicht messbar", None, False, False)
+            if st_["jetzt"]:
+                return ("⚡ Strom zu schwach!", "Netzteil (5 V / 5 A) oder Akku prüfen · ZynSimple sichert alles sofort",
+                        None, True, True)
+            if st_["seit_start"]:
+                return ("Strom: war kurz zu schwach", "seit dem Einschalten mindestens einmal · stärkeres Netzteil nehmen",
+                        None, True, False)
+            return ("Strom: in Ordnung", "bei Unterspannung warnt der Zynthian und sichert alles", None, True, False)
         if art == "s_djimport":
             return ("Musik vom USB-Stick übernehmen", "kopiert den Ordner „MUSIK gekauft“ auf den Zynthian – "
                     "lädt schneller, Stick kann danach raus", "Übernehmen", getattr(self, "dj_installed", False), False)
@@ -2843,6 +2940,26 @@ class zynsimple_screen(zynthian_gui_base):
                 return
             elif art == "s_handy":
                 pass
+            elif art == "s_hybrid":
+                hy = self.bridge.hybrid
+                if hy.laeuft():
+                    self._flash(hy.stoppen())
+                else:
+                    self._flash(hy.starten() + " · beliebige Zynthian-Taste = zurück zum Mischer")
+            elif art == "s_gig_merken":
+                from . import helfer
+                self._flash(helfer.auftritt_merken(self.bridge))
+                self.set_armed["gig"] = time.monotonic() + 2
+                self.canvas.after(2100, lambda: self.mode == "settings" and self.draw_settings())
+            elif art == "s_gig_laden":
+                if self.set_armed.get("gigladen", 0) > time.monotonic():
+                    from . import helfer
+                    self.set_armed["gigladen"] = 0
+                    threading.Thread(target=lambda: self._flash(helfer.auftritt_laden(self.bridge)), daemon=True).start()
+                    self._flash("Auftritts-Stand wird geladen …")
+                else:
+                    self.set_armed["gigladen"] = time.monotonic() + 3
+                    self.canvas.after(3100, lambda: self.mode == "settings" and self.draw_settings())
             elif art == "s_djordner":
                 from . import dj
                 if not dj.samba_an():
@@ -3273,7 +3390,22 @@ class zynsimple_screen(zynthian_gui_base):
     # Drehgeber
     # ------------------------------------------------------------------
 
+    def _mixxx_weg(self):
+        """Hybrid: Ist Mixxx vorne, holt jede Zynthian-Taste/jeder Regler zuerst den Mischer zurück."""
+        hy = getattr(self.bridge, "hybrid", None)
+        if hy is not None and hy.vorne:
+            try:
+                hy.verstecken()
+            except Exception:
+                hy.vorne = False
+            self._touch()
+            self.sig = None
+            return True
+        return False
+
     def zynpot_cb(self, i, dval):
+        if self._mixxx_weg():
+            return True
         if self.mode == "splash":
             self.stop_splash()
             return True
@@ -3349,6 +3481,12 @@ class zynsimple_screen(zynthian_gui_base):
         return None
 
     def switch(self, i, t):
+        if self._mixxx_weg():
+            self._schluck = None if t in ("S", "B", "L") else i   # Druck und Loslassen gehören zusammen
+            return True
+        if getattr(self, "_schluck", None) == i and t in ("S", "B", "L"):
+            self._schluck = None
+            return True
         if self.mode == "splash":
             if t == "P":
                 self.stop_splash()

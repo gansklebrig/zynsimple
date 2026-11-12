@@ -2,6 +2,8 @@
 // Der DJ-Helfer schickt: Tasten als Note 1–24 (an/aus), Drehregler als CC 1–4 (relativ, 64 = Mitte).
 // Zurück an den Helfer: Note n = LED-Farbe (0 aus, 1 glimmen, 2 gold, 3 rot, 4 grün, 5 gelb),
 // CC 100/101 = Tempo × 10, CC 102 = Schlag, CC 103 = läuft, SysEx = Text für die Hinweisleiste.
+// Befehle an Mixxx (vom Helfer, von ZynSimple oder vom Handy): CC 110/111 = Tempo von außen × 10 (TR-8S oder
+// Zynthian geben den Takt vor), CC 112 = Bibliothek-Bereich wählen, CC 113 = gefundenen Titel in Deck 1/2 laden.
 //
 // EBENEN (MIXER wechselt, ALT + ◀ ▶ auch):
 //   MISCHEN   R1 Titel wählen (drücken: Deck A laden) · R2 Kopfhörer: Vorhören ↔ Mix (drücken: Deck B laden)
@@ -15,11 +17,12 @@
 // IMMER
 //   SEL       Titel in das Deck laden, das gerade frei ist          ▲ ▼  Titel · ◀ ▶ Bereich (ALT: Ebene)
 //   PLAY      Auto-DJ an/aus          REC  Set aufnehmen            PAD  Handpan im Mix an/aus
+//   ALT + ▲ ▼ Bewertung des laufenden Titels ★ +1 / −1 (ab ★★★★ in der Kiste „★ Favoriten“)
 //   TEMPO     Tempo tippen (ALT: Sync)   CTRL Vorhören: A → B → aus  ZS3  große Bibliothek
 //   STOP      Effekte und Filter aus (Panik) · 3 s halten: ausschalten
 
 var ZynV5 = {};
-ZynV5.cfg = (typeof ZynV5Config !== "undefined") ? ZynV5Config : { autoRec: false, clock: true, handpanFx: true };
+ZynV5.cfg = (typeof ZynV5Config !== "undefined") ? ZynV5Config : { autoRec: false, clock: true, handpanFx: true, folgen: false };
 ZynV5.N = { MENU: 1, MIXER: 2, CTRL: 3, ZS3: 4, ALT: 5, TEMPO: 6, PAD: 7, F1: 8, REC: 9, STOP: 10, PLAY: 11, F2: 12,
     BACK: 13, UP: 14, SEL: 15, F3: 16, LEFT: 17, DOWN: 18, RIGHT: 19, F4: 20, DREH1: 21, DREH2: 22, DREH3: 23, DREH4: 24 };
 ZynV5.F = [8, 12, 16, 20];
@@ -34,6 +37,8 @@ ZynV5.alt = false;
 ZynV5.fuehrend = 0;
 ZynV5.ziel = [0, 0];                    // Effekt 1/2: 0 = Deck A, 1 = Deck B, 2 = beide
 ZynV5.verbindungen = [];
+ZynV5.extMsb = 0;
+ZynV5.extBpm = 0;
 
 // ---------------------------------------------------------------------------------------------
 // Grundlagen
@@ -107,6 +112,16 @@ ZynV5.init = function(id, debugging) {
                 if (v > 0 && deck === ZynV5.fuehrend && ZynV5.cfg.clock) { midi.sendShortMsg(0xB0, 102, 127); }
             });
         })(d);
+    }
+    // Takt kommt von außen (TR-8S oder Zynthian): neu geladene Titel laufen sofort im Takt mit
+    if (ZynV5.cfg.folgen) {
+        for (var s = 1; s <= 2; s++) {
+            (function(deck) {
+                ZynV5.verbinde("[Channel" + deck + "]", "track_loaded", function(v) {
+                    if (v) { ZynV5.setze("[Channel" + deck + "]", "sync_enabled", 1); }
+                });
+            })(s);
+        }
     }
     ZynV5.timer = engine.beginTimer(100, ZynV5.tempoSenden);
     if (ZynV5.cfg.autoRec) {
@@ -255,8 +270,18 @@ ZynV5.taste = function(channel, control, value, status, group) {
     case N.MIXER: ZynV5.ebeneWechseln(1); return;
     case N.LEFT: if (ZynV5.alt) { ZynV5.ebeneWechseln(-1); } else { ZynV5.setze("[Library]", "MoveFocusBackward", 1); } return;
     case N.RIGHT: if (ZynV5.alt) { ZynV5.ebeneWechseln(1); } else { ZynV5.setze("[Library]", "MoveFocusForward", 1); } return;
-    case N.UP: ZynV5.setze("[Library]", "MoveUp", 1); return;
-    case N.DOWN: ZynV5.setze("[Library]", "MoveDown", 1); return;
+    case N.UP:
+    case N.DOWN:
+        if (ZynV5.alt) {
+            g = "[Channel" + ZynV5.vorne() + "]";
+            if (!ZynV5.hole(g, "track_loaded")) { ZynV5.zeige("Erst einen Titel laden – dann ALT + ▲ ▼ = Sterne"); return; }
+            ZynV5.setze(g, control === N.UP ? "stars_up" : "stars_down", 1);
+            ZynV5.zeige((control === N.UP ? "★ +1" : "★ −1") + " für Deck " + (ZynV5.vorne() === 1 ? "A" : "B") +
+                " · ab ★★★★ in „★ Favoriten“");
+            return;
+        }
+        ZynV5.setze("[Library]", control === N.UP ? "MoveUp" : "MoveDown", 1);
+        return;
     case N.SEL:
         f = ZynV5.freiesDeck();
         ZynV5.setze("[Channel" + f + "]", "LoadSelectedTrack", 1);
@@ -348,5 +373,32 @@ ZynV5.regler = function(channel, control, value, status, group) {
         case 3: ZynV5.drehen("[Master]", "gain", d, 0, 5, 0.05 * fein, "Master-Lautstärke"); return;
         case 4: ZynV5.drehen("[Master]", "headGain", d, 0, 5, 0.05 * fein, "Kopfhörer-Lautstärke"); return;
         }
+    }
+};
+
+// ---------------------------------------------------------------------------------------------
+// Befehle von außen (DJ-Helfer, ZynSimple im Hybrid-Modus, Handy-Bibliothek)
+// ---------------------------------------------------------------------------------------------
+ZynV5.befehl = function(channel, control, value, status, group) {
+    if (control === 110) { ZynV5.extMsb = value; return; }
+    if (control === 111) {
+        var bpm = ((ZynV5.extMsb << 7) | value) / 10;
+        if (bpm < 30 || bpm > 300) { return; }
+        ZynV5.setze("[InternalClock]", "bpm", bpm);
+        if (ZynV5.hole("[InternalClock]", "sync_leader") !== 2) { ZynV5.setze("[InternalClock]", "sync_leader", 2); }
+        if (Math.abs(bpm - ZynV5.extBpm) >= 0.5) { ZynV5.zeige("Takt von außen: " + bpm.toFixed(1) + " BPM · SYNC-Decks folgen"); }
+        ZynV5.extBpm = bpm;
+        return;
+    }
+    if (control === 112) { ZynV5.setze("[Library]", "focused_widget", value); return; }
+    if (control === 113) {
+        var deck = value === 2 ? 2 : 1;
+        ZynV5.setze("[Library]", "focused_widget", 3);
+        ZynV5.setze("[Library]", "MoveDown", 1);
+        ZynV5.setze("[Library]", "MoveVertical", -10000);
+        engine.beginTimer(200, function() {
+            ZynV5.setze("[Channel" + deck + "]", "LoadSelectedTrack", 1);
+            ZynV5.zeige("Vom Handy → Deck " + (deck === 1 ? "A" : "B"));
+        }, true);
     }
 };

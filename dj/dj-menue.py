@@ -38,8 +38,9 @@ HILFE = [
     ("Abspielen & Mischen", "am DDJ-200: PLAY ▶, Fader, Crossfader · SYNC drücken = Tempo passt sich an"),
     ("Ebenen (MIXER)", "MISCHEN: Titel · Kopfhörer · Filter A/B  │  EFFEKTE: 2 Effekte + Loops  │  HANDPAN: Eingang, Effekt, Lautstärken"),
     ("F1–F4", "Mischen: Stems Drums/Bass/Melodie/Vocals (ALT = Deck B) · Effekte: Loop 4/8/16/aus · Handpan: an/aus, Effekt"),
-    ("Vorhören", "CTRL: Kopfhörer hört Deck A → Deck B → aus (USB-Soundkarte nötig)"),
-    ("Schnelltasten", "PLAY Auto-DJ · REC Aufnahme · PAD Handpan an/aus · TEMPO tippen (ALT: Sync) · ZS3 große Liste"),
+    ("Schnelltasten", "CTRL Vorhören A → B → aus · PLAY Auto-DJ · REC Aufnahme · PAD Handpan · TEMPO tippen (ALT: Sync) · ZS3 große Liste"),
+    ("Handy, Sterne, Cues", "Musik am Handy suchen: zynthian.local:8090 · ALT + ▲▼ = Sterne (ab ★★★★ in „★ Favoriten“) · "
+                            "Hot Cues: Pads am DDJ-200 (SHIFT + Pad = löschen)"),
     ("Panik", "STOP kurz: alle Effekte und Filter aus · STOP 3 s halten: ausschalten"),
     ("Menü", "☰ oben rechts, MENU kurz oder BACK 2 s halten – auch mit den Tasten bedienbar"),
 ]
@@ -266,6 +267,7 @@ class Menue:
                        ("einlesen", "⟳  USB-Stick neu einlesen", "nach dem Einstecken – Mixxx startet kurz neu", GRUEN, False),
                        ("importieren", "⇩  Musik auf den Zynthian", "kopiert den Stick – danach ohne Stick", None, False)]),
             ("WECHSELN", [("zynthian", "◼  Zum Zynthian", "Mischer und Synths", None, False),
+                          ("hybrid", "♫  DJ + Instrumente", "Mixxx als Kanal im Mischer", None, False),
                           ("imres", "♫  Barden Beats", "Bühne & Klangwelten", None, False) if os.path.exists(IMRES) else None,
                           ("hilfe", "?  So geht's", "Tasten und Regler erklärt", GOLD, False)]),
             ("SYSTEM", [("updates", "⬇  Updates", "ZynSimple · Zynthian · Barden Beats", None, False),
@@ -277,7 +279,7 @@ class Menue:
             yy = y + k * rh
             cv.create_text(16, yy + 10, anchor="w", text=titel, font=(SCHRIFT, 8, "bold"), fill=TX2)
             kacheln = [x for x in kacheln if x]
-            kw = (W - 24) / 3
+            kw = (W - 24) / max(3, len(kacheln))
             for j, (key, t, sub, farbe, haupt) in enumerate(kacheln):
                 x0 = 12 + j * kw
                 self.kachel(x0 + 4, yy + 18, x0 + kw - 4, yy + rh - 4, key, t, sub, farbe, haupt)

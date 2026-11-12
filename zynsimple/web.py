@@ -16,6 +16,23 @@ log = logging.getLogger("zynsimple")
 WWW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "www")
 
 
+_bib_lock = threading.Lock()
+
+
+def _bibliothek():
+    """dj/bibliothek.py (gemeinsam mit der Handy-Seite im DJ-Modus)."""
+    import importlib.util
+    import sys
+    mod = sys.modules.get("zs_dj_bibliothek")
+    if mod is None:
+        pfad = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dj", "bibliothek.py")
+        spec = importlib.util.spec_from_file_location("zs_dj_bibliothek", pfad)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        sys.modules["zs_dj_bibliothek"] = mod
+    return mod
+
+
 def make_handler(bridge, pin):
     class Handler(BaseHTTPRequestHandler):
         server_version = "ZynSimple/1.0"
@@ -86,7 +103,32 @@ def make_handler(bridge, pin):
                     si = dj.stems_install_stand()
                     st["stems"]["install"] = {"laeuft": si["laeuft"], "detail": si["detail"], "fehler": si["fehler"]}
                 st["stems"]["an"] = bool(bridge.settings.get("dj_stems", True))
+                hy = getattr(bridge, "hybrid", None)
+                st["hybrid"] = hy.status() if hy else None
+                try:
+                    from . import takt, helfer
+                    st["takt"] = takt.quelle_text(bridge.settings)
+                    st["auftritt"] = helfer.auftritt_info()
+                    st["strom"] = helfer.strom()
+                except Exception:
+                    pass
                 self._send(200, st)
+            elif path == "/bibliothek":
+                try:
+                    with open(os.path.join(os.path.dirname(WWW.rstrip("/")), "..", "dj", "www", "bibliothek.html"), "rb") as f:
+                        self._send(200, f.read().replace(b"__MODUS__", b"hybrid"), "text/html; charset=utf-8")
+                except OSError:
+                    self._send(404, "DJ-Bibliothek fehlt", "text/plain; charset=utf-8")
+            elif path == "/api/bib":
+                if not self._authorized():
+                    return self._send(401, {"error": "pin"})
+                from urllib.parse import parse_qs
+                q = parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
+                try:
+                    bib = _bibliothek()
+                    self._send(200, bib.suche(q.get("q", [""])[0], q.get("fav", ["0"])[0] == "1"))
+                except Exception as e:
+                    self._send(200, {"fehler": str(e), "titel": [], "gesamt": 0})
             elif path == "/api/fortschritt":
                 from . import fortschritt as fs
                 self._send(200, fs.als_dict())
@@ -197,8 +239,19 @@ def make_handler(bridge, pin):
                     from . import dj, start_dj
                     n = min(int(self.headers.get("Content-Length", 0)), 1024)
                     aktion = str(json.loads(self.rfile.read(n) or b"{}").get("aktion", "dj"))
+                    hy = getattr(bridge, "hybrid", None)
                     if aktion == "dj":
                         start_dj(bridge.zyngui)
+                    elif aktion in ("hybrid-an", "hybrid-aus", "hybrid-zeigen", "hybrid-verstecken"):
+                        if hy is None:
+                            raise RuntimeError("DJ + Instrumente ist hier nicht verfügbar")
+                        msg = {"hybrid-an": hy.starten, "hybrid-aus": hy.stoppen, "hybrid-zeigen": hy.zeigen,
+                               "hybrid-verstecken": hy.verstecken}[aktion]()
+                        return self._send(200, {"ok": True, "message": msg or ""})
+                    elif aktion in ("auftritt-merken", "auftritt-laden"):
+                        from . import helfer
+                        fn = helfer.auftritt_merken if aktion == "auftritt-merken" else helfer.auftritt_laden
+                        return self._send(200, {"ok": True, "message": fn(bridge)})
                     elif aktion == "import":
                         dj.import_starten()
                     elif aktion == "samba":
@@ -215,6 +268,20 @@ def make_handler(bridge, pin):
                     self._send(200, {"ok": True, "mixxx": dj.mixxx_da()})
                 except Exception as e:
                     self._send(400, {"error": str(e)})
+                return
+            if self.path.split("?", 1)[0] == "/api/bib/laden":
+                if not self._authorized():
+                    return self._send(401, {"error": "pin"})
+                try:
+                    hy = getattr(bridge, "hybrid", None)
+                    if hy is None or not hy.laeuft():
+                        raise RuntimeError("Mixxx läuft gerade nicht – erst „DJ + Instrumente“ starten")
+                    n = min(int(self.headers.get("Content-Length", 0)), 1024)
+                    req = json.loads(self.rfile.read(n) or b"{}")
+                    with _bib_lock:
+                        self._send(200, {"text": _bibliothek().laden(req.get("id"), req.get("deck", 1), hy.senden)})
+                except Exception as e:
+                    self._send(200, {"fehler": str(e)})
                 return
             if self.path.split("?", 1)[0] == "/api/restore":
                 if not self._authorized():

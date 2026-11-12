@@ -7,7 +7,9 @@ ZynSimple DJ-Pult: richtet Mixxx vor jedem Start passend ein, damit niemand in d
   - Controller: Pioneer DDJ-200 und die Zynthian-Tasten/-Regler werden aktiviert
   - Bibliothek: Ordner „MUSIK gekauft“ (WLAN-Freigabe und auf USB-Sticks), Neu-Einlesen beim Start
   - Kiste „Passt zur Handpan“: Tracks in harmonisch passenden Tonarten
+  - Kiste „★ Favoriten“: alle Tracks ab vier Sternen (Sterne: ALT + ▲ ▼ am Zynthian)
   - Aufnahmen: auf den USB-Stick (Ordner DJ-Sets), sonst in den DJ-Ordner
+  - Hybrid-Modus (ZS_HYBRID=1): Ton über JACK in einen Kanal des Zynthian-Mischers statt direkt auf die Soundkarte
   - Ansicht: eigene kompakte Ansicht „ZynSimple Glut“ (ohne Blau), Rückfall auf LateNight
 
 Alles, was der Nutzer in Mixxx selbst ändert, bleibt – außer den hier verwalteten Schlüsseln.
@@ -52,9 +54,13 @@ def einstellungen():
                     s[m.group(1)] = m.group(2).strip()
     except OSError:
         pass
+    # Takt: „senden“ (Mixxx/Zynthian geben den Takt an die TR-8S), „folgen“ (TR-8S gibt den Takt vor), „aus“
+    if s.get("takt") not in ("senden", "folgen", "aus"):
+        s["takt"] = "senden" if s.get("dj_clock", True) else "aus"
     return s
 
 
+HYBRID = os.environ.get("ZS_HYBRID") == "1"
 MIXXX_BIN = os.environ.get("ZS_MIXXX", "mixxx")
 MIXXX_SHARE = ["/opt/mixxx-2.6/share/mixxx"] if MIXXX_BIN.startswith("/opt/mixxx-2.6") else []
 
@@ -124,10 +130,43 @@ def ton_einrichten(s):
     return True, kh
 
 
+def soundconfig_hybrid(ver):
+    """Hybrid: Mixxx spielt über JACK nur den Haupt-Mix – ZynSimple legt ihn auf den Kanal „DJ-Pult“ im Zynthian-Mischer.
+    Die DJ-Einstellung wird beiseitegelegt und beim nächsten reinen DJ-Start zurückgeholt."""
+    pfad = os.path.join(MIXXX, "soundconfig.xml")
+    merker = os.path.join(MIXXX, ".soundconfig.zynsimple")
+    if os.path.exists(pfad) and not os.path.exists(pfad + ".dj"):
+        shutil.copy2(pfad, pfad + ".dj")
+        if os.path.exists(merker):
+            shutil.copy2(merker, merker + ".dj")
+    main = "Main" if ver >= (2, 4) else "Master"
+    xml = ('<!DOCTYPE SoundManagerConfig>\n'
+           '<SoundManagerConfig api="JACK Audio Connection Kit" samplerate="48000" latency="5" sync_buffers="2" '
+           'deck_count="4" force_network_clock="0">\n'
+           ' <SoundDevice name="system" alias="system" portAudioIndex="-1">\n'
+           f'  <output type="{main}" index="0" channel="0" channel_count="2"/>\n'
+           ' </SoundDevice>\n</SoundManagerConfig>\n')
+    with open(pfad, "w", encoding="utf-8") as f:
+        f.write(xml)
+    log("Hybrid: Ton über JACK → Zynthian-Mischer")
+
+
+def soundconfig_zurueck():
+    """Nach dem Hybrid-Modus: die DJ-Ton-Einstellung wiederherstellen."""
+    pfad = os.path.join(MIXXX, "soundconfig.xml")
+    merker = os.path.join(MIXXX, ".soundconfig.zynsimple")
+    if os.path.exists(pfad + ".dj"):
+        os.replace(pfad + ".dj", pfad)
+        if os.path.exists(merker + ".dj"):
+            os.replace(merker + ".dj", merker)
+        log("Ton-Einstellung vom DJ-Pult wiederhergestellt")
+
+
 def soundconfig(s, kh, ver):
     """soundconfig.xml – nur verwaltet, solange der Nutzer sie nicht selbst geändert hat."""
     pfad = os.path.join(MIXXX, "soundconfig.xml")
     merker = os.path.join(MIXXX, ".soundconfig.zynsimple")
+    soundconfig_zurueck()
     if os.path.exists(pfad):
         try:
             with open(pfad, "rb") as f:
@@ -353,6 +392,27 @@ def stem_kiste():
         os.makedirs(os.path.join(MUSIK, d), exist_ok=True)
 
 
+def favoriten_kiste():
+    """Kiste „★ Favoriten“: alle Tracks mit mindestens vier Sternen (vor jedem Start neu gefüllt)."""
+    db = os.path.join(MIXXX, "mixxxdb.sqlite")
+    if not os.path.exists(db):
+        return
+    try:
+        con = sqlite3.connect(db, timeout=5)
+        row = con.execute("SELECT id FROM crates WHERE name='★ Favoriten'").fetchone()
+        cid = row[0] if row else con.execute(
+            "INSERT INTO crates (name, count, show, locked, autodj_source) VALUES ('★ Favoriten', 0, 1, 0, 0)").lastrowid
+        con.execute("DELETE FROM crate_tracks WHERE crate_id=?", (cid,))
+        ids = [r[0] for r in con.execute("SELECT id FROM library WHERE mixxx_deleted=0 AND rating>=4").fetchall()]
+        con.executemany("INSERT OR IGNORE INTO crate_tracks (crate_id, track_id) VALUES (?, ?)", [(cid, t) for t in ids])
+        con.execute("UPDATE crates SET count=? WHERE id=?", (len(ids), cid))
+        con.commit()
+        con.close()
+        log(f"Kiste „★ Favoriten“: {len(ids)} Tracks")
+    except Exception as e:
+        log("Favoriten:", e)
+
+
 def skin(data, s):
     wahl = s.get("DJ_SKIN") or SKIN
     if wahl == SKIN:
@@ -376,7 +436,9 @@ def config_js(s):
         f.write("// Von ZynSimple erzeugt – Einstellungen kommen aus dem Zynthian (Einstellungen → DJ-Pult)\n")
         f.write("var ZynV5Config = " + json.dumps({
             "autoRec": bool(s.get("dj_auto_rec")),
-            "clock": bool(s.get("dj_clock", True)),
+            # im Hybrid-Modus braucht ZynSimple das Tempo immer (Mixxx führt → Zynthian-Tempo folgt)
+            "clock": s.get("takt") == "senden" or HYBRID,
+            "folgen": s.get("takt") == "folgen",
             "handpanFx": bool(s.get("dj_handpan_fx", True)),
         }) + ";\n")
 
@@ -404,9 +466,12 @@ def main():
     os.makedirs(MUSIK, exist_ok=True)
     s = einstellungen()
     ver = mixxx_version()
-    ok, kh = ton_einrichten(s)
-    if ok:
-        soundconfig(s, kh, ver)
+    if HYBRID:
+        soundconfig_hybrid(ver)
+    else:
+        ok, kh = ton_einrichten(s)
+        if ok:
+            soundconfig(s, kh, ver)
     pfad = os.path.join(MIXXX, "mixxx.cfg")
     data, order = cfg_lesen(pfad)
     ordner = [MUSIK] + usb_musik()
@@ -433,6 +498,7 @@ def main():
     bibliothek(ordner)
     passende_kiste(s)
     stem_kiste()
+    favoriten_kiste()
     stick_status()
     log("fertig")
 

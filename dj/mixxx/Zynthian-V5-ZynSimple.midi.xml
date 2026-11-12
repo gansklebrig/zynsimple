@@ -375,6 +375,34 @@
         <midino>0x04</midino>
         <options><script-binding/></options>
       </control>
+      <control>
+        <group>[Master]</group>
+        <key>ZynV5.befehl</key>
+        <status>0xB0</status>
+        <midino>0x6E</midino>
+        <options><script-binding/></options>
+      </control>
+      <control>
+        <group>[Master]</group>
+        <key>ZynV5.befehl</key>
+        <status>0xB0</status>
+        <midino>0x6F</midino>
+        <options><script-binding/></options>
+      </control>
+      <control>
+        <group>[Master]</group>
+        <key>ZynV5.befehl</key>
+        <status>0xB0</status>
+        <midino>0x70</midino>
+        <options><script-binding/></options>
+      </control>
+      <control>
+        <group>[Master]</group>
+        <key>ZynV5.befehl</key>
+        <status>0xB0</status>
+        <midino>0x71</midino>
+        <options><script-binding/></options>
+      </control>
     </controls>
     <outputs/>
   </controller>

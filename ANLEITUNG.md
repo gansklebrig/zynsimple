@@ -73,6 +73,52 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 4.0 – DJ + Instrumente, gemeinsamer Takt, Looper im Takt, Bühne
+
+**♫ DJ + Instrumente (Hybrid-Modus)** – Mixxx läuft *neben* dem Zynthian statt an seiner Stelle.
+- Start: am Zynthian **⋯ → ♫ DJ + Instrumente**, **Einstellungen → Bühne**, **BACK 2 s → System-Menü**, im DJ-Menü
+  (☰) unter WECHSELN, in Barden Beats im System-Menü oder am Handy (Extras → DJ + Instrumente).
+- Die Musik kommt als eigener Kanal **„DJ-Pult“** in den einfachen Mischer: Fader, Mute, Zynthian-Effekte, Freeze,
+  Szenen und der Limiter wirken auch auf die Musik. Handpan, Mikro, Synths und Looper laufen wie immer daneben.
+- Der DDJ-200 steuert nur Mixxx (er wird aus den Zynthian-Spuren herausgenommen, damit keine Synths mitspielen).
+- Bildschirm: **⋯ → ♫ Mixxx zeigen** holt Mixxx nach vorne, **jede Zynthian-Taste oder jeder Regler** bringt den
+  Mischer zurück. Titel suchen und laden geht am bequemsten am Handy (siehe unten).
+- Kein Kopfhörer-Vorhören in diesem Modus – dafür ist das reine DJ-Pult da (Vorhören über den DDJ-200).
+- Beenden: ⋯ → *DJ + Instr. beenden* (die Spuren bleiben, der Kanal „DJ-Pult“ wird still).
+
+**⏱ Gemeinsamer Takt** – *Einstellungen → Bühne → Wer gibt den Takt vor?* (gilt für alle Modi)
+- **Zynthian führt**: Der Zynthian schickt MIDI-Clock an die TR-8S (USB) und die DIN-Buchse. Im DJ-Pult gibt
+  der laufende Track das Tempo vor, bei *DJ + Instrumente* führt Mixxx und das Zynthian-Tempo folgt automatisch
+  (Delays im Takt, Looper, Sequenzer).
+- **TR-8S führt**: Der Zynthian läuft als **Slave** – er hört auf die Clock der TR-8S (USB, sonst DIN-Eingang).
+  Delays, Looper und Sequenzer folgen ihr; im DJ-Pult und bei *DJ + Instrumente* folgt auch Mixxx: neu geladene
+  Titel laufen sofort mit SYNC im Takt der TR-8S.
+- **aus**: ZynSimple lässt die Clock-Einstellungen des Zynthian in Ruhe (selbst im Zynthian-Menü einstellen).
+
+**⟳ Looper im Takt** – Spur ⟳ Looper öffnen:
+- **LÄNGE frei / 1 / 2 / 4 Takte**: Im Takt startet und endet die Aufnahme auf der Eins und hat genau die
+  gewählte Länge (4/4). Das Tempo kommt vom Zynthian – also von TAP, von Mixxx oder von der TR-8S.
+- **LOOP 1, 2, …, ＋**: mehrere Loops in einem Looper; die Tasten wirken auf den grün markierten.
+- Neue Looper-Spuren starten gleich im Takt mit 2 Takten.
+
+**🎤 Bühne** – *Einstellungen → Bühne*
+- **Auftritts-Stand merken / zurückholen**: vor dem Auftritt merken – ist mitten im Set etwas verstellt, holt
+  „Zurückholen“ Spuren, Effekte und Szenen genau so zurück. (Auch am Handy.)
+- **Nach dem Einschalten**: Mischer, *DJ + Instrumente* oder DJ-Pult – womit der Zynthian startet.
+- **Strom**: Bei Unterspannung (schwaches Netzteil, leerer Akku) warnt der Zynthian sofort und sichert alles
+  auf die Karte; im DJ-Pult erscheint der Hinweis in der Leiste. Einen Akkustand in % kann der Pi ohne
+  Akku-Aufsatz (UPS-HAT) nicht messen.
+- **Speicherkarte**: Nach einem Stromausfall wird die Karte beim nächsten Start automatisch geprüft und repariert
+  (`fsck.repair=yes`, richtet das Update einmalig ein).
+
+**🔎 Vorbereitung**
+- **Musik am Handy suchen**: `http://zynthian.local:8090/bibliothek` (im DJ-Pult direkt `…:8090`). Künstler,
+  Titel oder Album tippen, **A** oder **B** antippen – der Titel landet im Deck. Filter **★ Favoriten**.
+- **Sterne**: am Zynthian **ALT + ▲ / ▼** gibt dem gerade laufenden Titel einen Stern mehr/weniger.
+  Alles ab ★★★★ steht beim nächsten Start in der Mixxx-Kiste **„★ Favoriten“**.
+- **Hot Cues**: die acht Pads am DDJ-200 (Modus HOT CUE): leeres Pad = Cue setzen, Pad = hinspringen,
+  SHIFT + Pad = löschen. Mixxx merkt sie sich pro Titel – also zu Hause vorbereiten, auf der Bühne nur drücken.
+
 ## Neu in Version 3.8 – DJ-Pult: Ebenen, Hinweisleiste, Effekte
 
 **Hinweisleiste unten am Bildschirm:** zeigt immer, was die 4 Zynthian-Regler (drehen / ⏎ drücken) und F1–F4 gerade tun.

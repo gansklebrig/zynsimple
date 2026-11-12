@@ -30,7 +30,12 @@ SPEC = [
      "für Stimmgerät und DJ-Pult (passende Tracks) · z. B. Handpan-Grundton"),
     ("master_limiter", "Schutz vor Übersteuern", "bool", None, "Limiter am Hauptausgang · fängt laute Spitzen ab"),
     ("dj_auto_rec", "Set automatisch aufnehmen", "bool", None, "jedes DJ-Set landet als Datei auf dem USB-Stick"),
-    ("dj_clock", "TR-8S läuft im Takt mit", "bool", None, "sendet MIDI-Clock im Tempo des laufenden Tracks"),
+    ("takt", "Wer gibt den Takt vor?", "choice",
+     [("senden", "Zynthian führt"), ("folgen", "TR-8S führt"), ("aus", "aus")],
+     "Zynthian führt: TR-8S läuft mit · TR-8S führt: Zynthian, Looper und Mixxx folgen ihr (MIDI-Clock, USB/DIN)"),
+    ("start_modus", "Nach dem Einschalten", "choice",
+     [("zynthian", "Mischer"), ("hybrid", "DJ + Instrumente"), ("dj", "DJ-Pult")],
+     "womit der Zynthian startet – praktisch für den Auftritt"),
     ("dj_handpan_fx", "Handpan im DJ-Mix", "bool", None, "Zynthian-Eingänge 1+2 laufen mit in den Mix"),
     ("update_check", "Updates selbst suchen", "bool", None, "beim Start und alle 6 Stunden · braucht Internet"),
 ]
@@ -135,6 +140,12 @@ def apply_live(bridge, key):
     try:
         if key == "autosave" and bridge.extras:
             bridge.extras.autosave_info["enabled"] = bool(s.get("autosave"))
+        if key == "takt":
+            from . import takt
+            if s.get("takt") == "aus":
+                takt.aufraeumen(s)
+            else:
+                takt.anwenden(s)
         if key == "master_limiter":
             import threading
             from . import helfer

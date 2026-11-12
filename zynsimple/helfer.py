@@ -443,11 +443,128 @@ def looper_druck(bridge, chain, key):
         threading.Timer(0.15, lambda: z.set_value(z.value_min)).start()
 
 
+LOOP_LAENGEN = [(0, "frei"), (1, "1 Takt"), (2, "2 Takte"), (4, "4 Takte")]
+
+
+def _sl(p, sym):
+    return p.controllers_dict.get(sym) if p is not None else None
+
+
+def _sl_setzen(p, sym, v):
+    z = _sl(p, sym)
+    if z is not None:
+        v = max(z.value_min, min(z.value_max, v))
+        if z.value != v:
+            z.set_value(v)
+        return True
+    return False
+
+
+def looper_takt_info(bridge, chain):
+    """Länge (0 = frei, sonst Takte), Anzahl Loops, gewählter Loop."""
+    p = looper_proc(bridge, chain)
+    if p is None:
+        return None
+    sync = _sl(p, "sync")
+    epc = _sl(p, "eighth_per_cycle")
+    an = bool(sync and sync.value and _sl(p, "quantize") is not None and _sl(p, "quantize").value)
+    takte = int(round(float(epc.value) / 8)) if (an and epc is not None) else 0
+    n = _sl(p, "loop_count")
+    sel = _sl(p, "selected_loop_num")
+    return {"takte": takte, "loops": int(n.value) if n is not None else 1,
+            "max_loops": int(n.value_max) if n is not None else 1,
+            "gewaehlt": int(sel.value) if sel is not None else 1, "kann_takt": sync is not None and epc is not None}
+
+
+def looper_takt(bridge, chain, takte=None, loops=None, waehlen=None):
+    """Looper im Takt des Zynthian: Aufnahme startet/endet auf dem Takt, feste Länge (1/2/4 Takte à 4/4).
+    Tempo kommt vom Zynthian (TAP, Mixxx im Hybrid-Modus oder die TR-8S bei „Takt: folgen“)."""
+    p = looper_proc(bridge, chain)
+    if p is None:
+        raise RuntimeError("In dieser Spur ist kein Looper")
+    if takte is not None:
+        takte = int(takte)
+        if takte:
+            _sl_setzen(p, "sync_source", -1)        # Host = Zynthian-Tempo (JACK)
+            _sl_setzen(p, "eighth_per_cycle", 8 * takte)
+            _sl_setzen(p, "quantize", 1)            # auf den Takt (Zyklus)
+            _sl_setzen(p, "round", 1)               # Aufnahme endet sauber am Taktende
+            _sl_setzen(p, "mute_quantized", 1)
+            _sl_setzen(p, "overdub_quantized", 1)
+            _sl_setzen(p, "sync", 1)
+        else:
+            _sl_setzen(p, "sync", 0)
+            _sl_setzen(p, "quantize", 0)
+            _sl_setzen(p, "round", 0)
+    if loops is not None:
+        _sl_setzen(p, "loop_count", int(loops))
+        if waehlen is None:
+            waehlen = int(loops)
+    if waehlen is not None:
+        _sl_setzen(p, "selected_loop_num", int(waehlen))
+    return looper_takt_info(bridge, chain)
+
+
+# ---------------------------------------------------------------------------
+# Bühne: Auftritts-Stand, Strom
+# ---------------------------------------------------------------------------
+
+AUFTRITT = os.path.join(HOME_DIR, "auftritt.zss")
+
+
+def auftritt_info():
+    try:
+        return time.strftime("%d.%m. %H:%M", time.localtime(os.path.getmtime(AUFTRITT)))
+    except OSError:
+        return None
+
+
+def auftritt_merken(bridge):
+    """Jetzigen Stand (Spuren, Effekte, Szenen) als Auftritts-Stand sichern – zum Zurückholen, falls etwas verstellt ist."""
+    tmp = AUFTRITT + ".tmp"
+    bridge.sm.save_snapshot(tmp)
+    with open(tmp, "rb") as f:
+        os.fsync(f.fileno())
+    os.replace(tmp, AUFTRITT)
+    subprocess.call(["sync"])
+    return "Auftritts-Stand gemerkt – „Zurückholen“ stellt genau das wieder her"
+
+
+def auftritt_laden(bridge):
+    if not os.path.isfile(AUFTRITT):
+        raise RuntimeError("Noch kein Auftritts-Stand gemerkt")
+    done = threading.Event()
+    err = {}
+
+    def job():
+        try:
+            bridge.sm.load_snapshot(AUFTRITT)
+        except Exception as e:
+            err["e"] = str(e)
+        finally:
+            done.set()
+    bridge._jobs.put((job, ()))
+    done.wait(60)
+    if err:
+        raise RuntimeError(err["e"])
+    return "Auftritts-Stand zurückgeholt"
+
+
+def strom():
+    """Unterspannung des Pi: {'jetzt': bool, 'seit_start': bool} oder None, wenn nicht messbar."""
+    try:
+        out = subprocess.run(["vcgencmd", "get_throttled"], capture_output=True, text=True, timeout=5).stdout
+        w = int(out.strip().split("=")[1], 16)
+        return {"jetzt": bool(w & 0x1), "seit_start": bool(w & 0x10000), "gedrosselt": bool(w & 0x4)}
+    except Exception:
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Sicherung
 # ---------------------------------------------------------------------------
 
-SICHERN = ["zynsimple.json", "zynsimple_state.json"]
+SICHERN = ["zynsimple.json", "zynsimple_state.json", "auftritt.zss"]
 DJ_SICHERN = ["/zynthian/zynthian-my-data/dj/einstellungen.sh",
               "/zynthian/zynthian-my-data/dj/.mixxx/mixxx.cfg"]
 

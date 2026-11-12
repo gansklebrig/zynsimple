@@ -5,7 +5,10 @@ ZynSimple DJ-Pult: macht im DJ-Modus aus den Tasten und Reglern des Zynthian V5 
 
   Tasten & Drehregler  → virtueller MIDI-Anschluss (snd-virmidi) → Mixxx-Mapping „Zynthian V5 (ZynSimple)“
   Mixxx → LEDs der Tasten, Tempo und Takt des laufenden Tracks
-  Tempo/Takt           → MIDI-Clock für die TR-8S (USB oder DIN-Buchse)
+  Tempo/Takt           → MIDI-Clock für die TR-8S (USB oder DIN-Buchse)   (Einstellung „Takt“: senden)
+  MIDI-Clock der TR-8S → Tempo für Mixxx, die Decks laufen im Takt mit       (Einstellung „Takt“: folgen)
+  Handy-Bibliothek     → Befehle über /tmp/zynsimple-dj-befehl.sock an Mixxx
+  Strom zu schwach     → Hinweis in der Leiste (Unterspannung des Pi)
 
   BACK 2 s halten    → DJ-Menü (Updates, Neustart, Ausschalten, Zynthian, Barden Beats)
   MENU kurz          → DJ-Menü auf/zu
@@ -55,6 +58,8 @@ def einstellungen():
             s.update(json.load(f))
     except Exception:
         pass
+    if s.get("takt") not in ("senden", "folgen", "aus"):
+        s["takt"] = "senden" if s.get("dj_clock", True) else "aus"
     return s
 
 
@@ -183,6 +188,109 @@ class Clock:
                     naechster = jetzt + iv
             else:
                 time.sleep(min(0.002, naechster - jetzt))
+
+
+class ClockEin:
+    """Takt von außen: liest MIDI-Clock (TR-8S per USB oder DIN-Buchse) und gibt Mixxx das Tempo (CC 110/111)."""
+
+    def __init__(self, v):
+        self.v = v
+        self.quellen = []
+        p = rawmidi(karte_nach_name(r"TR-?8|TR-?6"))
+        if p:
+            try:
+                self.quellen.append(os.open(p, os.O_RDONLY | os.O_NONBLOCK))
+                log("Takt von der TR-8S (USB):", p)
+            except OSError as e:
+                log("TR-8S USB nicht lesbar:", e)
+        din = os.environ.get("DJ_CLOCK_DIN", "/dev/ttyAMA0")
+        if din and os.path.exists(din):
+            try:
+                subprocess.call(["stty", "-F", din, "38400", "raw", "-echo"], stderr=subprocess.DEVNULL)
+                self.quellen.append(os.open(din, os.O_RDONLY | os.O_NONBLOCK | os.O_NOCTTY))
+                log("Takt von MIDI-IN (DIN):", din)
+            except OSError as e:
+                log("DIN nicht lesbar:", e)
+        self.ticks = []
+        self.gesendet = 0.0
+        if self.quellen:
+            threading.Thread(target=self._lauf, daemon=True).start()
+
+    @staticmethod
+    def bpm_aus(ticks):
+        """Tempo aus den Zeitpunkten der letzten Clock-Ticks (24 pro Viertel)."""
+        if len(ticks) < 13:
+            return None
+        dauer = ticks[-1] - ticks[0]
+        if dauer <= 0:
+            return None
+        return 60.0 / (dauer / (len(ticks) - 1) * 24.0)
+
+    def _lauf(self):
+        letzte_meldung = 0.0
+        while True:
+            r, _, _ = select.select(self.quellen, [], [], 0.5)
+            jetzt = time.monotonic()
+            for fd in r:
+                try:
+                    daten = os.read(fd, 64)
+                except OSError:
+                    continue
+                for b in daten:
+                    if b == 0xF8:
+                        self.ticks.append(time.monotonic())
+                    elif b == 0xFA:
+                        self.ticks = []
+            if self.ticks and jetzt - self.ticks[-1] > 1.0:
+                self.ticks = []                          # Clock steht
+            self.ticks = self.ticks[-49:]                # zwei Schläge mitteln
+            if jetzt - letzte_meldung < 0.5:
+                continue
+            bpm = self.bpm_aus(self.ticks)
+            if bpm and 30 <= bpm <= 300 and abs(bpm - self.gesendet) >= 0.1:
+                letzte_meldung = jetzt
+                self.gesendet = round(bpm, 1)
+                w = int(round(self.gesendet * 10))
+                self.v.send(0xB0, 110, (w >> 7) & 0x7F)
+                self.v.send(0xB0, 111, w & 0x7F)
+
+
+BEFEHL_SOCK = "/tmp/zynsimple-dj-befehl.sock"
+
+
+def befehle_empfangen(v):
+    """Befehle von der Handy-Bibliothek (dj-web.py): „CC <nr> <wert>“ → an Mixxx."""
+    import socket
+    try:
+        os.remove(BEFEHL_SOCK)
+    except OSError:
+        pass
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    s.bind(BEFEHL_SOCK)
+    os.chmod(BEFEHL_SOCK, 0o666)
+    while True:
+        try:
+            teile = s.recv(256).decode("utf-8", "replace").split()
+            if len(teile) == 3 and teile[0] == "CC":
+                v.send(0xB0, max(0, min(127, int(teile[1]))), max(0, min(127, int(teile[2]))))
+        except Exception as e:
+            log("Befehl:", e)
+
+
+def strom_waechter():
+    """Unterspannung (zu schwaches Netzteil, leerer Akku) melden und Daten auf die Karte schreiben."""
+    gemeldet = 0.0
+    while True:
+        time.sleep(5)
+        try:
+            out = subprocess.run(["vcgencmd", "get_throttled"], capture_output=True, text=True, timeout=5).stdout
+            wert = int(out.strip().split("=")[1], 16)
+        except Exception:
+            continue
+        if wert & 0x1 and time.monotonic() - gemeldet > 30:
+            gemeldet = time.monotonic()
+            subprocess.call(["sync"])
+            an_hud("T|⚡ Strom zu schwach! Netzteil oder Akku prüfen – Aufnahme und Einstellungen sind gesichert")
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -355,9 +463,13 @@ def mixxx_lesen(v, clock, leds):
 def main():
     s = einstellungen()
     v = Virtuell()
-    clock = Clock(bool(s.get("dj_clock", True)))
+    clock = Clock(s["takt"] == "senden")
+    if s["takt"] == "folgen":
+        ClockEin(v)
     leds = Leds()
     threading.Thread(target=mixxx_lesen, args=(v, clock, leds), daemon=True).start()
+    threading.Thread(target=befehle_empfangen, args=(v,), daemon=True).start()
+    threading.Thread(target=strom_waechter, daemon=True).start()
     try:
         lib = ctypes.cdll.LoadLibrary(LIB)
     except OSError as e:

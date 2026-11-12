@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0908">
+<title>DJ-Bibliothek</title>
+<style>
+  :root {
+    --bg: #0b0908; --panel: #16120f; --panel2: #1f1915; --line: #2e261f;
+    --tx: #f3e9d8; --tx2: #a69a8a; --gold: #e8b04a; --gold2: #ffd98a; --rot: #e0445e; --gruen: #34c78a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--tx); font: 16px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 12px 16px 10px; border-bottom: 1px solid var(--line); }
+  h1 { margin: 0 0 4px; font-size: 20px; color: var(--gold); display: flex; align-items: center; gap: 10px; }
+  h1 a { margin-left: auto; font-size: 14px; color: var(--tx2); text-decoration: none; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; }
+  .hinweis { color: var(--tx2); font-size: 13px; margin: 0 0 10px; }
+  .suche { display: flex; gap: 8px; }
+  input[type=search] { flex: 1; min-width: 0; font-size: 18px; padding: 12px 14px; border-radius: 12px; border: 1px solid #5a4524;
+    background: var(--panel2); color: var(--tx); outline: none; }
+  input[type=search]:focus { border-color: var(--gold); }
+  .chips { display: flex; gap: 8px; margin-top: 10px; }
+  .chip { border: 1px solid var(--line); background: var(--panel); color: var(--tx2); border-radius: 999px; padding: 6px 14px; font-size: 14px; }
+  .chip.an { background: var(--gold); color: #000; border-color: var(--gold); font-weight: 600; }
+  main { padding: 8px 12px 90px; }
+  .titel { display: flex; align-items: center; gap: 10px; padding: 10px 6px; border-bottom: 1px solid var(--line); }
+  .info { flex: 1; min-width: 0; }
+  .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kuenstler { color: var(--tx2); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .daten { font-size: 13px; color: var(--tx2); margin-top: 2px; }
+  .daten b { color: var(--gold2); font-weight: 600; }
+  .daten .ton { color: var(--gruen); }
+  .sterne { color: var(--gold); letter-spacing: 1px; }
+  .deck { width: 54px; height: 48px; border-radius: 12px; border: 1px solid #5a4524; background: var(--panel2); color: var(--gold);
+    font-size: 20px; font-weight: 700; }
+  .deck:active { background: var(--gold); color: #000; }
+  .deck.b { color: var(--gruen); border-color: #2a5a44; }
+  .deck.b:active { background: var(--gruen); color: #000; }
+  .leer { text-align: center; color: var(--tx2); padding: 40px 10px; }
+  #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); max-width: calc(100% - 32px); background: #2a2014;
+    color: var(--tx); border: 1px solid var(--gold); border-radius: 12px; padding: 12px 16px; font-size: 15px; opacity: 0;
+    transition: opacity .2s; pointer-events: none; text-align: center; }
+  #toast.da { opacity: 1; }
+  #toast.fehler { border-color: var(--rot); }
+  footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg); border-top: 1px solid var(--line);
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); display: none; gap: 8px; }
+  footer button { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--tx2); font-size: 14px; }
+  body.dj footer { display: flex; }
+</style>
+</head>
+<body class="__MODUS__">
+<header>
+  <h1>♫ DJ-Bibliothek <a href="/" id="zurueckLink">⟵ Mischer</a></h1>
+  <p class="hinweis" id="hinweis">Titel suchen, dann <b>A</b> oder <b>B</b> antippen – er landet im Deck.</p>
+  <div class="suche"><input type="search" id="q" placeholder="Künstler, Titel, Album …" autocomplete="off" enterkeyhint="search"></div>
+  <div class="chips">
+    <button class="chip an" data-fav="0">Alle</button>
+    <button class="chip" data-fav="1">★ Favoriten</button>
+  </div>
+</header>
+<main id="liste"><div class="leer">Lädt …</div></main>
+<footer>
+  <button data-aktion="neu-einlesen">⟳ USB-Sticks neu einlesen</button>
+  <button data-aktion="zynthian">⟵ Zurück zum Zynthian</button>
+</footer>
+<div id="toast"></div>
+<script>
+const modus = document.body.className;
+if (modus === "dj") { document.getElementById("zurueckLink").style.display = "none"; }
+const liste = document.getElementById("liste"), feld = document.getElementById("q"), toastEl = document.getElementById("toast");
+let fav = "0", timer = null, nr = 0, pin = "";
+try { pin = localStorage.getItem("zs_pin") || ""; } catch (e) {}
+const kopf = (extra) => Object.assign({"X-Zynsimple-Pin": pin}, extra || {});
+
+function toast(text, fehler) {
+  toastEl.textContent = text;
+  toastEl.className = "da" + (fehler ? " fehler" : "");
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => toastEl.className = "", 3500);
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"})[c]); }
+function zeit(s) { return s ? Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0") : ""; }
+
+async function suchen() {
+  const meine = ++nr;
+  try {
+    const r = await fetch("/api/bib?q=" + encodeURIComponent(feld.value) + "&fav=" + fav, {headers: kopf()});
+    const d = await r.json();
+    if (meine !== nr) return;
+    if (d.fehler) { liste.innerHTML = '<div class="leer">' + esc(d.fehler) + '</div>'; return; }
+    if (!d.titel.length) {
+      liste.innerHTML = '<div class="leer">' + (fav === "1" ? "Noch keine Favoriten.<br>Am Zynthian: ALT + ▲ gibt dem laufenden Titel einen Stern – ab ★★★★ steht er hier."
+        : (feld.value ? "Nichts gefunden." : "Die Bibliothek ist leer – Musik in den Ordner „MUSIK gekauft“ legen.")) + '</div>';
+      return;
+    }
+    liste.innerHTML = d.titel.map(t => `
+      <div class="titel">
+        <div class="info">
+          <div class="name">${esc(t.title)}</div>
+          <div class="kuenstler">${esc(t.artist)}</div>
+          <div class="daten">${t.bpm ? "<b>" + t.bpm + "</b> BPM · " : ""}${t.tonart ? '<span class="ton">' + esc(t.tonart) + "</span> · " : ""}${zeit(t.dauer)}
+            ${t.sterne ? ' · <span class="sterne">' + "★".repeat(t.sterne) + "</span>" : ""}</div>
+        </div>
+        <button class="deck" data-id="${t.id}" data-deck="1">A</button>
+        <button class="deck b" data-id="${t.id}" data-deck="2">B</button>
+      </div>`).join("") + (d.titel.length >= 60 ? '<div class="leer">… weitere Treffer – genauer suchen</div>' : "");
+    document.getElementById("hinweis").innerHTML = d.gesamt + " Titel in der Bibliothek · <b>A</b> oder <b>B</b> antippen = ins Deck laden";
+  } catch (e) { if (meine === nr) liste.innerHTML = '<div class="leer">Keine Verbindung zum Zynthian.</div>'; }
+}
+
+feld.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(suchen, 250); });
+document.querySelectorAll(".chip").forEach(c => c.onclick = () => {
+  document.querySelectorAll(".chip").forEach(x => x.classList.toggle("an", x === c));
+  fav = c.dataset.fav; suchen();
+});
+liste.addEventListener("click", async ev => {
+  const b = ev.target.closest(".deck");
+  if (!b) return;
+  b.disabled = true;
+  toast("Wird geladen …");
+  try {
+    const r = await fetch("/api/bib/laden", {method: "POST", headers: kopf({"Content-Type": "application/json"}),
+      body: JSON.stringify({id: +b.dataset.id, deck: +b.dataset.deck})});
+    const d = await r.json();
+    toast(d.fehler || d.text, !!d.fehler);
+  } catch (e) { toast("Keine Verbindung zum Zynthian", true); }
+  b.disabled = false;
+});
+document.querySelectorAll("footer button").forEach(b => b.onclick = async () => {
+  if (b.dataset.aktion === "zynthian" && !confirm("DJ-Pult beenden und zurück zum Zynthian?")) return;
+  const r = await fetch("/api/system", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({aktion: b.dataset.aktion})});
+  const d = await r.json();
+  toast(d.fehler || d.text, !!d.fehler);
+});
+suchen();
+</script>
+</body>
+</html>

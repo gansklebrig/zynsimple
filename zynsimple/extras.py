@@ -896,6 +896,12 @@ class Extras:
                 self.state["sync"][str(dl.id)] = "1/4."
                 self._save()
                 self._apply_sync(dl)
+            if procs.get("looper"):
+                try:
+                    from . import helfer
+                    helfer.looper_takt(self.b, cm.chains[chain_id], takte=2)   # neu: im Takt, 2 Takte lang
+                except Exception as e:
+                    log.warning(f"ZynSimple: Looper im Takt: {e}")
             log.info(f"ZynSimple: Spur {chain_id} „{title}“ angelegt ({', '.join(e for _, e in plan) or 'ohne Effekte'})")
             done["chain"] = chain_id
             self.autosave(force=True)
