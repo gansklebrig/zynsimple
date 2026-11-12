@@ -75,6 +75,25 @@ def suche(q="", favoriten=False, limit=60, sortierung="sterne", buchstabe=None, 
     return {"titel": out, "gesamt": gesamt, "treffer": treffer}
 
 
+def finde(dauer, bpm=0):
+    """Welcher Titel ist das? (Mixxx verrät dem Mapping keine Namen – Länge und Tempo reichen meist.)"""
+    if not dauer:
+        return None
+    con = _db()
+    try:
+        rows = con.execute("SELECT l.id, l.artist, l.title, t.filename, l.bpm FROM library l JOIN track_locations t "
+                           "ON l.location = t.id WHERE l.mixxx_deleted = 0 AND ABS(l.duration - ?) < 0.8",
+                           (float(dauer),)).fetchall()
+    finally:
+        con.close()
+    if not rows:
+        return None
+    if len(rows) > 1 and bpm:
+        rows.sort(key=lambda r: abs((r[4] or 0) - bpm))
+    tid, artist, title, datei, _ = rows[0]
+    return {"id": tid, "artist": artist or "", "title": title or os.path.splitext(datei or "")[0]}
+
+
 def _x_env():
     env = dict(os.environ)
     env.setdefault("DISPLAY", ":0")
@@ -84,9 +103,21 @@ def _x_env():
     return env
 
 
+def _x_fenster():
+    try:
+        out = subprocess.run(["xdotool", "search", "--class", "mixxx"], env=_x_env(), capture_output=True,
+                             text=True, timeout=4).stdout.split()
+    except Exception:
+        out = []
+    return out[-1:]          # das Hauptfenster ist das zuletzt angelegte
+
+
 def _xdo(*args):
-    return subprocess.call(["xdotool"] + list(args), env=_x_env(), stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL, timeout=8)
+    try:
+        return subprocess.call(["xdotool"] + list(args), env=_x_env(), stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, timeout=4)
+    except subprocess.TimeoutExpired:
+        return 1
 
 
 def laden(track_id, deck, senden):
@@ -106,7 +137,12 @@ def laden(track_id, deck, senden):
         raise RuntimeError("Titel hat keinen Namen, nach dem Mixxx suchen kann")
     if subprocess.call(["which", "xdotool"], stdout=subprocess.DEVNULL) != 0:
         raise RuntimeError("xdotool fehlt – DJ-Pult einmal über die Einstellungen neu einrichten")
-    _xdo("search", "--class", "mixxx", "windowactivate", "--sync")
+    # Ohne Fenstermanager gibt es kein „aktivieren“ – Mixxx-Fenster nach vorne holen und Tastatur-Fokus geben
+    for w in _x_fenster():
+        _xdo("windowmap", w)
+        _xdo("windowraise", w)
+        _xdo("windowfocus", w)
+    time.sleep(0.2)
     senden(112, 1)                     # Suchfeld
     time.sleep(0.25)
     _xdo("key", "--clearmodifiers", "ctrl+a")

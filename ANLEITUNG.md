@@ -73,6 +73,20 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 5.0 – Decks sichtbar, keine Hänger mehr
+
+- **♫ Decks & Titel** (Kanal „DJ-Pult“, MIXER oder ALT + PLAY): oben stehen jetzt **Deck A und Deck B** –
+  welcher Titel, läuft er (▶) oder steht er (❚❚), Tempo, Restzeit und Fortschritt. **Deck antippen = Start/Stopp.**
+  Auch Titel, die am DDJ-200 geladen wurden, werden erkannt (über Länge und Tempo aus der Bibliothek).
+- **Hänger behoben:** Das Suchen und Einhängen von USB-Sticks lief bisher alle paar Sekunden im Vordergrund und
+  konnte die Oberfläche bis zu 20 s blockieren. Jetzt läuft es im Hintergrund. Auch das Umschalten zwischen
+  Mixxx und Mischer blockiert die Tasten nicht mehr.
+- **Titel laden:** „Keine Verbindung“ – der Weg zu Mixxx wird jetzt neu aufgebaut, wenn er weg ist, und es wird
+  jeder freie virtuelle MIDI-Anschluss probiert. Mixxx wird zum Laden ohne „Fenster aktivieren“ nach vorne geholt
+  (ohne Fenstermanager blieb das hängen).
+- **Auswahlrahmen:** Beim Blättern mit Drehregler/Pfeilen blieben alte Rahmen stehen (alle A/B-Knöpfe sahen
+  ausgewählt aus) – behoben, auch im Stick-Browser und bei „Tasten belegen“.
+
 ## Neu in Version 4.9 – Tasten wechseln nie mehr von selbst die Ansicht
 
 - **Ansicht wechseln geht nur noch über ⋯** (oder die Taste **MENU**, die ⋯ öffnet): DJ-Pult, DJ + Instrumente,

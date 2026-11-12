@@ -32,13 +32,24 @@ FORMAT_NAME = {"vfat": "FAT32", "exfat": "exFAT", "ntfs": "NTFS", "ntfs3": "NTFS
 _eingehaengt = {"t": 0.0}
 
 
-def usb_laufwerke():
-    """Alle USB-Speicher (Stick, Kartenleser, Festplatte) mit Format und wo sie eingehängt sind."""
+_lw = {"t": 0.0, "daten": [], "faden": None}
+
+
+def usb_laufwerke(frisch=False):
+    """Alle USB-Speicher (Stick, Kartenleser, Festplatte) mit Format und wo sie eingehängt sind.
+    Aus dem Zwischenspeicher (höchstens 3 s alt) – blockiert die Oberfläche nicht."""
+    if frisch or time.monotonic() - _lw["t"] > 3:
+        _lw["daten"] = _usb_laufwerke_lesen()
+        _lw["t"] = time.monotonic()
+    return list(_lw["daten"])
+
+
+def _usb_laufwerke_lesen():
     import json as _json
     import subprocess
     try:
         out = subprocess.run(["lsblk", "-J", "-b", "-o", "NAME,PATH,TYPE,TRAN,FSTYPE,LABEL,SIZE,MOUNTPOINT"],
-                             capture_output=True, text=True, timeout=5).stdout
+                             capture_output=True, text=True, timeout=2).stdout
         baum = _json.loads(out).get("blockdevices", [])
     except Exception:
         return []
@@ -55,13 +66,30 @@ def usb_laufwerke():
     return teile
 
 
-def einhaengen():
-    """USB-Speicher, die noch nicht eingehängt sind, einhängen (macht sonst devmon – falls das klemmt)."""
-    import subprocess
+def einhaengen_im_hintergrund():
+    """Einhängen kann dauern (bis 20 s) – darum nie dort, wo eine Oberfläche wartet."""
+    import threading
+    f = _lw.get("faden")
+    if f is not None and f.is_alive():
+        return
     if time.monotonic() - _eingehaengt["t"] < 8:
         return
+    _lw["faden"] = threading.Thread(target=lambda: (einhaengen(), usb_laufwerke(frisch=True)), daemon=True)
+    _lw["faden"].start()
+
+
+_versucht = {}
+
+
+def einhaengen():
+    """USB-Speicher, die noch nicht eingehängt sind, einhängen (macht sonst devmon – falls das klemmt).
+    Was zweimal nicht ging, wird erst nach neuem Einstecken wieder versucht."""
+    import subprocess
     _eingehaengt["t"] = time.monotonic()
-    for t in usb_laufwerke():
+    for t in usb_laufwerke(frisch=True):
+        if t["eingehaengt"] or t["format"] not in LESBAR or _versucht.get(t["pfad"], 0) >= 2:
+            continue
+        _versucht[t["pfad"]] = _versucht.get(t["pfad"], 0) + 1
         if t["eingehaengt"] or t["format"] not in LESBAR:
             continue
         ok = subprocess.call(["udisksctl", "mount", "--no-user-interaction", "-b", t["pfad"]],
@@ -78,12 +106,19 @@ def einhaengen():
                 pass
 
 
-def sticks():
-    """Eingehängte USB-Sticks/Karten: [{pfad, name}]."""
+def sticks(warten=False):
+    """Eingehängte USB-Sticks/Karten: [{pfad, name}]. warten=True hängt fehlende gleich selbst ein (dauert ggf.)."""
     try:
-        einhaengen()
+        if warten:
+            einhaengen()
+        else:
+            einhaengen_im_hintergrund()
     except Exception:
         pass
+    da = {t["pfad"] for t in usb_laufwerke()}
+    for p in list(_versucht):
+        if p not in da:
+            _versucht.pop(p, None)            # abgezogen → beim nächsten Einstecken neu versuchen
     out = []
     for t in usb_laufwerke():
         if t["eingehaengt"] and t["eingehaengt"] not in [s["pfad"] for s in out]:

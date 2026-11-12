@@ -294,7 +294,7 @@ def sticks():
     try:
         sys.path.insert(0, HIER)
         import stick
-        return [x["pfad"] for x in stick.sticks()]
+        return [x["pfad"] for x in stick.sticks(warten=True)]
     except Exception as e:
         log("Sticks:", e)
     out = []

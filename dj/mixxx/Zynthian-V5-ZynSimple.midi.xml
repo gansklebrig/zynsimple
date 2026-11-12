@@ -403,6 +403,13 @@
         <midino>0x71</midino>
         <options><script-binding/></options>
       </control>
+      <control>
+        <group>[Master]</group>
+        <key>ZynV5.befehl</key>
+        <status>0xB0</status>
+        <midino>0x72</midino>
+        <options><script-binding/></options>
+      </control>
     </controls>
     <outputs/>
   </controller>

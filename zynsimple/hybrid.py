@@ -71,6 +71,10 @@ class Hybrid:
         self._jack = None
         self._lock = threading.Lock()
         self._fenster = None
+        self._deck = {1: {}, 2: {}}
+        self._deck_msb = {}
+        self._deck_name = {}
+        self._geladen = {}
 
     # ------------------------------------------------------------------
     def laeuft(self):
@@ -331,20 +335,66 @@ class Hybrid:
     # Tempo-Brücke über den virtuellen MIDI-Anschluss (Mixxx-Mapping „Zynthian V5 (ZynSimple)“)
     # ------------------------------------------------------------------
     def _virmidi_oeffnen(self):
+        """Virtuellen MIDI-Anschluss zu Mixxx öffnen (erster freier); Mixxx hat das Mapping auf allen."""
+        self.midi_fehler = None
         try:
             with open("/proc/asound/cards", encoding="utf-8") as f:
-                m = re.search(r"^\s*(\d+)\s+\[\S+\s*\]:.*(VirMIDI|Virtual)", f.read(), re.M)
-            if m:
-                p = sorted(glob.glob(f"/dev/snd/midiC{m.group(1)}D*"))
-                if p:
-                    self.vfd = os.open(p[0], os.O_RDWR | os.O_NONBLOCK)
-        except OSError as e:
-            log.warning(f"ZynSimple: Hybrid – virtueller MIDI-Anschluss nicht offen ({e})")
+                karten = re.findall(r"^\s*(\d+)\s+\[[^\]]*\]:.*(?:VirMIDI|Virtual)", f.read(), re.M)
+        except OSError:
+            karten = []
+        if not karten:
+            subprocess.call(["modprobe", "snd-virmidi"], stderr=subprocess.DEVNULL)
+            self.midi_fehler = "virtueller MIDI-Anschluss fehlt (snd-virmidi)"
+            return
+        for k in karten:
+            for p in sorted(glob.glob(f"/dev/snd/midiC{k}D*")):
+                try:
+                    self.vfd = os.open(p, os.O_RDWR | os.O_NONBLOCK)
+                    log.info(f"ZynSimple: Hybrid – Verbindung zu Mixxx über {p}")
+                    return
+                except OSError as e:
+                    self.midi_fehler = f"{p}: {e.strerror}"
+        log.warning(f"ZynSimple: Hybrid – virtueller MIDI-Anschluss nicht offen ({self.midi_fehler})")
 
     def senden(self, cc, wert):
         if self.vfd is None:
-            raise RuntimeError("Keine Verbindung zu Mixxx (virtueller MIDI-Anschluss fehlt)")
+            self._virmidi_oeffnen()
+        if self.vfd is None:
+            raise RuntimeError("Keine Verbindung zu Mixxx (" + (getattr(self, "midi_fehler", None) or "MIDI") + ")")
         os.write(self.vfd, bytes([0xB0, int(cc) & 0x7F, int(wert) & 0x7F]))
+
+    # ------------------------------------------------------------------
+    # Decks A und B (für die Anzeige in ZynSimple)
+    # ------------------------------------------------------------------
+    def decks(self):
+        """[{geladen, laeuft, dauer, bpm, pos, rest, titel, kuenstler}, …] für Deck A und B."""
+        out = []
+        for d in (1, 2):
+            z = dict(self._deck.get(d) or {})
+            z.setdefault("geladen", 0)
+            if z.get("geladen") and z.get("dauer"):
+                k = (round(z["dauer"]), round(z.get("bpm", 0)))
+                if self._deck_name.get(d, (None,))[0] != k:
+                    name = None
+                    gemerkt = self._geladen.get(d)
+                    if gemerkt and abs(gemerkt.get("dauer", 0) - z["dauer"]) < 1.5:
+                        name = gemerkt
+                    else:
+                        try:
+                            from . import dj
+                            name = dj.bibliothek_modul().finde(z["dauer"], z.get("bpm", 0))
+                        except Exception:
+                            name = None
+                    self._deck_name[d] = (k, name)
+                name = self._deck_name[d][1] or {}
+                z["titel"] = name.get("title") or "Titel geladen"
+                z["kuenstler"] = name.get("artist") or ""
+                z["rest"] = max(0, int(z["dauer"] * (1 - z.get("pos", 0))))
+            out.append(z)
+        return out
+
+    def play(self, deck):
+        self.senden(114, 2 if int(deck) == 2 else 1)
 
     def _mixxx_lesen(self):
         puffer, sysex, msb = [], False, 0
@@ -377,7 +427,23 @@ class Hybrid:
                 if len(puffer) == 3:
                     st, d1, d2 = puffer
                     puffer = [st]
-                    if st & 0xF0 == 0xB0:
+                    if st in (0xB1, 0xB2) and 20 <= d1 <= 27:
+                        dz = self._deck.setdefault(st - 0xB0, {})
+                        if d1 in (22, 24, 26):
+                            self._deck_msb[(st, d1)] = d2
+                        elif d1 == 20:
+                            dz["geladen"] = d2
+                        elif d1 == 21:
+                            dz["laeuft"] = d2
+                        else:
+                            w = (self._deck_msb.get((st, d1 - 1), 0) << 7) | d2
+                            if d1 == 23:
+                                dz["dauer"] = w
+                            elif d1 == 25:
+                                dz["bpm"] = w / 10.0
+                            elif d1 == 27:
+                                dz["pos"] = w / 16383.0
+                    elif st & 0xF0 == 0xB0:
                         if d1 == 100:
                             msb = d2
                         elif d1 == 101:
@@ -462,7 +528,17 @@ class Hybrid:
             self._xdo("windowraise", w)
             time.sleep(0.3)
         try:
-            return dj.bibliothek_modul().laden(track_id, deck, self.senden)
+            txt = dj.bibliothek_modul().laden(track_id, deck, self.senden)
+            try:
+                import sqlite3
+                db = sqlite3.connect(f"file:{dj.bibliothek_modul().DB}?mode=ro", uri=True, timeout=3)
+                r = db.execute("SELECT artist, title, duration FROM library WHERE id = ?", (int(track_id),)).fetchone()
+                db.close()
+                if r:
+                    self._geladen[int(deck)] = {"artist": r[0] or "", "title": r[1] or "", "dauer": r[2] or 0}
+            except Exception:
+                pass
+            return txt
         finally:
             if not vorher:
                 self.verstecken()
