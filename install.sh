@@ -77,6 +77,13 @@ for CMDLINE in /boot/firmware/cmdline.txt /boot/cmdline.txt; do
     break
 done
 
+# 2d) Wache: schreibt mit, wie es dem Gerät geht – falls es einfriert, sieht man danach warum
+if [ -f "$DEST/dj/zynsimple-wache.service" ] && [ -d /run/systemd/system ]; then
+    cp "$DEST/dj/zynsimple-wache.service" /etc/systemd/system/zynsimple-wache.service 2>/dev/null \
+        && systemctl daemon-reload && systemctl enable zynsimple-wache.service >/dev/null 2>&1 \
+        && systemctl restart zynsimple-wache.service >/dev/null 2>&1 && echo "Wache läuft (Protokoll bei Hängern)"
+fi
+
 echo "SCHRITT 4/6 Hänge ZynSimple in die Oberfläche ein"
 # 3) Startdatei (.pth) anlegen – wird bei jedem Python-Start gelesen,
 #    hängt sich aber nur in die Zynthian-Oberfläche ein.

@@ -10,7 +10,7 @@ Woher die Tracks kommen:
 Was passiert: Demucs trennt jeden Track in Drums, Bass, Melodie (Rest) und Vocals. Daraus wird eine
 NI-Stem-Datei (.stem.mp4) im Ordner „MUSIK gekauft/Stems“, die Mixxx 2.6 mit einzeln schaltbaren Spuren abspielt.
 
-Rücksicht: Läuft mit niedrigster Priorität und pausiert, solange das DJ-Pult läuft (Auflegen hat Vorrang).
+Rücksicht: Läuft mit niedrigster Priorität und pausiert, solange DJ-Pult, DJ + Instrumente oder die Barden-Beats-Bühne laufen.
 Status für die Anzeige: /tmp/zynsimple-stems.json
 """
 import glob
@@ -65,7 +65,11 @@ def einstellung_an():
 
 
 def dj_laeuft():
-    return subprocess.call(["systemctl", "is-active", "-q", "zynsimple-dj"]) == 0
+    """Wird gerade gespielt? DJ-Pult, Barden-Beats-Bühne oder Mixxx (DJ + Instrumente) → Stems pausieren."""
+    for d in ("zynsimple-dj", "imres-buehne"):
+        if subprocess.call(["systemctl", "is-active", "-q", d]) == 0:
+            return True
+    return subprocess.call(["pgrep", "-x", "mixxx"], stdout=subprocess.DEVNULL) == 0
 
 
 def gemerkt():

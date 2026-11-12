@@ -73,6 +73,16 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 5.1 – Wache gegen Hänger
+
+- **Wache**: schreibt alle 10 Sekunden mit, wie es dem Zynthian geht (Strom, Temperatur, Last, freier Speicher,
+  welche Programme am meisten rechnen) und was der Kernel Auffälliges meldet (Tasten-Chip/I2C, Unterspannung,
+  Speicher voll, hängende Prozesse). Friert das Gerät ein, steht nach dem Neustart drin, was davor los war.
+- Abholen: am Handy unter Extras → Bühne → **⇩ Protokoll laden**, oder am PC per WLAN im Ordner
+  „MUSIK gekauft/_Diagnose“ (die letzten 10 Starts).
+- **Stems** rechnen jetzt nur noch, wenn weder DJ-Pult, DJ + Instrumente noch die Barden-Beats-Bühne laufen –
+  damit sie beim Spielen keine Rechenzeit und keinen Speicher wegnehmen.
+
 ## Neu in Version 5.0 – Decks sichtbar, keine Hänger mehr
 
 - **♫ Decks & Titel** (Kanal „DJ-Pult“, MIXER oder ALT + PLAY): oben stehen jetzt **Deck A und Deck B** –

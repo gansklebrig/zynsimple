@@ -148,6 +148,23 @@ def make_handler(bridge, pin):
             elif path == "/api/fortschritt":
                 from . import fortschritt as fs
                 self._send(200, fs.als_dict())
+            elif path == "/datei/wache":
+                # Protokoll der Wache (dieser Start + der vorige) – zum Weiterschicken bei Hängern
+                teile = []
+                for n in ("wache.log.vorher", "wache.log"):
+                    try:
+                        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), n),
+                                  encoding="utf-8", errors="replace") as f:
+                            teile.append(f"##### {n}\n" + "".join(f.readlines()[-1500:]))
+                    except OSError:
+                        pass
+                roh = ("\n".join(teile) or "Noch kein Protokoll – nach dem Update einmal neu starten.").encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Disposition", 'attachment; filename="zynthian-wache.txt"')
+                self.send_header("Content-Length", str(len(roh)))
+                self.end_headers()
+                self.wfile.write(roh)
             elif path == "/api/aufnahmen":
                 if not self._authorized():
                     return self._send(401, {"error": "pin"})

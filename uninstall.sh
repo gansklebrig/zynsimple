@@ -38,3 +38,4 @@ if command -v systemctl >/dev/null && systemctl list-units --type=service 2>/dev
     systemctl restart zynthian
 fi
 echo "Fertig."
+systemctl disable --now zynsimple-wache.service >/dev/null 2>&1; rm -f /etc/systemd/system/zynsimple-wache.service

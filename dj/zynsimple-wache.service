@@ -1,0 +1,12 @@
+[Unit]
+Description=ZynSimple Wache: Zustand des Zynthian mitschreiben (für die Fehlersuche bei Hängern)
+After=local-fs.target
+
+[Service]
+ExecStart=/bin/bash /zynthian/zynthian-my-data/zynsimple/dj/zynsimple-wache.sh
+Nice=10
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
