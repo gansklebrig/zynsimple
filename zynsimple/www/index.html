@@ -356,6 +356,20 @@
     <div class="line"><button class="btn sec" id="bu-merk">Auftritts-Stand merken</button><button class="btn sec" id="bu-lade">Zurückholen</button></div>
     <p style="margin-top:10px">Ist der Zynthian hängen geblieben? Nach dem Neustart <a href="/datei/wache">⇩ Protokoll laden</a> und an Claude schicken
       (liegt auch per WLAN im Ordner „MUSIK gekauft/_Diagnose“).</p>
+    <h2 style="margin-top:14px">🩺 Diagnose automatisch hochladen</h2>
+    <p id="dg-info">Stürzt etwas ab oder wechselt der Zynthian ungeplant die Ansicht, landet ein Bericht automatisch in deinem
+      <b>privaten</b> GitHub-Repository – sobald WLAN da ist. Claude kann ihn dort direkt lesen.</p>
+    <details id="dg-anl"><summary>Einrichten (einmal, ca. 3 Minuten)</summary>
+      <p>1. Auf github.com ein neues <b>privates</b> Repository anlegen, Name z. B. <code>zynsimple-diagnose</code>.<br>
+         2. Einstellungen → Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token:
+         „Only select repositories“ → nur <code>zynsimple-diagnose</code>; Permissions → Repository → <b>Contents: Read and write</b>;
+         Ablauf z. B. 1 Jahr.<br>
+         3. Token (beginnt mit <code>github_pat_</code>) hier einfügen.</p>
+      <input id="dg-repo" placeholder="gansklebrig/zynsimple-diagnose" value="gansklebrig/zynsimple-diagnose" style="width:100%;margin:4px 0">
+      <input id="dg-token" type="password" placeholder="github_pat_…" style="width:100%;margin:4px 0">
+      <div class="line"><button class="btn" id="dg-save">Speichern &amp; testen</button></div>
+    </details>
+    <div class="line" id="dg-btns" style="display:none"><button class="btn sec" id="dg-jetzt">Jetzt hochladen</button><button class="btn sec" id="dg-aus">Ausschalten</button></div>
     <p>Musik per WLAN: am PC <code id="dj-share">\\zynthian\MUSIK gekauft</code> öffnen und Dateien hineinziehen.
       Anmeldung: Benutzer <b>musik</b>, Passwort <b>gekauft</b>.</p>
     <h2 style="margin-top:14px">◆ Stems (Mixxx 2.6)</h2>
@@ -797,6 +811,9 @@
       else info.push('Stems: nichts zu tun');
       (st.letzte || []).slice(0, 3).forEach(x => info.push(x));
       document.getElementById('st-info').innerHTML = info.map(x => String(x).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))).join('<br>');
+      const dg = d.diagnose || {};
+      document.getElementById('dg-btns').style.display = dg.an ? '' : 'none';
+      document.getElementById('dg-anl').querySelector('summary').textContent = dg.an ? '✓ eingerichtet (' + dg.repo + ') – ändern' : 'Einrichten (einmal, ca. 3 Minuten)';
       document.getElementById('st-m26').style.display = d.eingerichtet && !d.mixxx26 && !b26.laeuft ? '' : 'none';
       document.getElementById('st-ein').style.display = d.eingerichtet && !st.bereit && !(st.install && st.install.laeuft) ? '' : 'none';
       const tg = document.getElementById('st-toggle'); tg.style.display = st.bereit ? '' : 'none'; tg.textContent = st.an ? 'Stems pausieren' : 'Stems weiter';
@@ -832,6 +849,15 @@
   }
   document.getElementById('hy-go').onclick = hyStart;
   document.getElementById('hy-show').onclick = () => djAkt('hybrid-zeigen', null, 'Mixxx ist am Zynthian vorne – MENU holt den Mischer zurück');
+  const dgAkt = async (body) => {
+    toast('Einen Moment …', 3000);
+    const r = await api('/api/dj', body).catch(e => ({ error: e.message }));
+    toast(r.error ? 'Ging nicht: ' + r.error : r.message, 8000); djCheck();
+  };
+  document.getElementById('dg-save').onclick = () => dgAkt({ aktion: 'diagnose-einrichten',
+    repo: document.getElementById('dg-repo').value, token: document.getElementById('dg-token').value });
+  document.getElementById('dg-jetzt').onclick = () => dgAkt({ aktion: 'diagnose-jetzt' });
+  document.getElementById('dg-aus').onclick = () => { if (confirm('Diagnose-Upload ausschalten?')) dgAkt({ aktion: 'diagnose-aus' }); };
   document.getElementById('bu-merk').onclick = async () => {
     const r = await api('/api/dj', { aktion: 'auftritt-merken' }).catch(e => ({ error: e.message }));
     toast(r.error || r.message, 5000); djCheck();

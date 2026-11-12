@@ -99,6 +99,7 @@ def make_handler(bridge, pin):
                                      "schritt": m["schritte"][m["schritt"]][0],
                                      "prozent": int(100 * (sum(g[:m["schritt"]]) + g[m["schritt"]] * m["teil"]) / sum(g))}
                 st["stems"] = dj.stems_status()
+                st["diagnose"] = dj.diagnose_status()
                 if not st["stems"]["bereit"]:
                     si = dj.stems_install_stand()
                     st["stems"]["install"] = {"laeuft": si["laeuft"], "detail": si["detail"], "fehler": si["fehler"]}
@@ -271,7 +272,8 @@ def make_handler(bridge, pin):
                 try:
                     from . import dj, start_dj
                     n = min(int(self.headers.get("Content-Length", 0)), 1024)
-                    aktion = str(json.loads(self.rfile.read(n) or b"{}").get("aktion", "dj"))
+                    req = json.loads(self.rfile.read(n) or b"{}")
+                    aktion = str(req.get("aktion", "dj"))
                     hy = getattr(bridge, "hybrid", None)
                     if aktion == "dj":
                         start_dj(bridge.zyngui)
@@ -285,6 +287,8 @@ def make_handler(bridge, pin):
                         from . import helfer
                         fn = helfer.auftritt_merken if aktion == "auftritt-merken" else helfer.auftritt_laden
                         return self._send(200, {"ok": True, "message": fn(bridge)})
+                    elif aktion in ("diagnose-einrichten", "diagnose-jetzt", "diagnose-aus"):
+                        return self._send(200, {"ok": True, "message": dj.diagnose(aktion, req)})
                     elif aktion == "import":
                         dj.import_starten()
                     elif aktion == "samba":

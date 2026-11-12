@@ -61,6 +61,9 @@ class Hybrid:
         self.proc = None
         self.cid = None
         self.vfd = None
+        self.vfd_ddj = None
+        self.vm_ddj = None
+        self.ddj_fehler = None
         self.vorne = False
         self.fehler = None
         self.phase = None             # None | "start" | "laeuft" | "stopp"
@@ -118,9 +121,16 @@ class Hybrid:
             with open("/proc/asound/cards", encoding="utf-8") as f:
                 virmidi_da = "VirMIDI" in f.read()
             if not virmidi_da:
-                subprocess.call(["modprobe", "snd-virmidi", "midi_devs=1"], stderr=subprocess.DEVNULL)
+                subprocess.call(["modprobe", "snd-virmidi", "midi_devs=4"], stderr=subprocess.DEVNULL)
                 time.sleep(1)
             env = self._env(m)
+            if self.vfd is None:
+                self._virmidi_oeffnen()
+            self.ddj_fehler = None
+            if self.vfd_ddj is None:
+                self._virmidi_ddj_oeffnen()
+            if self.vm_ddj:
+                env["ZS_VIRMIDI_DDJ"] = self.vm_ddj
             subprocess.call(["/usr/bin/python3", os.path.join(DJ_DIR, "dj-einrichten.py")], env=env,
                             stdout=open(LOG, "w"), stderr=subprocess.STDOUT, timeout=120)
             self.cid = self._kanal()
@@ -129,13 +139,15 @@ class Hybrid:
             self.vorne = True
             self.phase = "laeuft"
             log.info(f"ZynSimple: Hybrid läuft (Mixxx {m}, Kanal {self.cid})")
-            self._virmidi_oeffnen()
+            if self.vfd is None:
+                self._virmidi_oeffnen()
             g = getattr(self.b, "geraete", None)
             if g is not None:
                 g.start()                          # DJ-Controller mithören: SHIFT + Jog / SHIFT + Kopfhörer
                 g.ddj_aktionen.clear()
             threading.Thread(target=self._waechter, daemon=True).start()
             threading.Thread(target=self._mixxx_lesen, daemon=True).start()
+            threading.Thread(target=self._ddj_lesen, daemon=True).start()
         except Exception as e:
             self.fehler = str(e)
             self.phase = None
@@ -204,6 +216,13 @@ class Hybrid:
             except OSError:
                 pass
             self.vfd = None
+        if getattr(self, "vfd_ddj", None) is not None:
+            try:
+                os.close(self.vfd_ddj)
+            except OSError:
+                pass
+            self.vfd_ddj = None
+            self.vm_ddj_pfad = None
         self._zynsimple_vorne()
         log.info("ZynSimple: Hybrid beendet")
 
@@ -354,13 +373,96 @@ class Hybrid:
             return
         for k in karten:
             for p in sorted(glob.glob(f"/dev/snd/midiC{k}D*")):
+                if p == getattr(self, "vm_ddj_pfad", None):
+                    continue
                 try:
                     self.vfd = os.open(p, os.O_RDWR | os.O_NONBLOCK)
+                    self.vm_zyn_pfad = p
                     log.info(f"ZynSimple: Hybrid – Verbindung zu Mixxx über {p}")
                     return
                 except OSError as e:
                     self.midi_fehler = f"{p}: {e.strerror}"
         log.warning(f"ZynSimple: Hybrid – virtueller MIDI-Anschluss nicht offen ({self.midi_fehler})")
+
+    def _virmidi_ddj_oeffnen(self):
+        """Zweiter virtueller Anschluss nur für den DJ-Controller: Im Zynthian hält JACK alle USB-MIDI-Geräte
+        fest (-X raw) – Mixxx sähe den DDJ-200 sonst nie. ZynSimple hört ihn über JACK und reicht alles durch."""
+        self.vm_ddj = None
+        try:
+            with open("/proc/asound/cards", encoding="utf-8") as f:
+                karten = re.findall(r"^\s*(\d+)\s+\[[^\]]*\]:.*(?:VirMIDI|Virtual)", f.read(), re.M)
+        except OSError:
+            karten = []
+        for k in karten:
+            for p in sorted(glob.glob(f"/dev/snd/midiC{k}D*")):
+                if p == getattr(self, "vm_zyn_pfad", None):
+                    continue
+                try:
+                    self.vfd_ddj = os.open(p, os.O_RDWR | os.O_NONBLOCK)
+                    self.vm_ddj_pfad = p
+                    self.vm_ddj = f"{k}-{p.rsplit('D', 1)[1]}"
+                    log.info(f"ZynSimple: Hybrid – DJ-Controller über {p} (VirMIDI {self.vm_ddj}) an Mixxx")
+                    return
+                except OSError:
+                    pass
+        log.warning("ZynSimple: Hybrid – kein zweiter virtueller MIDI-Anschluss für den DJ-Controller")
+        try:
+            with open("/etc/modprobe.d/zynsimple-virmidi.conf", "w") as f:
+                f.write("# ZynSimple: mehrere virtuelle MIDI-Anschlüsse (Zynthian-Tasten und DJ-Controller → Mixxx)\n"
+                        "options snd-virmidi midi_devs=4\n")
+        except OSError:
+            pass
+        self.ddj_fehler = "DJ-Controller: einmal den Zynthian neu starten, dann geht er auch hier"
+        try:
+            with open("/proc/asound/cards", encoding="utf-8") as f:
+                if re.search(r"DDJ", f.read()):
+                    self.fehler = self.ddj_fehler
+        except OSError:
+            pass
+
+    def ddj_senden(self, daten):
+        """DJ-Controller → Mixxx (aus dem MIDI-Mithören von ZynSimple)."""
+        fd = getattr(self, "vfd_ddj", None)
+        if fd is not None:
+            try:
+                os.write(fd, daten)
+            except OSError:
+                pass
+
+    def _ddj_lesen(self):
+        """Mixxx → DJ-Controller (LEDs): was Mixxx an den virtuellen Anschluss schickt, geht per JACK an den DDJ."""
+        puffer = bytearray()
+        while self.laeuft():
+            fd = getattr(self, "vfd_ddj", None)
+            g = getattr(self.b, "geraete", None)
+            if fd is None or g is None:
+                time.sleep(1)
+                continue
+            try:
+                r, _, _ = select.select([fd], [], [], 1.0)
+                if not r:
+                    continue
+                daten = os.read(fd, 512)
+            except (OSError, ValueError):
+                time.sleep(0.5)
+                continue
+            for b in daten:
+                if b >= 0xF8:
+                    continue
+                if b & 0x80 and b != 0xF7:
+                    puffer = bytearray([b])
+                    continue
+                if not puffer:
+                    continue
+                puffer.append(b)
+                st = puffer[0]
+                if st == 0xF0:
+                    if b == 0xF7:
+                        g.ddj_aus.append(bytes(puffer))
+                        puffer = bytearray()
+                elif len(puffer) == (2 if 0xC0 <= st < 0xE0 else 3):
+                    g.ddj_aus.append(bytes(puffer))
+                    puffer = bytearray([st])
 
     def senden(self, cc, wert):
         if self.vfd is None:

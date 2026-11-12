@@ -385,3 +385,55 @@ def stems_status():
         d["dienst"] = False
     d["bereit"] = stems_bereit()
     return d
+
+
+# ----------------------------------------------------------------------------------------------
+# Diagnose automatisch hochladen (privates GitHub-Repository)
+# ----------------------------------------------------------------------------------------------
+DIAG_KONF = "/zynthian/zynthian-my-data/zynsimple/diagnose.json"
+DIAG_SKRIPT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dj", "diagnose-hochladen.py")
+
+
+def diagnose_status():
+    try:
+        import json
+        with open(DIAG_KONF, encoding="utf-8") as f:
+            k = json.load(f)
+        return {"an": bool(k.get("token")), "repo": k.get("repo", "")}
+    except Exception:
+        return {"an": False, "repo": ""}
+
+
+def _diag_lauf(*arg):
+    r = subprocess.run(["/usr/bin/python3", DIAG_SKRIPT] + list(arg), capture_output=True, text=True, timeout=120)
+    return (r.stdout or r.stderr or "").strip().splitlines()[-1:] or ["fertig"]
+
+
+def diagnose(aktion, req):
+    import json
+    import re
+    if aktion == "diagnose-aus":
+        try:
+            os.remove(DIAG_KONF)
+        except OSError:
+            pass
+        return "Diagnose-Upload ausgeschaltet"
+    if aktion == "diagnose-jetzt":
+        if not diagnose_status()["an"]:
+            raise RuntimeError("Erst einrichten (Repository und Token)")
+        return _diag_lauf("--jetzt")[0]
+    repo = str(req.get("repo", "")).strip().strip("/")
+    repo = re.sub(r"^https?://github\.com/", "", repo)
+    token = str(req.get("token", "")).strip()
+    if not re.fullmatch(r"[\w.-]+/[\w.-]+", repo):
+        raise RuntimeError("Repository bitte als name/repository angeben, z. B. gansklebrig/zynsimple-diagnose")
+    if not re.fullmatch(r"(github_pat_|ghp_)\w{20,}", token):
+        raise RuntimeError("Das sieht nicht wie ein GitHub-Token aus (beginnt mit github_pat_)")
+    os.makedirs(os.path.dirname(DIAG_KONF), exist_ok=True)
+    alt = os.umask(0o077)
+    try:
+        with open(DIAG_KONF, "w", encoding="utf-8") as f:
+            json.dump({"repo": repo, "token": token}, f)
+    finally:
+        os.umask(alt)
+    return _diag_lauf("--test")[0]

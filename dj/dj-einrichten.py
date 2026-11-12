@@ -311,9 +311,21 @@ def controller(data, ver):
     if ddj and HYBRID:
         ddj = ddj_hybrid(ddj, ziel) or ddj
     zyn = os.path.join(ziel, "Zynthian-V5-ZynSimple.midi.xml")
-    for name in midi_namen():
+    # „DJ + Instrumente“: der DDJ kommt über einen eigenen virtuellen Anschluss (ZynSimple reicht ihn durch)
+    vm_ddj = os.environ.get("ZS_VIRMIDI_DDJ", "") if HYBRID else ""
+    namen = midi_namen()
+    if ddj:
+        namen |= {"DDJ-200", "DDJ-200 MIDI 1"}          # auch wenn der DDJ gerade nicht steckt
+    for name in namen:
         datei = None
+        if re.search(r"DDJ-?200", name, re.I) and ddj and HYBRID:
+            # hier hält JACK den echten DDJ fest – Mixxx bekommt ihn über den virtuellen Anschluss
+            for k in {schluessel(name), schluessel(name + " MIDI 1")}:
+                data.setdefault("[Controller]", {})[k] = "0"
+            continue
         if re.search(r"DDJ-?200", name, re.I) and ddj:
+            datei = ddj
+        elif vm_ddj and ddj and re.search(r"(VirMIDI|Virtual Raw MIDI)\s*" + re.escape(vm_ddj) + r"\b", name, re.I):
             datei = ddj
         elif re.search(r"VirMIDI|Virtual Raw MIDI", name, re.I):
             datei = zyn

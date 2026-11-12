@@ -73,6 +73,19 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 5.6 – DDJ-200 auch bei „DJ + Instrumente“, Diagnose lädt sich selbst hoch
+
+- **DDJ-200 bei „DJ + Instrumente“ geht jetzt wirklich.** Bisher kam kein einziger Tastendruck bei Mixxx an:
+  Der Zynthian (JACK) belegt alle USB-MIDI-Geräte für sich. Jetzt hört ZynSimple den DDJ mit und reicht alles über
+  einen eigenen virtuellen Anschluss an Mixxx weiter – auch die LEDs zurück.
+  **Einmal den Zynthian neu starten** (damit es genug virtuelle Anschlüsse gibt), dann den DDJ einstecken und
+  „DJ + Instrumente“ starten. Reines DJ-Pult: dort klappt der DDJ auch, wenn er erst nach dem Einrichten steckt.
+- **Diagnose automatisch hochladen:** Handy → Extras → „🩺 Diagnose automatisch hochladen“ einrichten
+  (privates GitHub-Repository + Token, Anleitung steht dort). Danach landen Absturz-Berichte, Protokolle vor
+  einem Einfrieren und **ungeplante Wechsel** (DJ-Pult plötzlich weg) innerhalb einer Minute dort – Claude liest sie direkt.
+- Die Wache erkennt jetzt selbst, wenn das DJ-Pult ungeplant endet, und schreibt einen Bericht
+  (`wechsel-….txt` in „MUSIK gekauft/_Diagnose“).
+
 ## Neu in Version 5.5 – DJ-Controller bei „DJ + Instrumente“, PLAY spielt Deck A
 
 - **DDJ-200 bei „DJ + Instrumente“ voll nutzbar.** Mischen ging schon immer (Play, Cue, EQ, Crossfader,

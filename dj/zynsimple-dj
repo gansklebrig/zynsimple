@@ -99,7 +99,7 @@ case "$1" in
     # WLAN-Ordner noch eingetragen? (die Zynthian-Weboberfläche schreibt smb.conf manchmal neu)
     [ -f /etc/samba/smb.conf ] && ! grep -q "zynsimple-dj.conf" /etc/samba/smb.conf && samba_einrichten >/dev/null 2>&1
     # virtueller MIDI-Anschluss für die Zynthian-Tasten → Mixxx
-    grep -q VirMIDI /proc/asound/cards 2>/dev/null || modprobe snd-virmidi midi_devs=1 2>/dev/null
+    grep -q VirMIDI /proc/asound/cards 2>/dev/null || modprobe snd-virmidi midi_devs=4 2>/dev/null
     # Barden Beats im Hintergrund würde JACK wieder anwerfen
     systemctl stop imres-hintergrund 2>/dev/null
     # Conflicts= im Dienst beendet Zynthian-Oberfläche, Barden-Beats-Bühne und JACK

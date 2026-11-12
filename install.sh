@@ -77,6 +77,12 @@ for CMDLINE in /boot/firmware/cmdline.txt /boot/cmdline.txt; do
     break
 done
 
+# 2c2) Mehrere virtuelle MIDI-Anschlüsse (Zynthian-Tasten und DJ-Controller → Mixxx bei „DJ + Instrumente“)
+if [ -d /etc/modprobe.d ] && [ ! -f /etc/modprobe.d/zynsimple-virmidi.conf ]; then
+    printf '# ZynSimple: Zynthian-Tasten und DJ-Controller → Mixxx\noptions snd-virmidi midi_devs=4\n' \
+        > /etc/modprobe.d/zynsimple-virmidi.conf 2>/dev/null
+fi
+
 # 2d) Wache: schreibt mit, wie es dem Gerät geht – falls es einfriert, sieht man danach warum
 if [ -f "$DEST/dj/zynsimple-wache.service" ] && [ -d /run/systemd/system ]; then
     cp "$DEST/dj/zynsimple-wache.service" /etc/systemd/system/zynsimple-wache.service 2>/dev/null \
