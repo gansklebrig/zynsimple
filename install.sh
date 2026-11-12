@@ -83,6 +83,13 @@ if [ -d /etc/modprobe.d ] && [ ! -f /etc/modprobe.d/zynsimple-virmidi.conf ]; th
         > /etc/modprobe.d/zynsimple-virmidi.conf 2>/dev/null
 fi
 
+# 2c3) Tempo und Tonart aller Titel im Hintergrund ermitteln (abschaltbar in den Einstellungen)
+if [ -f "$DEST/dj/zynsimple-analyse.service" ] && [ -d /run/systemd/system ]; then
+    cp "$DEST/dj/zynsimple-analyse.service" /etc/systemd/system/zynsimple-analyse.service 2>/dev/null \
+        && systemctl daemon-reload && systemctl enable zynsimple-analyse.service >/dev/null 2>&1 \
+        && systemctl restart zynsimple-analyse.service >/dev/null 2>&1 && echo "Titel-Analyse (BPM/Tonart) läuft im Hintergrund"
+fi
+
 # 2d) Wache: schreibt mit, wie es dem Gerät geht – falls es einfriert, sieht man danach warum
 if [ -f "$DEST/dj/zynsimple-wache.service" ] && [ -d /run/systemd/system ]; then
     cp "$DEST/dj/zynsimple-wache.service" /etc/systemd/system/zynsimple-wache.service 2>/dev/null \

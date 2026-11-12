@@ -100,6 +100,11 @@ def make_handler(bridge, pin):
                                      "prozent": int(100 * (sum(g[:m["schritt"]]) + g[m["schritt"]] * m["teil"]) / sum(g))}
                 st["stems"] = dj.stems_status()
                 st["diagnose"] = dj.diagnose_status()
+                try:
+                    with open("/tmp/zynsimple-analyse.json", encoding="utf-8") as f:
+                        st["analyse"] = json.load(f)
+                except Exception:
+                    st["analyse"] = None
                 if not st["stems"]["bereit"]:
                     si = dj.stems_install_stand()
                     st["stems"]["install"] = {"laeuft": si["laeuft"], "detail": si["detail"], "fehler": si["fehler"]}

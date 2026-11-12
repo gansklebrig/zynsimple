@@ -810,6 +810,8 @@
       else if (st.aktuell) info.push('Stems: ' + Math.round(st.prozent || 0) + ' % „' + st.aktuell + '“ · ' + st.warteschlange + ' in der Warteschlange' + (st.eta_s ? ' · noch ca. ' + (Math.floor(st.eta_s / 60) + 1) + ' min' : ''));
       else info.push('Stems: nichts zu tun');
       (st.letzte || []).slice(0, 3).forEach(x => info.push(x));
+      const an = d.analyse;
+      if (an) info.push(!an.aktiv ? 'BPM/Tonart-Analyse: ausgeschaltet' : an.pause ? 'BPM/Tonart-Analyse: wartet, bis Mixxx aus ist' + (an.offen ? ' · ' + an.offen + ' Titel offen' : '') : an.offen ? 'BPM/Tonart-Analyse: ' + an.offen + ' Titel offen' + (an.aktuell ? ' · „' + an.aktuell + '“' : '') : 'BPM/Tonart: alle Titel analysiert');
       document.getElementById('st-info').innerHTML = info.map(x => String(x).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))).join('<br>');
       const dg = d.diagnose || {};
       document.getElementById('dg-btns').style.display = dg.an ? '' : 'none';

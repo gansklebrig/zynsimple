@@ -1,0 +1,16 @@
+[Unit]
+Description=ZynSimple DJ-Pult: Tempo und Tonart aller Titel im Hintergrund ermitteln (pausiert, solange Mixxx läuft)
+After=local-fs.target
+
+[Service]
+ExecStart=/usr/bin/python3 /zynthian/zynthian-my-data/zynsimple/dj/analyse-arbeiter.py
+Nice=19
+IOSchedulingClass=idle
+CPUWeight=5
+CPUQuota=60%
+MemoryHigh=400M
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

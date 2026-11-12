@@ -13,6 +13,10 @@ done
 
 # Stem-Dienst entfernen (das Werkzeug unter /opt/zynsimple-stems und Mixxx 2.6 unter /opt/mixxx-2.6 bleiben;
 # mit „rm -rf /opt/zynsimple-stems /opt/mixxx-2.6“ lassen sie sich von Hand löschen)
+if [ -f /etc/systemd/system/zynsimple-analyse.service ]; then
+    systemctl disable --now zynsimple-analyse 2>/dev/null
+    rm -f /etc/systemd/system/zynsimple-analyse.service
+fi
 if [ -f /etc/systemd/system/zynsimple-stems.service ]; then
     systemctl disable --now zynsimple-stems 2>/dev/null
     rm -f /etc/systemd/system/zynsimple-stems.service

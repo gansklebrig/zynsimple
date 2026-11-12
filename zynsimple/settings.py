@@ -29,6 +29,8 @@ SPEC = [
     ("tonart", "Tonart der Band", "choice", None,
      "für Stimmgerät und DJ-Pult (passende Tracks) · z. B. Handpan-Grundton"),
     ("master_limiter", "Schutz vor Übersteuern", "bool", None, "Limiter am Hauptausgang · fängt laute Spitzen ab"),
+    ("dj_analyse", "Titel automatisch analysieren", "bool", None,
+     "Tempo (BPM) und Tonart aller Titel im Hintergrund ermitteln – nur wenn Mixxx gerade aus ist"),
     ("dj_auto_rec", "Set automatisch aufnehmen", "bool", None, "jedes DJ-Set landet als Datei auf dem USB-Stick"),
     ("takt", "Wer gibt den Takt vor?", "choice",
      [("senden", "Zynthian führt"), ("folgen", "TR-8S führt"), ("aus", "aus")],

@@ -73,6 +73,15 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 5.9 – Tempo und Tonart werden selbst ermittelt
+
+- **Automatische Analyse:** Der Zynthian hört sich im Hintergrund jeden Titel ohne BPM oder Tonart an
+  (90 Sekunden aus der Mitte) und trägt beides in die Bibliothek ein. Werte, die schon in den Dateien stehen,
+  bleiben unangetastet. Mixxx verfeinert das Tempo beim ersten Laden ins Deck noch.
+- Läuft nur, **solange Mixxx aus ist** (also nicht beim Auflegen), mit niedrigster Priorität – am schnellsten
+  im normalen Mischer oder über Nacht.
+- **Abschalten:** Einstellungen → DJ-Pult → „Titel automatisch analysieren“. Stand am Handy unter Extras.
+
 ## Neu in Version 5.8 – keine Mixxx-Menüleisten-Frage mehr
 
 - Die Rückfrage von Mixxx „Darf Mixxx die Menüleiste ausblenden?“ kommt nicht mehr – auch nicht nach Updates.

@@ -3502,7 +3502,7 @@ class zynsimple_screen(zynthian_gui_base):
                                     ("set", "tonart", "♯"), ("set", "xy_spring", "✥"), ("set", "synth_midi_chan", "♪"),
                                     ("act", "s_tasten", "⌨")]),
         ("dj", "DJ-Pult", [("act", "s_dj", "♪"), ("set", "dj_auto_rec", "●"), ("act", "s_djhandy", "⌕"),
-                           ("set", "dj_handpan_fx", "◎"), ("act", "s_djimport", "⇩"), ("act", "s_djordner", "▤"),
+                           ("set", "dj_handpan_fx", "◎"), ("set", "dj_analyse", "♯"), ("act", "s_djimport", "⇩"), ("act", "s_djordner", "▤"),
                            ("act", "s_mixxx26", "◆"), ("act", "s_stems", "≋")]),
         ("buehne", "Bühne", [("act", "s_hybrid", "♫"), ("act", "s_djimport", "⇩"), ("set", "takt", "⏱"), ("set", "start_modus", "⏻"),
                              ("act", "s_gig_merken", "✓"), ("act", "s_gig_laden", "↺"), ("act", "s_strom", "⚡")]),

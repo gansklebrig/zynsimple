@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "5.8"
+VERSION = "5.9"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -51,6 +51,7 @@ DEFAULTS = {
     "keytar_kanal": None,
     "dj_handpan_fx": True,
     "dj_stems": True,
+    "dj_analyse": True,
 }
 
 SCREEN_NAME = "zynsimple"
