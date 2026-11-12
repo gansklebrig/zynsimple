@@ -198,7 +198,8 @@ class zynsimple_screen(zynthian_gui_base):
             return
         self.fokus_i = min(getattr(self, "fokus_i", 0), len(z) - 1)
         x0, y0, x1, y1 = z[self.fokus_i]
-        self.rrect(x0 - 3, y0 - 3, x1 + 3, y1 + 3, 12, fill="", outline=P["gold2"], width=4)
+        self.canvas.delete("fokusrahmen")
+        self.rrect(x0 - 3, y0 - 3, x1 + 3, y1 + 3, 12, fill="", outline=P["gold2"], width=4, tags="fokusrahmen")
 
     def _fokus_neu(self):
         self._redraw()
@@ -1121,6 +1122,19 @@ class zynsimple_screen(zynthian_gui_base):
                                text=f"leer · F{k + 1} oder SHIFT + 🎧 {'A' if k == 0 else 'B'} lädt den gewählten Titel")
             self.trk_hits.append((x0, y0, x1, y0 + dh, "b_play", k + 1))
 
+    def _bib_decks_zeichnen(self, W, dh):
+        """Nur die Deck-Karten (neu) zeichnen – die Liste darunter bleibt stehen (kein Flackern)."""
+        cv = self.canvas
+        cv.delete("bibdeck")
+        self.trk_hits = [h for h in self.trk_hits if h[4] != "b_play"]
+        alle = cv.find_all()
+        n0 = alle[-1] if alle else 0
+        self._bib_decks(W, 56, dh)
+        for i in cv.find_all():
+            if i > n0:
+                cv.addtag_withtag("bibdeck", i)
+        cv.tag_raise("fokusrahmen")
+
     def _bib_holen(self):
         b = self.bib
         try:
@@ -1144,7 +1158,7 @@ class zynsimple_screen(zynthian_gui_base):
         self._tbtn(W - 150, 8, W - 12, 50, "✕ Zurück", "b_zu", font=self.f_small)
         self._tbtn(W - 330, 8, W - 160, 50, "Mixxx zeigen", "b_mixxx", font=self.f_small)
         dh = self._bib_deckhoehe()
-        self._bib_decks(W, 56, dh)
+        self._bib_decks_zeichnen(W, dh)
         ty = 56 + dh + 8
         tw = (W - 40 - 16) / 3
         for i, (k, t) in enumerate(self.BIB_REITER):
@@ -1363,7 +1377,8 @@ class zynsimple_screen(zynthian_gui_base):
             sig = None
         if sig != b.get("deck_sig"):
             b["deck_sig"] = sig
-            self.draw_bib()
+            W, H = self._geom()
+            self._bib_decks_zeichnen(W, self._bib_deckhoehe())     # nur die Decks, nicht die ganze Seite
 
     def open_help(self, willkommen=False):
         self.mode = "help"
@@ -4483,6 +4498,30 @@ class zynsimple_screen(zynthian_gui_base):
         if self.mode == "bib" and role in ("F1", "F2", "F3", "F4"):
             if t == "S":
                 self._bib_taste(role)
+            return True
+        if self.mode == "bib" and role in ("PLAY", "SEL"):
+            if t == "S":
+                try:
+                    alt = bool(self.zyngui.get_alt_mode())
+                except Exception:
+                    alt = False
+                if role == "PLAY":                        # PLAY = Deck A ▶/❚❚ · ALT + PLAY = Deck B
+                    deck = 2 if alt else 1
+                    try:
+                        z = self.bridge.hybrid.decks()[deck - 1]
+                        if not z.get("geladen"):
+                            self._flash(f"Deck {'AB'[deck - 1]} ist leer – erst einen Titel laden (F{deck})")
+                        else:
+                            self.bridge.hybrid.play(deck)
+                    except Exception as e:
+                        self._flash(str(e))
+                else:                                     # SEL = gewählten Titel ins freie Deck
+                    try:
+                        d = self.bridge.hybrid.decks()
+                        frei = 1 if not d[0].get("geladen") or (d[1].get("geladen") and not d[0].get("laeuft")) else 2
+                    except Exception:
+                        frei = 1
+                    self._bib_taste("F1" if frei == 1 else "F2")
             return True
         if self.mode == "help" and t == "P":
             self.on_press(type("E", (), {"x": 0, "y": 0})())

@@ -155,17 +155,17 @@ class Geraete:
                 return
 
     def _ddj_durchreichen(self):
-        """DDJ → Mixxx: alles, was der DDJ sendet, über den virtuellen Anschluss an Mixxx (nur bei „DJ + Instrumente“)."""
+        """DDJ → Mixxx: alles, was der DDJ sendet, über den eigenen Anschluss an Mixxx (nur bei „DJ + Instrumente“)."""
         while self.lauf:
             hy = getattr(self.b, "hybrid", None)
+            bereit = hy is not None and hy.ddj_bereit()
             if not self.ddj_roh:
-                time.sleep(0.001 if hy is not None and getattr(hy, "vfd_ddj", None) is not None else 0.05)
+                time.sleep(0.001 if bereit else 0.05)
                 continue
-            daten = bytearray()
             while self.ddj_roh:
-                daten += self.ddj_roh.popleft()
-            if hy is not None and getattr(hy, "vfd_ddj", None) is not None:
-                hy.ddj_senden(bytes(daten))
+                msg = self.ddj_roh.popleft()
+                if bereit:
+                    hy.ddj_senden(msg)
 
     def _ddj(self, st, d1, d2):
         """DDJ-200 (Mixxx-Belegung ab Werk): SHIFT = Note 0x3F, Jog = CC 0x21 (64 = Stillstand),

@@ -73,6 +73,14 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 5.10 – „Keine Verbindung zu Mixxx“ behoben, Liste flackert nicht mehr
+
+- **Laden ging nicht: Keine Verbindung zu Mixxx** – behoben. ZynSimple spricht mit Mixxx jetzt über eigene
+  MIDI-Anschlüsse („ZynSimple Mixxx“ und „ZynSimple DDJ-200“) statt über den virtuellen Anschluss, den der
+  Zynthian manchmal für sich belegt hat. Das gilt auch für den durchgereichten DDJ-200.
+- **„Decks & Titel“ flackert nicht mehr:** Nur die Deck-Karten werden jede Sekunde neu gezeichnet, die Liste bleibt stehen.
+- **In „Decks & Titel“:** PLAY = Deck A ▶/❚❚ (ALT + PLAY = Deck B), SEL = gewählten Titel ins freie Deck.
+
 ## Neu in Version 5.9 – Tempo und Tonart werden selbst ermittelt
 
 - **Automatische Analyse:** Der Zynthian hört sich im Hintergrund jeden Titel ohne BPM oder Tonart an

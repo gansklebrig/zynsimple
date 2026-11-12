@@ -316,14 +316,20 @@ def controller(data, ver):
     namen = midi_namen()
     if ddj:
         namen |= {"DDJ-200", "DDJ-200 MIDI 1"}          # auch wenn der DDJ gerade nicht steckt
+    if HYBRID and os.environ.get("ZS_SEQ") == "1":
+        namen |= {"ZynSimple Mixxx", "ZynSimple DDJ-200"}
     for name in namen:
         datei = None
-        if re.search(r"DDJ-?200", name, re.I) and ddj and HYBRID:
+        if re.search(r"ZynSimple DDJ", name, re.I):          # DDJ, durchgereicht von ZynSimple
+            datei = ddj if HYBRID else None
+        elif re.search(r"ZynSimple Mixxx", name, re.I):      # Zynthian-Tasten / Laden / Deck-Anzeige
+            datei = zyn if HYBRID else None
+        elif re.search(r"DDJ-?200", name, re.I) and ddj and HYBRID:
             # hier hält JACK den echten DDJ fest – Mixxx bekommt ihn über den virtuellen Anschluss
             for k in {schluessel(name), schluessel(name + " MIDI 1")}:
                 data.setdefault("[Controller]", {})[k] = "0"
             continue
-        if re.search(r"DDJ-?200", name, re.I) and ddj:
+        elif re.search(r"DDJ-?200", name, re.I) and ddj:
             datei = ddj
         elif vm_ddj and ddj and re.search(r"(VirMIDI|Virtual Raw MIDI)\s*" + re.escape(vm_ddj) + r"\b", name, re.I):
             datei = ddj

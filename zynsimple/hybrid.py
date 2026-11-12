@@ -63,6 +63,7 @@ class Hybrid:
         self.vfd = None
         self.vfd_ddj = None
         self.vm_ddj = None
+        self.seq = {}
         self.ddj_fehler = None
         self.vorne = False
         self.fehler = None
@@ -124,13 +125,16 @@ class Hybrid:
                 subprocess.call(["modprobe", "snd-virmidi", "midi_devs=4"], stderr=subprocess.DEVNULL)
                 time.sleep(1)
             env = self._env(m)
-            if self.vfd is None:
-                self._virmidi_oeffnen()
             self.ddj_fehler = None
-            if self.vfd_ddj is None:
-                self._virmidi_ddj_oeffnen()
-            if self.vm_ddj:
-                env["ZS_VIRMIDI_DDJ"] = self.vm_ddj
+            if self._seq_oeffnen():
+                env["ZS_SEQ"] = "1"                 # Mixxx sieht „ZynSimple Mixxx“ und „ZynSimple DDJ-200“
+            else:
+                if self.vfd is None:
+                    self._virmidi_oeffnen()
+                if self.vfd_ddj is None:
+                    self._virmidi_ddj_oeffnen()
+                if self.vm_ddj:
+                    env["ZS_VIRMIDI_DDJ"] = self.vm_ddj
             subprocess.call(["/usr/bin/python3", os.path.join(DJ_DIR, "dj-einrichten.py")], env=env,
                             stdout=open(LOG, "w"), stderr=subprocess.STDOUT, timeout=120)
             self.cid = self._kanal()
@@ -139,7 +143,7 @@ class Hybrid:
             self.vorne = True
             self.phase = "laeuft"
             log.info(f"ZynSimple: Hybrid läuft (Mixxx {m}, Kanal {self.cid})")
-            if self.vfd is None:
+            if self.vfd is None and not self.seq:
                 self._virmidi_oeffnen()
             g = getattr(self.b, "geraete", None)
             if g is not None:
@@ -223,6 +227,7 @@ class Hybrid:
                 pass
             self.vfd_ddj = None
             self.vm_ddj_pfad = None
+        self._seq_schliessen()
         self._zynsimple_vorne()
         log.info("ZynSimple: Hybrid beendet")
 
@@ -359,6 +364,65 @@ class Hybrid:
     # ------------------------------------------------------------------
     # Tempo-Brücke über den virtuellen MIDI-Anschluss (Mixxx-Mapping „Zynthian V5 (ZynSimple)“)
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Verbindung zu Mixxx über eigene ALSA-Sequencer-Anschlüsse (python-rtmidi). Kein snd-virmidi nötig –
+    # das hält JACK im Zynthian sonst manchmal fest („Keine Verbindung zu Mixxx“).
+    # ------------------------------------------------------------------
+    def _seq_oeffnen(self):
+        self._seq_schliessen()
+        try:
+            try:
+                import rtmidi
+            except ImportError:
+                import sys                                  # Zynthian-venv: Debian-Paket python3-rtmidi mitbenutzen
+                for p in ("/usr/lib/python3/dist-packages",):
+                    if os.path.isdir(p) and p not in sys.path:
+                        sys.path.append(p)
+                import rtmidi
+        except Exception as e:
+            log.info(f"ZynSimple: Hybrid – python-rtmidi fehlt ({e}), nehme snd-virmidi")
+            return False
+        try:
+            api = rtmidi.API_LINUX_ALSA
+            s = {}
+            for art, name in (("", "ZynSimple Mixxx"), ("ddj_", "ZynSimple DDJ-200")):
+                aus = rtmidi.MidiOut(api, name=name)
+                aus.open_virtual_port(name)
+                ein = rtmidi.MidiIn(api, name=name)
+                ein.ignore_types(sysex=bool(not art), timing=True, active_sense=True)
+                ein.open_virtual_port(name)
+                ein.set_callback(self._seq_ddj if art else self._seq_mixxx)
+                s[art + "aus"], s[art + "ein"] = aus, ein
+            self.seq = s
+            log.info("ZynSimple: Hybrid – Verbindung zu Mixxx über ALSA-Sequencer (ZynSimple Mixxx / DDJ-200)")
+            return True
+        except Exception as e:
+            log.warning(f"ZynSimple: Hybrid – ALSA-Sequencer geht nicht ({e}), nehme snd-virmidi")
+            self._seq_schliessen()
+            return False
+
+    def _seq_schliessen(self):
+        for p in (getattr(self, "seq", None) or {}).values():
+            try:
+                p.close_port()
+                del p
+            except Exception:
+                pass
+        self.seq = {}
+
+    def _seq_mixxx(self, ereignis, daten=None):
+        msg = ereignis[0]
+        if len(msg) == 3:
+            try:
+                self._nachricht(*msg)
+            except Exception:
+                pass
+
+    def _seq_ddj(self, ereignis, daten=None):
+        g = getattr(self.b, "geraete", None)
+        if g is not None:
+            g.ddj_aus.append(bytes(ereignis[0]))      # Mixxx → DDJ (LEDs)
+
     def _virmidi_oeffnen(self):
         """Virtuellen MIDI-Anschluss zu Mixxx öffnen (erster freier); Mixxx hat das Mapping auf allen."""
         self.midi_fehler = None
@@ -420,8 +484,17 @@ class Hybrid:
         except OSError:
             pass
 
+    def ddj_bereit(self):
+        return self.seq.get("ddj_aus") is not None or getattr(self, "vfd_ddj", None) is not None
+
     def ddj_senden(self, daten):
-        """DJ-Controller → Mixxx (aus dem MIDI-Mithören von ZynSimple)."""
+        """DJ-Controller → Mixxx (aus dem MIDI-Mithören von ZynSimple): eine vollständige MIDI-Nachricht."""
+        if self.seq.get("ddj_aus") is not None:
+            try:
+                self.seq["ddj_aus"].send_message(list(daten))
+            except Exception:
+                pass
+            return
         fd = getattr(self, "vfd_ddj", None)
         if fd is not None:
             try:
@@ -465,6 +538,9 @@ class Hybrid:
                     puffer = bytearray([st])
 
     def senden(self, cc, wert):
+        if self.seq.get("aus") is not None:
+            self.seq["aus"].send_message([0xB0, int(cc) & 0x7F, int(wert) & 0x7F])
+            return
         if self.vfd is None:
             self._virmidi_oeffnen()
         if self.vfd is None:
@@ -512,7 +588,7 @@ class Hybrid:
         self.senden(114, 2 if int(deck) == 2 else 1)
 
     def _mixxx_lesen(self):
-        puffer, sysex, msb = [], False, 0
+        puffer, sysex = [], False
         while self.laeuft():
             if self.vfd is None:
                 time.sleep(1)
@@ -542,31 +618,35 @@ class Hybrid:
                 if len(puffer) == 3:
                     st, d1, d2 = puffer
                     puffer = [st]
-                    if st in (0xB1, 0xB2) and d1 == 28:
-                        self._deck.setdefault(st - 0xB0, {})["key_id"] = d2
-                    elif st in (0xB1, 0xB2) and 20 <= d1 <= 27:
-                        dz = self._deck.setdefault(st - 0xB0, {})
-                        if d1 in (22, 24, 26):
-                            self._deck_msb[(st, d1)] = d2
-                        elif d1 == 20:
-                            dz["geladen"] = d2
-                        elif d1 == 21:
-                            dz["laeuft"] = d2
-                        else:
-                            w = (self._deck_msb.get((st, d1 - 1), 0) << 7) | d2
-                            if d1 == 23:
-                                dz["dauer"] = w
-                            elif d1 == 25:
-                                dz["bpm"] = w / 10.0
-                            elif d1 == 27:
-                                dz["pos"] = w / 16383.0
-                    elif st & 0xF0 == 0xB0:
-                        if d1 == 100:
-                            msb = d2
-                        elif d1 == 101:
-                            self.mixxx_bpm = ((msb << 7) | d2) / 10.0
-                        elif d1 == 103:
-                            self.mixxx_spielt = d2 > 0
+                    self._nachricht(st, d1, d2)
+
+    def _nachricht(self, st, d1, d2):
+        """Eine Nachricht von Mixxx: Deck-Zustand (Kanal 2/3) oder Tempo (CC 100/101/103)."""
+        if st in (0xB1, 0xB2) and d1 == 28:
+            self._deck.setdefault(st - 0xB0, {})["key_id"] = d2
+        elif st in (0xB1, 0xB2) and 20 <= d1 <= 27:
+            dz = self._deck.setdefault(st - 0xB0, {})
+            if d1 in (22, 24, 26):
+                self._deck_msb[(st, d1)] = d2
+            elif d1 == 20:
+                dz["geladen"] = d2
+            elif d1 == 21:
+                dz["laeuft"] = d2
+            else:
+                w = (self._deck_msb.get((st, d1 - 1), 0) << 7) | d2
+                if d1 == 23:
+                    dz["dauer"] = w
+                elif d1 == 25:
+                    dz["bpm"] = w / 10.0
+                elif d1 == 27:
+                    dz["pos"] = w / 16383.0
+        elif st & 0xF0 == 0xB0:
+            if d1 == 100:
+                self._tempo_msb = d2
+            elif d1 == 101:
+                self.mixxx_bpm = ((getattr(self, "_tempo_msb", 0) << 7) | d2) / 10.0
+            elif d1 == 103:
+                self.mixxx_spielt = d2 > 0
 
     def _tempo(self):
         from . import takt
@@ -580,7 +660,7 @@ class Hybrid:
                 bpm = float(zs.get_tempo())
             except Exception:
                 return
-            if 30 <= bpm <= 300 and abs(bpm - self.gesendet) >= 0.05 and self.vfd is not None:
+            if 30 <= bpm <= 300 and abs(bpm - self.gesendet) >= 0.05 and (self.vfd is not None or self.seq):
                 w = int(round(bpm * 10))
                 try:
                     self.senden(110, (w >> 7) & 0x7F)
