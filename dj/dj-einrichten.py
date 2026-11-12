@@ -543,6 +543,9 @@ def main():
               "ShowRhythmboxLibrary", "ShowBansheeLibrary"):
         lib[k] = "0"
     lib.setdefault("RowHeight", "30")
+    # Mixxx 2.5+/2.6: nie mehr fragen „Darf Mixxx die Menüleiste ausblenden?“ – ausgeblendet, ohne Rückfrage
+    data.setdefault("[Config]", {})["hide_menubar"] = "1"
+    data["[Config]"]["show_menubar_hint"] = "0"
     # Mixxx auf Deutsch
     if not data.setdefault("[Config]", {}).get("Locale", "").strip():
         data["[Config]"]["Locale"] = "de_DE"

@@ -73,6 +73,11 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 5.8 – keine Mixxx-Menüleisten-Frage mehr
+
+- Die Rückfrage von Mixxx „Darf Mixxx die Menüleiste ausblenden?“ kommt nicht mehr – auch nicht nach Updates.
+  Die Menüleiste bleibt einfach ausgeblendet (am Zynthian gibt es ohnehin keine Tastatur dafür).
+
 ## Neu in Version 5.7 – Tempo und Tonart groß
 
 - **„♫ Decks & Titel“ zeigt Tempo (BPM) und Tonart** – in den Deck-Karten oben und in jeder Zeile der Titelliste.
