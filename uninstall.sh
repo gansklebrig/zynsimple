@@ -43,3 +43,7 @@ systemctl disable --now zynsimple-wache.service >/dev/null 2>&1; rm -f /etc/syst
 for B in /zynthian/config/img/fb_zynthian_boot.jpg /zynthian/config/img/fb_zynthian_error.jpg; do
     [ -f "$B.zynthian" ] && mv -f "$B.zynthian" "$B"
 done
+# Lade-Animation zurück (nur wenn sie umgestellt war)
+if [ -d /usr/share/plymouth/themes/zynloganim.zynthian ]; then
+    bash "$(dirname "$0")/zynsimple/plymouth-gans.sh" aus || true
+fi

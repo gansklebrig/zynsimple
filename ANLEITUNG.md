@@ -73,6 +73,19 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 5.3 – Startbild schöner, Gans auch als Lade-Animation
+
+- Startbild neu gestaltet: alles untereinander – Gans im goldenen Ring, darunter „zynthian“, darunter
+  „ZynSimple · Barden Beats · DJ-Pult“. Nichts schneidet mehr in den Ring.
+- **Gans auch als Lade-Animation** (Einstellungen → Anzeige, aus ab Werk): ersetzt das drehende Zynthian-Logo
+  ganz am Anfang durch die Gans mit umlaufendem Goldring.
+  - Dafür werden einmal die Startdateien des Systems (initramfs) neu gebaut – dauert etwa eine Minute im
+    Hintergrund. **In dieser Minute nicht ausschalten.**
+  - Sicherheitsnetz: vorher wird geprüft, ob genug Platz ist, die bisherigen Startdateien werden gesichert und
+    nach dem Bauen geprüft; geht etwas schief, kommen automatisch die alten zurück. Protokoll: /tmp/zynsimple-plymouth.log
+  - Wieder ausschalten stellt das Zynthian-Logo zurück (baut die Startdateien ebenfalls neu).
+  - Nach einem Zynthian-Update kann das Logo zurückkommen – ZynSimple setzt die Gans dann beim nächsten Start wieder.
+
 ## Neu in Version 5.2 – Die Gans beim Hochfahren
 
 - Beim Start zeigt der Zynthian jetzt die Gans (goldener Ring, warmer Hintergrund) statt des Vangelis-Bildes;

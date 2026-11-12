@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "5.2"
+VERSION = "5.3"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -44,6 +44,7 @@ DEFAULTS = {
     "start_modus": "zynthian",
     "ton_anzeige": "keytar",
     "boot_gans": True,
+    "boot_animation": False,
     "bsp_an": False,
     "bsp_drums": False,
     "keytar_geraet": None,

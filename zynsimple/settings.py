@@ -34,6 +34,8 @@ SPEC = [
      [("senden", "Zynthian führt"), ("folgen", "TR-8S führt"), ("aus", "aus")],
      "Zynthian führt: TR-8S läuft mit · TR-8S führt: Zynthian, Looper und Mixxx folgen ihr (MIDI-Clock, USB/DIN)"),
     ("boot_gans", "Gans beim Start", "bool", None, "beim Hochfahren die Gans zeigen statt des Zynthian-Bildes"),
+    ("boot_animation", "Gans auch als Lade-Animation", "bool", None,
+     "statt des drehenden Zynthian-Logos ganz am Anfang · baut einmal die Startdateien neu (~1 Min., nicht ausschalten)"),
     ("ton_anzeige", "Ton-Anzeige", "choice",
      [("keytar", "nur Keytar"), ("alle", "alle MIDI-Geräte"), ("aus", "aus")],
      "zeigt groß, welcher Ton gerade gespielt wird · grün = passt zur Tonart, rot = nicht"),
@@ -146,7 +148,7 @@ def apply_live(bridge, key):
     try:
         if key == "autosave" and bridge.extras:
             bridge.extras.autosave_info["enabled"] = bool(s.get("autosave"))
-        if key == "boot_gans":
+        if key in ("boot_gans", "boot_animation"):
             from . import bootbild, HOME_DIR
             import os as _os
             bootbild.im_hintergrund(s, _os.path.join(HOME_DIR, ".bootbild.json"))
