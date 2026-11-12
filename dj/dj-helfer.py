@@ -25,6 +25,7 @@ import os
 import re
 import select
 import subprocess
+import sys
 import threading
 import time
 
@@ -44,6 +45,8 @@ NUMMER = {v: k for k, v in TASTEN.items()}
 FARBE = {0: (0, 0, 0), 1: (26, 12, 2), 2: (200, 130, 15), 3: (210, 20, 25), 4: (30, 170, 60), 5: (235, 210, 60)}
 HALTEN = {"BACK": (2.0, "menue"), "MENU": (1.5, "imres"), "STOP": (3.0, "aus")}
 HIER = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HIER)
+import tastenbelegung as tb  # noqa: E402   eigene Tastenbelegung (Einstellungen → Bedienung → Tasten belegen)
 _menue = {"proc": None}
 
 
@@ -446,7 +449,7 @@ def mixxx_lesen(v, clock, leds):
                 if typ == 0x90:
                     name = TASTEN.get(d1)
                     if name:
-                        leds.setzen(name, d2)
+                        leds.setzen(tb.taste("dj", name) if name in tb.TASTEN["dj"] else name, d2)
                 elif typ == 0xB0:
                     if d1 == 100:
                         bpm_msb = d2
@@ -506,6 +509,9 @@ def main():
             name = TASTEN.get(nr)
             if not name:
                 continue
+            if name in tb.TASTEN["dj"]:
+                name = tb.funktion("dj", name)        # umbelegt? dann zählt die Funktion, nicht die Taste
+                nr = NUMMER[name]
             d = lib.get_zynswitch(idx, 20 * 1000000)
             if d == 0:
                 if idx not in seit:

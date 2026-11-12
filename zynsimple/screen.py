@@ -171,7 +171,7 @@ class zynsimple_screen(zynthian_gui_base):
     # ------------------------------------------------------------------
     # Bedienung mit den Zynthian-Tasten: Drehregler/Pfeile wählen, SEL löst aus, BACK zurück
     # ------------------------------------------------------------------
-    FOKUS_MODES = ("more", "settings", "track", "newtrack", "autogain", "tuner", "looper", "stick", "lernen")
+    FOKUS_MODES = ("more", "settings", "track", "newtrack", "autogain", "tuner", "looper", "stick", "lernen", "tasten")
 
     def _fokus_ziele(self):
         roh = [(h[0], h[1], h[2], h[3], h[4], None) for h in getattr(self, "more_hits", [])] if self.mode == "more" \
@@ -832,6 +832,134 @@ class zynsimple_screen(zynthian_gui_base):
         zusatz = "" if leiter is None else ("  ·  " + helfer.tonart_name(self.settings.get("tonart")))
         cv.create_text(W / 2, y1 - 16, text=f"{name} · Kanal {kanal + 1}{zusatz}", font=self.f_tiny, fill=P["tx2"],
                        tags="tonanz")
+
+    # ------------------------------------------------------------------
+    # Tasten belegen: jede Funktion auflisten, auf eine andere Taste legen (Tausch)
+    # ------------------------------------------------------------------
+    def open_tasten(self, modus="mischer"):
+        self.tst = {"modus": modus, "seite": 0, "wahl": None, "armed": 0}
+        self.mode = "tasten"
+        self.fokus_i = 0
+        self.draw_tasten()
+
+    def draw_tasten(self):
+        from . import dj
+        tb = dj.tasten_modul()
+        cv = self.canvas
+        cv.delete("all")
+        self.trk_hits = []
+        W, H = self._geom()
+        t = self.tst
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        cv.create_text(20, 28, anchor="w", text="⌨ Tasten belegen", font=self.f_big, fill=P["gold"])
+        self._tbtn(W - 150, 8, W - 12, 50, "✓ Fertig", "u_zu", fill=P["gold"], fg=P["black"], font=self.f_small)
+        # Reiter: Mischer · DJ-Pult · Barden Beats
+        tx = 20
+        tw = (W - 40 - 16) / 3
+        for m in ("mischer", "dj", "barden"):
+            an = m == t["modus"]
+            self._tbtn(tx, 58, tx + tw, 98, tb.MODUS_NAME[m], "u_modus", m, fill="#2a2014" if an else None,
+                       outline=P["gold"] if an else None, fg=P["gold"] if an else None, font=self.f_small)
+            tx += tw + 8
+        if t["wahl"]:
+            return self._tasten_auswahl(tb, W, H)
+        rows = tb.liste(t["modus"])
+        y0, y1 = 108, H - 70
+        rh = max(44, int(H / 10.5))
+        pro = max(1, int((y1 - y0) // rh))
+        seiten = max(1, math.ceil(len(rows) / pro))
+        t["seite"] = min(t["seite"], seiten - 1)
+        for k, r in enumerate(rows[t["seite"] * pro:(t["seite"] + 1) * pro]):
+            ya, yb = y0 + k * rh + 2, y0 + (k + 1) * rh - 2
+            self.rrect(14, ya, W - 14, yb, 12, fill="#2a2014" if r["geaendert"] else P["card"],
+                       outline=P["gold_dim"] if r["geaendert"] else P["line"])
+            text = r["kurz"]
+            mehr = " · ".join(x for x in ((f"ALT: {r['alt']}" if r["alt"] else ""),
+                                          (f"halten: {r['halten']}" if r["halten"] else "")) if x)
+            cv.create_text(28, ya + (yb - ya) * (0.36 if mehr else 0.5), anchor="w", font=self.f_small,
+                           fill=P["champ"], text=self._clip_text(text, W * 0.62, self.f_small))
+            if mehr:
+                cv.create_text(28, ya + (yb - ya) * 0.72, anchor="w", font=self.f_tiny, fill=P["tx2"],
+                               text=self._clip_text(mehr, W * 0.62, self.f_tiny))
+            bw = max(110, W * 0.2)
+            lab = r["taste_name"] + ("  (sonst " + r["name"] + ")" if r["geaendert"] else "")
+            self._tbtn(W - 22 - bw * 1.35, ya + 4, W - 22, yb - 4, "Taste: " + lab, "u_fkt", r["funktion"],
+                       fill=P["gold"] if r["geaendert"] else None, fg=P["black"] if r["geaendert"] else P["gold"],
+                       font=self.f_tiny)
+            self.trk_hits.append((14, ya, W - 22 - bw * 1.35, yb, "u_fkt", r["funktion"]))
+        by0, by1 = H - 60, H - 10
+        bx = 14
+        if seiten > 1:
+            self._tbtn(bx, by0, bx + 56, by1, "▲", "u_seite", -1, font=self.f_small)
+            cv.create_text(bx + 92, (by0 + by1) / 2, text=f"{t['seite'] + 1}/{seiten}", font=self.f_tiny, fill=P["tx2"])
+            self._tbtn(bx + 128, by0, bx + 184, by1, "▼", "u_seite", 1, font=self.f_small)
+            bx += 196
+        cv.create_text(bx + 6, (by0 + by1) / 2, anchor="w", font=self.f_tiny, fill=P["tx2"], width=W - bx - 290,
+                       text="Zeile antippen → neue Taste wählen · die zwei Tasten tauschen · BACK bleibt immer BACK")
+        armed = t["armed"] > time.monotonic()
+        self._tbtn(W - 264, by0, W - 14, by1, "Wirklich?" if armed else "↺ Standard", "u_reset",
+                   fill=P["rose"] if armed else None, fg="#ffffff" if armed else None, font=self.f_small)
+
+    def _tasten_auswahl(self, tb, W, H):
+        """Auswahl der neuen Taste – so angeordnet wie am Gerät."""
+        cv = self.canvas
+        t = self.tst
+        f = t["wahl"]
+        fk = tb.FUNKTIONEN.get(t["modus"], {}).get(f, ("", "", ""))[0]
+        cv.create_text(W / 2, 118, text=f"„{fk}“ auf welche Taste?", font=self.f_mid, fill=P["champ"])
+        k = tb.karte(t["modus"])
+        jetzt = tb.taste(t["modus"], f)
+        gx0, gy0, gx1, gy1 = W * 0.12, 140, W * 0.88, H - 66
+        cw, ch = (gx1 - gx0) / 4, (gy1 - gy0) / 5
+        for zi, zeile in enumerate(tb.LAYOUT):
+            for si, phys in enumerate(zeile):
+                x0, y0 = gx0 + si * cw, gy0 + zi * ch
+                frei = phys in k
+                hier = phys == jetzt
+                fkt = k.get(phys)
+                sub = (tb.FUNKTIONEN.get(t["modus"], {}).get(fkt, ("",))[0] if frei else "fest")
+                self._tbtn(x0 + 3, y0 + 3, x0 + cw - 3, y0 + ch - 3, tb.ANZEIGE.get(phys, phys), "u_ziel" if frei else "u_nix",
+                           phys, sub=self._clip_text(sub, cw - 10, self.f_tiny), on=frei,
+                           fill=P["gold"] if hier else None, fg=P["black"] if hier else None, font=self.f_small)
+        self._tbtn(W / 2 - 110, H - 58, W / 2 + 110, H - 10, "Abbrechen", "u_ab", font=self.f_small)
+
+    def tasten_press(self, ev):
+        h = next((hh for hh in reversed(self.trk_hits) if hh[0] <= ev.x <= hh[2] and hh[1] <= ev.y <= hh[3]), None)
+        if not h:
+            return
+        art, extra = h[4], h[5]
+        from . import dj
+        tb = dj.tasten_modul()
+        t = self.tst
+        if art == "u_zu":
+            self.mode = "settings"
+            return self.draw_settings()
+        if art == "u_modus":
+            t.update(modus=extra, seite=0, wahl=None)
+        elif art == "u_seite":
+            t["seite"] = max(0, t["seite"] + extra)
+        elif art == "u_fkt":
+            t["wahl"] = extra
+        elif art == "u_ab":
+            t["wahl"] = None
+        elif art == "u_ziel":
+            try:
+                tb.tauschen(t["modus"], t["wahl"], extra)
+                self._flash(f"{tb.ANZEIGE.get(extra, extra)}: jetzt „"
+                            f"{tb.FUNKTIONEN[t['modus']].get(t['wahl'], ('',))[0]}“")
+            except Exception as e:
+                self._flash(str(e))
+            t["wahl"] = None
+        elif art == "u_reset":
+            if t["armed"] > time.monotonic():
+                tb.zuruecksetzen(t["modus"])
+                t["armed"] = 0
+                self._flash(f"{tb.MODUS_NAME[t['modus']]}: alle Tasten wieder wie ab Werk")
+            else:
+                t["armed"] = time.monotonic() + 3
+                self.canvas.after(3100, lambda: self.mode == "tasten" and self.draw_tasten())
+        self.fokus_i = 0 if art in ("u_modus", "u_fkt", "u_ab", "u_ziel") else self.fokus_i
+        self.draw_tasten()
 
     def open_help(self, willkommen=False):
         self.mode = "help"
@@ -1508,6 +1636,8 @@ class zynsimple_screen(zynthian_gui_base):
             return self.stick_press(ev)
         if self.mode == "lernen":
             return self.lern_press(ev)
+        if self.mode == "tasten":
+            return self.tasten_press(ev)
         if self.mode == "help":
             if self.help_page == 0:
                 self.help_page = 1
@@ -2948,7 +3078,8 @@ class zynsimple_screen(zynthian_gui_base):
         ("anzeige", "Anzeige", [("set", "replace_home", "⌂"), ("set", "splash", "✦"), ("set", "idle_seconds", "◐"),
                                 ("set", "strip_min_width", "▥"), ("act", "s_theme", "◑"), ("set", "led_recolor", "●")]),
         ("bedienung", "Bedienung", [("set", "autosave", "↺"), ("act", "s_save", "✓"), ("set", "master_limiter", "▣"),
-                                    ("set", "tonart", "♯"), ("set", "xy_spring", "✥"), ("set", "synth_midi_chan", "♪")]),
+                                    ("set", "tonart", "♯"), ("set", "xy_spring", "✥"), ("set", "synth_midi_chan", "♪"),
+                                    ("act", "s_tasten", "⌨")]),
         ("dj", "DJ-Pult", [("act", "s_dj", "♪"), ("set", "dj_auto_rec", "●"), ("act", "s_djhandy", "⌕"),
                            ("set", "dj_handpan_fx", "◎"), ("act", "s_djimport", "⇩"), ("act", "s_djordner", "▤"),
                            ("act", "s_mixxx26", "◆"), ("act", "s_stems", "≋")]),
@@ -3032,6 +3163,15 @@ class zynsimple_screen(zynthian_gui_base):
                         True, False)
             except Exception as e:
                 return ("Stems", str(e), None, True, False)
+        if art == "s_tasten":
+            try:
+                from . import dj
+                tb = dj.tasten_modul()
+                n = sum(1 for m in tb.TASTEN for r in tb.liste(m) if r["geaendert"])
+            except Exception:
+                n = 0
+            return ("Tasten belegen", "alle Tasten von Mischer, DJ-Pult und Barden Beats · jede Funktion auf jede Taste"
+                    + (f" · {n} umbelegt" if n else ""), "Öffnen", True, False)
         if art == "s_keytar":
             g_, k_ = self.settings.get("keytar_geraet"), self.settings.get("keytar_kanal")
             if g_:
@@ -3306,6 +3446,8 @@ class zynsimple_screen(zynthian_gui_base):
                 pass
             elif art == "s_keytar":
                 return self.open_lernen()
+            elif art == "s_tasten":
+                return self.open_tasten()
             elif art == "s_bsp":
                 from . import settings as st_
                 st_.save(self.settings, {"bsp_an": True})
@@ -3833,7 +3975,7 @@ class zynsimple_screen(zynthian_gui_base):
     # Tasten: die 20 Pads des V5 (und die klassischen 4 Tasten)
     # ------------------------------------------------------------------
 
-    def _pad_role(self, i):
+    def _pad_role_roh(self, i):
         try:
             acts = cfg.custom_switch_ui_actions[i - 4]
         except Exception:
@@ -3855,6 +3997,27 @@ class zynsimple_screen(zynthian_gui_base):
         if str(acts.get("S") or "").strip().upper().split(" ")[0] == "BACK":
             return "BACK"
         return None
+
+    def _pad_role(self, i):
+        """Rolle der Taste – mit eigener Tastenbelegung (Einstellungen → Bedienung → Tasten belegen)."""
+        r = self._pad_role_roh(i)
+        if r is None or r == "BACK":
+            return r
+        try:
+            from . import dj
+            f = dj.tasten_modul().funktion("mischer", "TEMPO" if r == "TAP" else r)
+            return "TAP" if f == "TEMPO" else f
+        except Exception:
+            return r
+
+    def _led(self, rolle):
+        """LED der Taste, auf der die Funktion gerade liegt."""
+        try:
+            from . import dj
+            tb = dj.tasten_modul()
+            return tb.LED_NR[tb.taste("mischer", rolle)]
+        except Exception:
+            return self.LED_INDEX[rolle]
 
     def switch(self, i, t):
         if self._mixxx_weg():
@@ -4058,6 +4221,13 @@ class zynsimple_screen(zynthian_gui_base):
             self._stick_hoch()
         elif self.mode == "lernen":
             self.lern_ab()
+        elif self.mode == "tasten":
+            if self.tst.get("wahl"):
+                self.tst["wahl"] = None
+                self.draw_tasten()
+            else:
+                self.mode = "settings"
+                self.draw_settings()
         elif self.mode in ("more", "xy", "fxview", "track", "newtrack", "settings"):
             self.mode = "mix"
             self.sig = None
@@ -4110,7 +4280,7 @@ class zynsimple_screen(zynthian_gui_base):
         kinds_rgb = {"reverb": (200, 120, 10), "delay": (220, 170, 10), "comp": (150, 90, 40), "eq": (170, 70, 20),
                      "other": (120, 0, 120)}
         for n in range(1, 5):
-            led = self.LED_INDEX[f"F{n}"]
+            led = self._led(f"F{n}")
             if alt:
                 sc = (self.data.get("scenes") or {}).get(str(n + 0))
                 if self.data.get("last_scene") == str(n):
@@ -4125,11 +4295,11 @@ class zynsimple_screen(zynthian_gui_base):
                 ws.wsleds[led] = col(*rgb) if f.get("on") else col(rgb[0] // 8, rgb[1] // 8, rgb[2] // 8)
             else:
                 ws.wsleds[led] = dim
-        ws.wsleds[self.LED_INDEX["REC"]] = col(170, 150, 120) if s and s.get("freeze") else col(40, 30, 20)
-        ws.wsleds[self.LED_INDEX["PLAY"]] = col(230, 170, 20) if s and s.get("throw") else col(40, 26, 4)
-        ws.wsleds[self.LED_INDEX["STOP"]] = col(90, 0, 10)
+        ws.wsleds[self._led("REC")] = col(170, 150, 120) if s and s.get("freeze") else col(40, 30, 20)
+        ws.wsleds[self._led("PLAY")] = col(230, 170, 20) if s and s.get("throw") else col(40, 26, 4)
+        ws.wsleds[self._led("STOP")] = col(90, 0, 10)
         for k in ("UP", "DOWN", "LEFT", "RIGHT"):
-            ws.wsleds[self.LED_INDEX[k]] = col(60, 35, 5)
+            ws.wsleds[self._led(k)] = col(60, 35, 5)
         if self.mode == "idle" and self.anim:
             # Im Bühnenbild glimmen die Pads mit der Lautstärke
             g = self.anim.get("glow", 0)
@@ -4153,5 +4323,5 @@ def _mit_fokus(name):
     setattr(zynsimple_screen, name, neu)
 
 
-for _n in ("draw_more", "draw_track", "draw_newtrack", "draw_tool", "draw_settings", "draw_stick", "draw_lernen"):
+for _n in ("draw_more", "draw_track", "draw_newtrack", "draw_tool", "draw_settings", "draw_stick", "draw_lernen", "draw_tasten"):
     _mit_fokus(_n)

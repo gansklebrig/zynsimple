@@ -20,6 +20,9 @@ import sys
 import time
 import tkinter
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import tastenbelegung as tb  # noqa: E402
+
 BEFEHL = "/usr/local/bin/zynsimple-dj"
 IMRES = "/usr/local/bin/imres-modus"
 DATEN = "/zynthian/zynthian-my-data/dj"
@@ -151,7 +154,11 @@ class Menue:
                     if not self.root.winfo_exists():
                         return
             elif ev == "BACK":
-                if self.seite != "start":
+                if self.seite == "tastenwahl":
+                    self.seite = "tasten"
+                    self.fokus = 0
+                    self.zeichnen()
+                elif self.seite != "start":
                     self.seite = "start"
                     self.fokus = 0
                     self.zeichnen()
@@ -232,6 +239,10 @@ class Menue:
             return self.zeichnen_hilfe()
         if self.seite == "updates":
             return self.zeichnen_updates()
+        if self.seite == "tasten":
+            return self.zeichnen_tasten()
+        if self.seite == "tastenwahl":
+            return self.zeichnen_tastenwahl()
         # Kopf mit Status
         cv.create_text(18, 24, anchor="w", text="♪ DJ-Pult", font=(SCHRIFT, 18, "bold"), fill=GOLD)
         n = anzahl_titel()
@@ -269,7 +280,7 @@ class Menue:
             ("WECHSELN", [("zynthian", "◼  Zum Zynthian", "Mischer und Synths", None, False),
                           ("hybrid", "♫  DJ + Instrumente", "Mixxx als Kanal im Mischer", None, False),
                           ("imres", "♫  Barden Beats", "Bühne & Klangwelten", None, False) if os.path.exists(IMRES) else None,
-                          ("hilfe", "?  So geht's", "Tasten und Regler erklärt", GOLD, False)]),
+                          ("hilfe", "?  So geht's", "Tasten erklärt · Tasten belegen", GOLD, False)]),
             ("SYSTEM", [("updates", "⬇  Updates", "ZynSimple · Zynthian · Barden Beats", None, False),
                         ("neustart", "↻  Neu starten", "speichert vorher", None, False),
                         ("aus", "⏻  Ausschalten", "speichert vorher", ROT, False)]),
@@ -288,12 +299,55 @@ class Menue:
         cv, W, H = self.cv, self.W, self.H
         cv.create_text(18, 26, anchor="w", text="? So geht's", font=(SCHRIFT, 18, "bold"), fill=GOLD)
         self.kachel(W - 170, 8, W - 12, 46, "zurueck", "← Zurück", None, GOLD)
+        self.kachel(W - 360, 8, W - 180, 46, "tasten", "⌨ Tasten belegen", None, GOLD)
         rh = (H - 60) / len(HILFE)
         for k, (was, wie) in enumerate(HILFE):
             yy = 56 + k * rh
             self.rrect(12, yy + 2, W - 12, yy + rh - 2, 8, fill=CARD, outline=LINIE)
             cv.create_text(24, yy + rh / 2, anchor="w", text=was, font=(SCHRIFT, 11, "bold"), fill=GOLD)
             cv.create_text(210, yy + rh / 2, anchor="w", text=wie, font=(SCHRIFT, 10), fill=CHAMP, width=W - 230)
+
+    def zeichnen_tasten(self):
+        """Alle DJ-Tasten mit ihrer Funktion – antippen = auf eine andere Taste legen."""
+        cv, W, H = self.cv, self.W, self.H
+        cv.create_text(18, 26, anchor="w", text="⌨ Tasten belegen – DJ-Pult", font=(SCHRIFT, 18, "bold"), fill=GOLD)
+        self.kachel(W - 170, 8, W - 12, 46, "zurueck", "← Zurück", None, GOLD)
+        self.kachel(W - 360, 8, W - 180, 46, "treset", "↺ Standard", None, ROT)
+        rows = tb.liste("dj")
+        sp = 2
+        pro = (len(rows) + sp - 1) // sp
+        rh = (H - 82) / pro
+        cw = (W - 24) / sp
+        for i, r in enumerate(rows):
+            x0, y0 = 12 + (i // pro) * cw, 56 + (i % pro) * rh
+            mehr = " · ".join(x for x in ((f"ALT: {r['alt']}" if r["alt"] else ""),
+                                          (f"halten: {r['halten']}" if r["halten"] else "")) if x)
+            self.kachel(x0 + 3, y0 + 2, x0 + cw - 3, y0 + rh - 2, "tf:" + r["funktion"],
+                        f"{r['taste_name']}  →  {r['kurz']}", mehr or None, GOLD if r["geaendert"] else None)
+        cv.create_text(18, H - 14, anchor="w", font=(SCHRIFT, 8), fill=TX2,
+                       text="Antippen → neue Taste wählen · die zwei Tasten tauschen · BACK bleibt immer BACK")
+
+    def zeichnen_tastenwahl(self):
+        cv, W, H = self.cv, self.W, self.H
+        f = self.tasten_wahl
+        kurz = tb.FUNKTIONEN["dj"].get(f, ("",))[0]
+        cv.create_text(18, 26, anchor="w", text=f"„{kurz}“ auf welche Taste?", font=(SCHRIFT, 16, "bold"), fill=GOLD)
+        self.kachel(W - 170, 8, W - 12, 46, "tasten", "← Zurück", None, GOLD)
+        k = tb.karte("dj")
+        jetzt = tb.taste("dj", f)
+        gx0, gy0, gx1, gy1 = W * 0.1, 60, W * 0.9, H - 22
+        cw, ch = (gx1 - gx0) / 4, (gy1 - gy0) / 5
+        for zi, zeile in enumerate(tb.LAYOUT):
+            for si, phys in enumerate(zeile):
+                x0, y0 = gx0 + si * cw, gy0 + zi * ch
+                if phys not in k:
+                    self.rrect(x0 + 3, y0 + 3, x0 + cw - 3, y0 + ch - 3, 12, fill=BG, outline=LINIE)
+                    cv.create_text((2 * x0 + cw) / 2, (2 * y0 + ch) / 2, text=tb.ANZEIGE[phys] + "\nfest",
+                                   font=(SCHRIFT, 9), fill=TX2, justify="center")
+                    continue
+                sub = tb.FUNKTIONEN["dj"].get(k[phys], ("",))[0]
+                self.kachel(x0 + 3, y0 + 3, x0 + cw - 3, y0 + ch - 3, "tz:" + phys, tb.ANZEIGE.get(phys, phys), sub,
+                            GOLD if phys == jetzt else None, phys == jetzt)
 
     def zeichnen_updates(self):
         cv, W, H = self.cv, self.W, self.H
@@ -340,6 +394,31 @@ class Menue:
         elif key in ("hilfe", "updates"):
             self.seite = key
             self.fokus = 0
+            self.zeichnen()
+        elif key == "tasten":
+            self.seite = "tasten"
+            self.fokus = 0
+            self.zeichnen()
+        elif key.startswith("tf:"):
+            self.tasten_wahl = key[3:]
+            self.seite = "tastenwahl"
+            self.fokus = 0
+            self.zeichnen()
+        elif key.startswith("tz:"):
+            try:
+                tb.tauschen("dj", self.tasten_wahl, key[3:])
+            except Exception as e:
+                print("DJ-Menü: Tasten:", e, file=sys.stderr)
+            self.seite = "tasten"
+            self.fokus = 0
+            self.zeichnen()
+        elif key == "treset":
+            if self.scharf.get(key, 0) < time.monotonic():
+                self.scharf = {key: time.monotonic() + 3}
+                self.root.after(3100, self.zeichnen)
+            else:
+                tb.zuruecksetzen("dj")
+                self.scharf = {}
             self.zeichnen()
         elif key == "zurueck":
             self.seite = "start"

@@ -73,6 +73,18 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 4.4 – Tasten selbst belegen
+
+- **Einstellungen → Bedienung → ⌨ Tasten belegen** listet jede Funktion (kurz, mit ALT, gehalten) und auf
+  welcher Taste sie liegt – mit Reitern für **Mischer**, **DJ-Pult** und **Barden Beats**.
+- Zeile antippen → die neue Taste wählen (so angeordnet wie am Gerät). Die zwei Tasten **tauschen** ihre
+  Aufgabe, so bleibt jede Funktion genau einmal erreichbar. ALT- und Halten-Belegung und die LEDs wandern mit.
+- **↺ Standard** stellt den gewählten Bereich wie ab Werk. **BACK** bleibt immer BACK (Rückweg und System-Menü).
+- Auch direkt im DJ-Pult (☰ → ? So geht's → ⌨ Tasten belegen) und in Barden Beats
+  (MENU → ❔ Tastenbelegung → ⌨ Tasten tauschen). Alle drei lesen dieselbe Einstellung.
+- Im Mischer lassen sich F1–F4, die Pfeile, REC, PLAY, STOP und METRONOM tauschen; MENU, MIXER, CTRL, ZS3, ALT,
+  PAD und SEL gehören dort der Zynthian-Oberfläche selbst.
+
 ## Neu in Version 4.3 – BeatStep Pro, Keytar und Ton-Anzeige
 
 Alles unter **Einstellungen → Geräte** (oder ⋯ → Neue Spur).

@@ -179,6 +179,20 @@ def stick_modul():
     return mod
 
 
+def tasten_modul():
+    """dj/tastenbelegung.py – eigene Tastenbelegung (Mischer, DJ-Pult, Barden Beats)."""
+    import importlib.util
+    import sys
+    mod = sys.modules.get("zs_dj_tasten")
+    if mod is None:
+        pfad = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dj", "tastenbelegung.py")
+        spec = importlib.util.spec_from_file_location("zs_dj_tasten", pfad)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        sys.modules["zs_dj_tasten"] = mod
+    return mod
+
+
 def import_starten(auswahl=None):
     """Musik vom USB-Stick übernehmen (läuft losgelöst; Fortschritt über import_stand()).
     auswahl: Liste von Ordnern/Dateien auf dem Stick – sonst der ganze Ordner „MUSIK gekauft“."""
