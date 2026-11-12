@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "4.7"
+VERSION = "4.8"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -162,6 +162,12 @@ def _buehne(zyngui, bridge, settings):
             log.debug(f"ZynSimple: Takt: {e}")
         if getattr(bridge, "hybrid", None) is not None and zustand["n"] % 3 == 1:
             bridge.hybrid.kanal_pruefen()
+        hy = getattr(bridge, "hybrid", None)
+        if hy is not None and hy.fehler and hy.fehler != zustand.get("hy_fehler"):
+            zustand["hy_fehler"] = hy.fehler
+            scr = zyngui.screens.get(SCREEN_NAME)
+            if scr is not None:
+                scr._warn("DJ + Instrumente: " + hy.fehler)
         try:
             from . import dj
             stick = dj.musik_stick() if dj.eingerichtet() else None

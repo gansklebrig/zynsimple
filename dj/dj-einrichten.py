@@ -139,16 +139,14 @@ def soundconfig_hybrid(ver):
         shutil.copy2(pfad, pfad + ".dj")
         if os.path.exists(merker):
             shutil.copy2(merker, merker + ".dj")
-    main = "Main" if ver >= (2, 4) else "Master"
-    xml = ('<!DOCTYPE SoundManagerConfig>\n'
-           '<SoundManagerConfig api="JACK Audio Connection Kit" samplerate="48000" latency="5" sync_buffers="2" '
-           'deck_count="4" force_network_clock="0">\n'
-           ' <SoundDevice name="system" alias="system" portAudioIndex="-1">\n'
-           f'  <output type="{main}" index="0" channel="0" channel_count="2"/>\n'
-           ' </SoundDevice>\n</SoundManagerConfig>\n')
-    with open(pfad, "w", encoding="utf-8") as f:
-        f.write(xml)
-    log("Hybrid: Ton über JACK → Zynthian-Mischer")
+    # Keine eigene Datei schreiben: ohne soundconfig.xml nimmt Mixxx von selbst JACK (wenn es läuft) und das erste
+    # Ausgabegerät mit dem richtigen Namen und der richtigen Abtastrate. Wohin der Ton dann wirklich geht, legt
+    # ZynSimple fest (Mixxx → Kanal „DJ-Pult“). Ein selbst geschriebener Gerätename passte nicht überall.
+    try:
+        os.remove(pfad)
+    except OSError:
+        pass
+    log("Hybrid: Mixxx wählt JACK selbst → ZynSimple legt den Ton auf den Kanal „DJ-Pult“")
 
 
 def soundconfig_zurueck():
@@ -167,6 +165,13 @@ def soundconfig(s, kh, ver):
     pfad = os.path.join(MIXXX, "soundconfig.xml")
     merker = os.path.join(MIXXX, ".soundconfig.zynsimple")
     soundconfig_zurueck()
+    try:
+        with open(pfad, encoding="utf-8", errors="replace") as f:
+            if 'api="JACK' in f.read():
+                os.remove(pfad)             # Rest vom Hybrid-Modus – im reinen DJ-Pult gibt es kein JACK
+                log("JACK-Einstellung vom Hybrid-Modus entfernt")
+    except OSError:
+        pass
     if os.path.exists(pfad):
         try:
             with open(pfad, "rb") as f:

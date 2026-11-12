@@ -73,6 +73,14 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 4.8 – Ton bei DJ + Instrumente
+
+- Mixxx meldete im Modus DJ + Instrumente „ohne Tonausgabegeräte konfiguriert“: ZynSimple hatte den
+  JACK-Gerätenamen selbst eingetragen, und der passte nicht. Jetzt wählt Mixxx JACK und das Gerät selbst;
+  wohin der Ton geht (Kanal „DJ-Pult“), legt weiterhin ZynSimple fest.
+- Kann Mixxx auf dem System gar nicht über JACK spielen, sagt ZynSimple das jetzt klar, statt Mixxx starten zu lassen.
+- Reste der Hybrid-Einstellung werden vor dem reinen DJ-Pult entfernt.
+
 ## Neu in Version 4.7 – Tasten-Grundregeln, die überall gelten
 
 **Überall gleich:**

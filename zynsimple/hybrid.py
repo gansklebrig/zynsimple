@@ -34,6 +34,20 @@ RX_NUR_MIXXX = re.compile(r"DDJ|VirMIDI|Virtual Raw", re.I)
 RX_MIXXX_OUT = r"^(Mixxx|mixxx|PortAudio)[^:]*:out"
 
 
+def portaudio_jack():
+    """Kann Mixxx (über PortAudio) überhaupt mit JACK spielen? True/False, None = unklar."""
+    try:
+        out = subprocess.run(["ldconfig", "-p"], capture_output=True, text=True, timeout=5).stdout
+        libs = re.findall(r"libportaudio\.so[.\d]*\s.*=>\s*(\S+)", out)
+        for lib in libs:
+            d = subprocess.run(["ldd", lib], capture_output=True, text=True, timeout=5).stdout
+            if "libjack" in d:
+                return True
+        return False if libs else None
+    except Exception:
+        return None
+
+
 def mixxx_bin():
     if os.path.exists("/opt/mixxx-2.6/bin/mixxx") and not os.path.exists(os.path.join(DATEN, ".mixxx26-aus")):
         return "/opt/mixxx-2.6/bin/mixxx"
@@ -94,6 +108,9 @@ class Hybrid:
 
     def _starten(self, m):
         try:
+            if portaudio_jack() is False:
+                raise RuntimeError("Mixxx kann auf diesem System nicht über JACK spielen (PortAudio ohne JACK) – "
+                                   "DJ + Instrumente geht hier nicht, das reine DJ-Pult schon")
             with open("/proc/asound/cards", encoding="utf-8") as f:
                 virmidi_da = "VirMIDI" in f.read()
             if not virmidi_da:
