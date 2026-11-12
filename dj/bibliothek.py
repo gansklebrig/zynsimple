@@ -121,7 +121,7 @@ def _xdo(*args):
         return 1
 
 
-def laden(track_id, deck, senden):
+def laden(track_id, deck, senden, fenster_zeigen=True):
     """Titel ins Deck 1 (A) oder 2 (B) laden. senden(cc, wert) schickt einen Befehl an das Mixxx-Mapping."""
     deck = 2 if int(deck) == 2 else 1
     con = _db()
@@ -140,8 +140,9 @@ def laden(track_id, deck, senden):
         raise RuntimeError("xdotool fehlt – DJ-Pult einmal über die Einstellungen neu einrichten")
     # Ohne Fenstermanager gibt es kein „aktivieren“ – Mixxx-Fenster nach vorne holen und Tastatur-Fokus geben
     for w in _x_fenster():
-        _xdo("windowmap", w)
-        _xdo("windowraise", w)
+        if fenster_zeigen:                 # DJ + Instrumente: der Aufrufer hält das Fenster unsichtbar (außerhalb des Bildes)
+            _xdo("windowmap", w)
+            _xdo("windowraise", w)
         _xdo("windowfocus", w)
     time.sleep(0.2)
     senden(112, 1)                     # Suchfeld

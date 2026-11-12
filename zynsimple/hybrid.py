@@ -140,7 +140,8 @@ class Hybrid:
             self.cid = self._kanal()
             self.proc = subprocess.Popen([m], env=env, cwd=DATEN, stdout=open(LOG, "a"), stderr=subprocess.STDOUT,
                                          start_new_session=True)
-            self.vorne = True
+            self.vorne = False
+            self._versteckt_starten = True        # Mixxx läuft unsichtbar – „Mixxx zeigen“ holt es ganz nach vorne
             self.phase = "laeuft"
             log.info(f"ZynSimple: Hybrid läuft (Mixxx {m}, Kanal {self.cid})")
             if self.vfd is None and not self.seq:
@@ -683,7 +684,7 @@ class Hybrid:
         while self.laeuft():
             n += 1
             ok = self._jack_verbinden()
-            if getattr(self, "_versteckt_starten", False) and n > 4 and self._mixxx_fenster():
+            if getattr(self, "_versteckt_starten", False) and self._mixxx_fenster():
                 self._versteckt_starten = False
                 self.verstecken()
             if ok and not verbunden:
@@ -753,12 +754,11 @@ class Hybrid:
         from . import dj
         vorher = self.vorne
         w = self._mixxx_fenster()
-        if w:
-            self._xdo("windowmap", w)
-            self._xdo("windowraise", w)
-            time.sleep(0.3)
+        if w and not vorher:
+            self._weg_vom_bild(w)          # bekommt die Tastatur, bleibt aber unsichtbar (kein Bild-im-Bild)
+            time.sleep(0.15)
         try:
-            txt = dj.bibliothek_modul().laden(track_id, deck, self.senden)
+            txt = dj.bibliothek_modul().laden(track_id, deck, self.senden, fenster_zeigen=False)
             try:
                 import sqlite3
                 db = sqlite3.connect(f"file:{dj.bibliothek_modul().DB}?mode=ro", uri=True, timeout=3)
@@ -779,16 +779,33 @@ class Hybrid:
         w = self._mixxx_fenster()
         if not w:
             raise RuntimeError("Mixxx-Fenster nicht gefunden (startet noch?)")
+        bw, bh = self._bildgroesse()
         self._xdo("windowmap", w)
+        self._xdo("windowsize", w, str(bw), str(bh))      # ganzer Bildschirm, nicht als kleines Fenster drüber
+        self._xdo("windowmove", w, "0", "0")
         self._xdo("windowraise", w)
         self._xdo("windowfocus", w)
         self.vorne = True
         return "Mixxx vorne · MENU = zurück zum Mischer (Regler und Tasten wirken weiter)"
 
+    def _bildgroesse(self):
+        try:
+            bw, bh = (int(v) for v in self._xdo("getdisplaygeometry").split()[:2])
+            return bw, bh
+        except Exception:
+            return 800, 480
+
+    def _weg_vom_bild(self, w):
+        """Mixxx-Fenster sichtbar für X (Tastatur geht hin), aber außerhalb des Bildschirms."""
+        bw, bh = self._bildgroesse()
+        self._xdo("windowmap", w)
+        self._xdo("windowsize", w, str(bw), str(bh))
+        self._xdo("windowmove", w, str(bw + 100), "0")
+
     def verstecken(self):
         w = self._mixxx_fenster()
         if w:
-            self._xdo("windowunmap", w)
+            self._weg_vom_bild(w)
         self.vorne = False
         self._zynsimple_vorne()
 

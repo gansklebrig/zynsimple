@@ -4536,6 +4536,11 @@ class zynsimple_screen(zynthian_gui_base):
                 self.fxedit["page"] += -1 if role == "LEFT" else 1
                 self.draw_editor()
                 return True
+            if role in ("TAP", "REC", "PLAY") or role.startswith("F"):
+                # Nie an den Zynthian weiterreichen: der würde sonst eigene Ansichten öffnen (Tempo, Pads …)
+                if t == "S":
+                    self._flash("Diese Taste wirkt im Mischer · zurück: BACK")
+                return True
             return False
         self._touch()
         chain = self._sel_chain()

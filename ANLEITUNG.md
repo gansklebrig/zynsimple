@@ -73,6 +73,14 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 5.11 – kein Bild-im-Bild mehr, Tasten öffnen keine Zynthian-Ansichten
+
+- **Mixxx erscheint nicht mehr als kleines Fenster über dem Mischer.** Bei „DJ + Instrumente“ läuft Mixxx
+  unsichtbar. Beim Titel-Laden bekommt es kurz die Tastatur, bleibt aber außerhalb des Bildes.
+  „Mixxx zeigen“ holt es über den **ganzen** Bildschirm, MENU wieder weg.
+- **METRONOM, REC, PLAY und F1–F4 öffnen außerhalb des Mischers keine Zynthian-Ansichten mehr**
+  (vorher sprang z. B. METRONOM im ⋯-Menü in die Tempo-Seite des Zynthian). Dort steht jetzt nur ein kurzer Hinweis.
+
 ## Neu in Version 5.10 – „Keine Verbindung zu Mixxx“ behoben, Liste flackert nicht mehr
 
 - **Laden ging nicht: Keine Verbindung zu Mixxx** – behoben. ZynSimple spricht mit Mixxx jetzt über eigene
