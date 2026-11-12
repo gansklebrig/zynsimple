@@ -34,7 +34,7 @@ SCHRITTE = {
 # Hinweise aus dem Mixxx-Protokoll → (Anteil, Text)
 LOG_HINWEISE = [
     (r"SoundManager|PortAudio", 0.38, "Soundkarten werden geöffnet …"),
-    (r"[Cc]ontroller", 0.50, "DDJ-200 und Zynthian-Tasten werden verbunden …"),
+    (r"[Cc]ontroller", 0.50, "DJ-Controller und Zynthian-Tasten werden verbunden …"),
     (r"[Ll]ibrary|[Tt]rack[Cc]ollection|database", 0.62, "Musik-Bibliothek wird gelesen …"),
     (r"[Ss]kin|LegacySkinParser", 0.80, "Ansicht wird aufgebaut …"),
     (r"[Ww]aveform|[Ee]ffect", 0.90, "Wellenformen und Effekte …"),

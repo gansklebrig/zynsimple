@@ -17,7 +17,7 @@ import time
 log = logging.getLogger("zynsimple")
 
 RX_BSP = re.compile(r"beat\s*step\s*pro|beatsteppro|\bBSP\b", re.I)
-RX_DDJ = re.compile(r"DDJ-?200", re.I)
+RX_DDJ = re.compile(r"DDJ-?(FLX\d+|[A-Z]{0,3}\d+)", re.I)     # Pioneer DDJ-200, -400, -FLX4 …
 RX_NICHT = re.compile(r"zynsimple|ZynMidiRouter|VirMIDI|Virtual Raw|Midi Through|zynseq|zynmidi", re.I)
 
 # BeatStep Pro ab Werk: SEQ 1 = Kanal 1, SEQ 2 = Kanal 2, Drums = Kanal 10
@@ -61,7 +61,7 @@ class Geraete:
         self._letzte = {}
         self.lauf = False
         self._lock = threading.Lock()
-        # DJ-Controller (DDJ-200) bei „DJ + Instrumente“: SHIFT + Jog = Titel wählen, SHIFT + Kopfhörer = laden
+        # DJ-Controller bei „DJ + Instrumente“: DDJ-400 BROWSE/LOAD · DDJ-200 SHIFT + Jog / SHIFT + Kopfhörer
         self.ddj_namen = set()
         self.ddj_q = collections.deque(maxlen=256)
         self.ddj_aktionen = collections.deque(maxlen=64)
@@ -168,12 +168,21 @@ class Geraete:
                     hy.ddj_senden(msg)
 
     def _ddj(self, st, d1, d2):
-        """DDJ-200 (Mixxx-Belegung ab Werk): SHIFT = Note 0x3F, Jog = CC 0x21 (64 = Stillstand),
+        """DDJ-400/FLX4: BROWSE drehen + LOAD (Kanal 7). DDJ-200 (Mixxx-Belegung ab Werk): SHIFT = Note 0x3F, Jog = CC 0x21 (64 = Stillstand),
         SHIFT + Kopfhörer = Note 0x68 – jeweils Kanal 1 (Deck A) und 2 (Deck B)."""
         typ, k = st & 0xF0, st & 0x0F
+        an = typ == 0x90 and d2 > 0
+        if k == 6:
+            # DDJ-400 / DDJ-FLX4: eigener BROWSE-Drehknopf (CC 0x40, 1 = vor, 127 = zurück) und LOAD-Tasten
+            if typ == 0xB0 and d1 in (0x40, 0x64):
+                schritte = d2 if d2 < 64 else d2 - 128
+                for _ in range(min(5, abs(schritte))):
+                    self.ddj_aktionen.append(("runter" if schritte > 0 else "hoch", 0))
+            elif an and d1 in (0x46, 0x47):
+                self.ddj_aktionen.append(("laden", 1 if d1 == 0x46 else 2))
+            return
         if k > 1:
             return
-        an = typ == 0x90 and d2 > 0
         if typ in (0x80, 0x90) and d1 == 0x3F:
             self._ddj_shift[k] = an
             self._ddj_jog = 0

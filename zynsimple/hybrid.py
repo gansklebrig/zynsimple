@@ -5,7 +5,7 @@ ZynSimple – Hybrid-Modus „DJ + Instrumente“: Mixxx läuft neben der Zynthi
   - Mixxx spielt über JACK (nur der Haupt-Mix) in den Kanal „DJ-Pult“ des Zynthian-Mischers:
     Fader, Mute, Zynthian-Effekte, Freeze, Szenen und der Limiter am Hauptausgang wirken auch auf die Musik.
   - Instrumente (Handpan, Mikro, Synths, Looper) laufen wie immer als eigene Spuren daneben.
-  - Der DDJ-200 steuert nur Mixxx (wird aus den Zynthian-Spuren herausgenommen, damit keine Synths mitspielen).
+  - Der DDJ (200/400/FLX4) steuert nur Mixxx (wird aus den Zynthian-Spuren herausgenommen, damit keine Synths mitspielen).
   - Tempo: Mixxx führt → Zynthian-Tempo (Sequenzer, Delays, Looper) folgt; bei „Takt: folgen“ gibt die TR-8S
     den Takt vor, der Zynthian folgt ihr und Mixxx folgt dem Zynthian.
   - Bildschirm: Mixxx und ZynSimple wechseln sich ab (⋯ → Mixxx zeigen · MENU → zurück).
@@ -127,7 +127,7 @@ class Hybrid:
             env = self._env(m)
             self.ddj_fehler = None
             if self._seq_oeffnen():
-                env["ZS_SEQ"] = "1"                 # Mixxx sieht „ZynSimple Mixxx“ und „ZynSimple DDJ-200“
+                env["ZS_SEQ"] = "1"                 # Mixxx sieht „ZynSimple Mixxx“ und „ZynSimple DDJ“
             else:
                 if self.vfd is None:
                     self._virmidi_oeffnen()
@@ -309,7 +309,7 @@ class Hybrid:
             return False
 
     # ------------------------------------------------------------------
-    # DDJ-200 nur für Mixxx
+    # DDJ nur für Mixxx
     # ------------------------------------------------------------------
     def _zyncore(self):
         try:
@@ -386,7 +386,7 @@ class Hybrid:
         try:
             api = rtmidi.API_LINUX_ALSA
             s = {}
-            for art, name in (("", "ZynSimple Mixxx"), ("ddj_", "ZynSimple DDJ-200")):
+            for art, name in (("", "ZynSimple Mixxx"), ("ddj_", "ZynSimple DDJ")):
                 aus = rtmidi.MidiOut(api, name=name)
                 aus.open_virtual_port(name)
                 ein = rtmidi.MidiIn(api, name=name)
@@ -395,7 +395,7 @@ class Hybrid:
                 ein.set_callback(self._seq_ddj if art else self._seq_mixxx)
                 s[art + "aus"], s[art + "ein"] = aus, ein
             self.seq = s
-            log.info("ZynSimple: Hybrid – Verbindung zu Mixxx über ALSA-Sequencer (ZynSimple Mixxx / DDJ-200)")
+            log.info("ZynSimple: Hybrid – Verbindung zu Mixxx über ALSA-Sequencer (ZynSimple Mixxx / DDJ)")
             return True
         except Exception as e:
             log.warning(f"ZynSimple: Hybrid – ALSA-Sequencer geht nicht ({e}), nehme snd-virmidi")
@@ -451,7 +451,7 @@ class Hybrid:
 
     def _virmidi_ddj_oeffnen(self):
         """Zweiter virtueller Anschluss nur für den DJ-Controller: Im Zynthian hält JACK alle USB-MIDI-Geräte
-        fest (-X raw) – Mixxx sähe den DDJ-200 sonst nie. ZynSimple hört ihn über JACK und reicht alles durch."""
+        fest (-X raw) – Mixxx sähe den DDJ sonst nie. ZynSimple hört ihn über JACK und reicht alles durch."""
         self.vm_ddj = None
         try:
             with open("/proc/asound/cards", encoding="utf-8") as f:

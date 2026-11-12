@@ -1119,7 +1119,7 @@ class zynsimple_screen(zynthian_gui_base):
                                     fill=farbe, outline="")
             else:
                 cv.create_text(tx, y0 + dh / 2, anchor="w", font=self.f_small, fill=P["tx2"],
-                               text=f"leer · F{k + 1} oder SHIFT + 🎧 {'A' if k == 0 else 'B'} lädt den gewählten Titel")
+                               text=f"leer · F{k + 1} oder LOAD am DDJ lädt den gewählten Titel")
             self.trk_hits.append((x0, y0, x1, y0 + dh, "b_play", k + 1))
 
     def _bib_decks_zeichnen(self, W, dh):
@@ -1223,7 +1223,7 @@ class zynsimple_screen(zynthian_gui_base):
             cv.create_text(110, (by0 + by1) / 2, text=f"{seite + 1}/{seiten}", font=self.f_tiny, fill=P["tx2"])
             self._tbtn(150, by0, 206, by1, "▼", "b_seite", 1, font=self.f_small)
         cv.create_text(W - 16, (by0 + by1) / 2, anchor="e", font=self.f_tiny, fill=P["tx2"],
-                       text=(f"{d['gesamt']} Titel · " if d else "") + "wählen: Regler oder SHIFT+Jog · laden: F1/F2 oder SHIFT+🎧")
+                       text=(f"{d['gesamt']} Titel · " if d else "") + "wählen: Regler oder BROWSE am DDJ · laden: F1/F2 oder LOAD am DDJ")
         self._fokus_zeichnen()                     # Auswahl bleibt sichtbar, auch wenn die Decks neu gezeichnet werden
 
     def bib_press(self, ev):
@@ -1310,7 +1310,7 @@ class zynsimple_screen(zynthian_gui_base):
         return self._pk_cache[1]
 
     def _ddj_tick(self):
-        """DJ-Controller bei „DJ + Instrumente“: SHIFT + Jog wählt den Titel, SHIFT + Kopfhörer A/B lädt ihn.
+        """DJ-Controller bei „DJ + Instrumente“: BROWSE (DDJ-200: SHIFT + Jog) wählt, LOAD (SHIFT + Kopfhörer) lädt.
         (Mixxx ist unsichtbar – seine eigene Liste würde hier niemand sehen.)"""
         g = getattr(self.bridge, "geraete", None)
         if g is None or not g.ddj_aktionen:
@@ -1333,13 +1333,13 @@ class zynsimple_screen(zynthian_gui_base):
                 return
             self.bib["ddj"] = None
             if any(a[0] == "laden" for a in akt):
-                self._flash("Erst Titel wählen: SHIFT halten + Jog drehen · dann SHIFT + 🎧 lädt ins Deck")
+                self._flash("Erst Titel wählen: BROWSE am DDJ drehen (DDJ-200: SHIFT + Jog) · dann LOAD")
                 return
         b = self.bib
         for art, deck in akt:
             if art == "laden":
                 if b.get("ddj") is None and not getattr(self, "fokus_aktiv", False):
-                    self._flash("Erst Titel wählen: SHIFT halten + Jog drehen")
+                    self._flash("Erst Titel wählen: BROWSE am DDJ drehen (DDJ-200: SHIFT + Jog)")
                     continue
                 self._bib_taste("F1" if deck == 1 else "F2")
                 continue
@@ -2382,7 +2382,7 @@ class zynsimple_screen(zynthian_gui_base):
                  ("settings", f"Update {upd} bereit" if upd else "Einstellungen", "Update, Start-Logo, Bühnenbild …"),
                  ("close", "Zurück", "")]
         if self.dj_installed:
-            items.insert(0, ("dj", "♪ DJ-Pult", "Mixxx mit dem DDJ-200"))
+            items.insert(0, ("dj", "♪ DJ-Pult", "Mixxx mit dem DDJ"))
             try:
                 from . import dj as dj_
                 stick_ = dj_.musik_stick()
@@ -3543,7 +3543,7 @@ class zynsimple_screen(zynthian_gui_base):
             return ("Jetzt speichern", "Mischer, Effekte und Spuren sofort sichern",
                     "✓ Gesichert" if armed else "Speichern", True, False)
         if art == "s_dj":
-            return ("DJ-Pult", "Mixxx im Vollbild mit dem DDJ-200 · zurück: BACK 3 s → System-Menü", "Starten",
+            return ("DJ-Pult", "Mixxx im Vollbild mit dem DDJ · zurück: BACK 3 s → System-Menü", "Starten",
                     getattr(self, "dj_installed", False), False)
         if art == "s_imres":
             return ("Barden Beats", "Bühne & Klangwelten im Vollbild · zurück: BACK 3 s → System-Menü", "Starten",

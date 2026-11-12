@@ -4,7 +4,7 @@
 ZynSimple DJ-Pult: richtet Mixxx vor jedem Start passend ein, damit niemand in die Menüs muss.
 
   - Ton: Zynthian-Ausgang = Master, USB-Soundkarte (falls gesteckt) = Kopfhörer, Eingänge 1+2 = Handpan/Mikro (Aux)
-  - Controller: Pioneer DDJ-200 und die Zynthian-Tasten/-Regler werden aktiviert
+  - Controller: Pioneer DDJ (200, 400, FLX4 …) und die Zynthian-Tasten/-Regler werden aktiviert
   - Bibliothek: Ordner „MUSIK gekauft“ (WLAN-Freigabe und auf USB-Sticks), Neu-Einlesen beim Start
   - Kiste „Passt zur Handpan“: Tracks in harmonisch passenden Tonarten
   - Kiste „★ Favoriten“: alle Tracks ab vier Sternen (Sterne: ALT + ▲ ▼ am Zynthian)
@@ -262,39 +262,77 @@ def schluessel(name):
     return re.sub(r"[ /\\]", "_", name)
 
 
+RX_DDJ = re.compile(r"DDJ-?(FLX\d+|[A-Z]{0,3}\d+|[A-Z]{2,3}\d?)", re.I)
+
 DDJ_HYBRID_JS = """
 
 // ---- ZynSimple „DJ + Instrumente“ ----
-// Mixxx ist hier unsichtbar: Titel wählen (SHIFT + Jog) und laden (SHIFT + Kopfhörer) übernimmt ZynSimple
-// mit seiner Liste „Decks & Titel“ am Zynthian-Bildschirm. Mixxx selbst macht dabei nichts.
-DDJ200.LoadSelectedTrack = function() {};
-DDJ200.browseTracks = function() {};
+// Mixxx ist hier unsichtbar: Titel wählen und laden übernimmt ZynSimple mit seiner Liste „Decks & Titel“
+// am Zynthian-Bildschirm. Mixxx selbst blättert und lädt hier nicht.
+if (typeof DDJ200 !== "undefined") { DDJ200.LoadSelectedTrack = function() {}; DDJ200.browseTracks = function() {}; }
 """
 
 
+def ddj_modell(name):
+    """„DDJ-400 MIDI 1“ → „400“, „DDJ-FLX4“ → „FLX4“, „DDJ-200“ → „200“."""
+    m = RX_DDJ.search(name or "")
+    return m.group(1).upper() if m else None
+
+
+def ddj_mapping(modell):
+    """Mitgelieferte Mixxx-Belegung für das DDJ-Modell (z. B. Pioneer-DDJ-400.midi.xml)."""
+    for basis in [b + "/controllers" for b in MIXXX_SHARE] + ["/usr/share/mixxx/controllers",
+                                                              "/usr/local/share/mixxx/controllers"]:
+        kand = sorted(f for f in glob.glob(os.path.join(basis, f"*DDJ-{modell}.midi.xml")) +
+                      glob.glob(os.path.join(basis, f"*DDJ-{modell} *.midi.xml")) if "lternative" not in f)
+        if kand:
+            return kand[0]
+    return None
+
+
 def ddj_hybrid(orig, ziel):
-    """Kopie der DDJ-200-Belegung für den Hybrid-Modus: Blättern/Laden macht ZynSimple, nicht Mixxx."""
+    """Kopie der DDJ-Belegung für den Hybrid-Modus: Blättern/Laden macht ZynSimple, nicht Mixxx."""
     try:
         with open(orig, encoding="utf-8") as f:
             xml = f.read()
-        m = re.search(r'filename="([^"]+\.js)"', xml)
-        if not m:
-            return None
-        js_orig = os.path.join(os.path.dirname(orig), m.group(1))
-        with open(js_orig, encoding="utf-8") as f:
-            js = f.read()
-        js_neu = "Pioneer-DDJ-200-ZynSimple-Hybrid.js"
-        xml = xml.replace(m.group(0), f'filename="{js_neu}"', 1)
+        modell = ddj_modell(os.path.basename(orig)) or "X"
+        # Blättern und Laden aus der Belegung nehmen (DDJ-400/FLX4: eigene BROWSE-/LOAD-Tasten)
+        xml = re.sub(r"<control>(?:(?!</control>).)*?<key>(?:LoadSelectedTrack|MoveVertical|MoveFocusForward|"
+                     r"MoveFocusBackward|MoveUp|MoveDown|ScrollVertical)</key>(?:(?!</control>).)*?</control>",
+                     "", xml, flags=re.S)
         xml = re.sub(r"<name>([^<]*)</name>", r"<name>\1 (ZynSimple Hybrid)</name>", xml, count=1)
-        with open(os.path.join(ziel, js_neu), "w", encoding="utf-8") as f:
-            f.write(js + DDJ_HYBRID_JS)
-        neu = os.path.join(ziel, "Pioneer-DDJ-200-ZynSimple-Hybrid.midi.xml")
+        for m in re.finditer(r'filename="([^"]+\.js)"', xml):
+            js_orig = os.path.join(os.path.dirname(orig), m.group(1))
+            if not os.path.exists(js_orig):
+                continue
+            with open(js_orig, encoding="utf-8") as f:
+                js = f.read()
+            js_neu = m.group(1).replace(".js", "-ZynSimple-Hybrid.js")
+            with open(os.path.join(ziel, js_neu), "w", encoding="utf-8") as f:
+                f.write(js + DDJ_HYBRID_JS)
+            xml = xml.replace(m.group(0), f'filename="{js_neu}"', 1)
+        neu = os.path.join(ziel, f"Pioneer-DDJ-{modell}-ZynSimple-Hybrid.midi.xml")
         with open(neu, "w", encoding="utf-8") as f:
             f.write(xml)
         return neu
     except Exception as e:
-        log("DDJ-200 Hybrid-Belegung:", e)
+        log("DDJ Hybrid-Belegung:", e)
         return None
+
+
+def angeschlossene_ddj():
+    """Modelle der angeschlossenen Pioneer-Controller (aus den MIDI-Namen und /proc/asound/cards)."""
+    out = set()
+    texte = list(midi_namen())
+    try:
+        with open("/proc/asound/cards", encoding="utf-8") as f:
+            texte.append(f.read())
+    except OSError:
+        pass
+    for t in texte:
+        for m in RX_DDJ.finditer(t):
+            out.add(m.group(1).upper())
+    return out
 
 
 def controller(data, ver):
@@ -302,37 +340,42 @@ def controller(data, ver):
     os.makedirs(ziel, exist_ok=True)
     for f in glob.glob(os.path.join(HIER, "mixxx", "*.midi.xml")) + glob.glob(os.path.join(HIER, "mixxx", "*.js")):
         shutil.copy(f, ziel)
-    ddj = None
-    for basis in [b + "/controllers" for b in MIXXX_SHARE] + ["/usr/share/mixxx/controllers", "/usr/local/share/mixxx/controllers"]:
-        kand = sorted(f for f in glob.glob(os.path.join(basis, "*DDJ-200*.midi.xml")) if "lternative" not in f)
-        if kand:
-            ddj = kand[0]
-            break
-    if ddj and HYBRID:
-        ddj = ddj_hybrid(ddj, ziel) or ddj
+    # Belegung je DDJ-Modell (DDJ-200, DDJ-400, DDJ-FLX4 …) – angeschlossene zuerst, sonst die üblichen
+    modelle = angeschlossene_ddj() or {"200", "400", "FLX4"}
+    mappings = {}
+    for mo in modelle:
+        x = ddj_mapping(mo)
+        if x:
+            mappings[mo] = x
+    log("DDJ-Modelle:", ", ".join(sorted(modelle)), "→", ", ".join(os.path.basename(v) for v in mappings.values()) or "keine Belegung")
+    angesteckt = sorted(m for m in angeschlossene_ddj() if m in mappings)
+    hybrid_ddj = None
+    if HYBRID and angesteckt:
+        hybrid_ddj = ddj_hybrid(mappings[angesteckt[0]], ziel) or mappings[angesteckt[0]]
     zyn = os.path.join(ziel, "Zynthian-V5-ZynSimple.midi.xml")
-    # „DJ + Instrumente“: der DDJ kommt über einen eigenen virtuellen Anschluss (ZynSimple reicht ihn durch)
+    # „DJ + Instrumente“: der DDJ kommt über einen eigenen Anschluss (ZynSimple reicht ihn durch)
     vm_ddj = os.environ.get("ZS_VIRMIDI_DDJ", "") if HYBRID else ""
     namen = midi_namen()
-    if ddj:
-        namen |= {"DDJ-200", "DDJ-200 MIDI 1"}          # auch wenn der DDJ gerade nicht steckt
+    for mo in mappings:
+        namen |= {f"DDJ-{mo}", f"DDJ-{mo} MIDI 1"}          # auch wenn der DDJ gerade nicht steckt
     if HYBRID and os.environ.get("ZS_SEQ") == "1":
-        namen |= {"ZynSimple Mixxx", "ZynSimple DDJ-200"}
+        namen |= {"ZynSimple Mixxx", "ZynSimple DDJ"}
     for name in namen:
         datei = None
+        mo = ddj_modell(name) if not re.search(r"ZynSimple", name, re.I) else None
         if re.search(r"ZynSimple DDJ", name, re.I):          # DDJ, durchgereicht von ZynSimple
-            datei = ddj if HYBRID else None
+            datei = hybrid_ddj if HYBRID else None
         elif re.search(r"ZynSimple Mixxx", name, re.I):      # Zynthian-Tasten / Laden / Deck-Anzeige
             datei = zyn if HYBRID else None
-        elif re.search(r"DDJ-?200", name, re.I) and ddj and HYBRID:
-            # hier hält JACK den echten DDJ fest – Mixxx bekommt ihn über den virtuellen Anschluss
+        elif mo and HYBRID:
+            # hier hält JACK den echten DDJ fest – Mixxx bekommt ihn über den eigenen Anschluss
             for k in {schluessel(name), schluessel(name + " MIDI 1")}:
                 data.setdefault("[Controller]", {})[k] = "0"
             continue
-        elif re.search(r"DDJ-?200", name, re.I) and ddj:
-            datei = ddj
-        elif vm_ddj and ddj and re.search(r"(VirMIDI|Virtual Raw MIDI)\s*" + re.escape(vm_ddj) + r"\b", name, re.I):
-            datei = ddj
+        elif mo:
+            datei = mappings.get(mo)
+        elif vm_ddj and hybrid_ddj and re.search(r"(VirMIDI|Virtual Raw MIDI)\s*" + re.escape(vm_ddj) + r"\b", name, re.I):
+            datei = hybrid_ddj
         elif re.search(r"VirMIDI|Virtual Raw MIDI", name, re.I):
             datei = zyn
         if not datei:

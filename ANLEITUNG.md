@@ -73,6 +73,14 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 5.12 – DDJ-400 (und FLX4) statt nur DDJ-200
+
+- **Der DDJ-400 wird jetzt erkannt und belegt** – bisher war alles nur auf den DDJ-200 eingestellt, deshalb kam kein
+  einziger Tastendruck an. ZynSimple nimmt jetzt automatisch die passende Mixxx-Belegung für das angeschlossene Modell
+  (DDJ-200, DDJ-400, DDJ-FLX4 …) – im reinen DJ-Pult und bei „DJ + Instrumente“.
+- **Titel wählen und laden mit dem DDJ-400:** **BROWSE**-Drehknopf = Titel in „♫ Decks & Titel“ wählen,
+  **LOAD** links/rechts = in Deck A/B laden. (DDJ-200: SHIFT + Jog / SHIFT + Kopfhörer.)
+
 ## Neu in Version 5.11 – kein Bild-im-Bild mehr, Tasten öffnen keine Zynthian-Ansichten
 
 - **Mixxx erscheint nicht mehr als kleines Fenster über dem Mischer.** Bei „DJ + Instrumente“ läuft Mixxx
