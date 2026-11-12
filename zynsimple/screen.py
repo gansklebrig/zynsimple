@@ -1509,6 +1509,13 @@ class zynsimple_screen(zynthian_gui_base):
                  ("close", "Zurück", "")]
         if self.dj_installed:
             items.insert(0, ("dj", "♪ DJ-Pult", "Mixxx mit dem DDJ-200"))
+            try:
+                from . import dj as dj_
+                stick_ = dj_.musik_stick()
+            except Exception:
+                stick_ = None
+            if stick_:
+                items.insert(0, ("djimport", "⇩ Musik übernehmen", f"von „{stick_}“ auf den Zynthian"))
             hy = getattr(self.bridge, "hybrid", None)
             if hy is not None and hy.laeuft():
                 items.insert(0, ("hybrid_aus", "DJ + Instr. beenden", "Mixxx schließen · Spuren bleiben"))
@@ -1522,7 +1529,7 @@ class zynsimple_screen(zynthian_gui_base):
         gw, gh = (W - 40) / cols, (H - 70) / rows
         for k, (art, title, sub) in enumerate(items):
             cx, cy = 20 + (k % cols) * gw, 52 + (k // cols) * gh
-            gold = art in ("imres", "dj", "hybrid", "hybrid_zeigen") or (art == "settings" and upd)
+            gold = art in ("imres", "dj", "hybrid", "hybrid_zeigen", "djimport") or (art == "settings" and upd)
             self.rrect(cx + 5, cy + 5, cx + gw - 5, cy + gh - 5, 14, fill=P["card2"] if not gold else "#2a2014",
                        outline=P["gold"] if gold else P["line"], width=2 if gold else 1)
             cv.create_text(cx + gw / 2, cy + gh * 0.42, text=title, font=self.f_mid, fill=P["champ"],
@@ -1551,6 +1558,9 @@ class zynsimple_screen(zynthian_gui_base):
                 elif art == "dj":
                     from . import start_dj
                     start_dj(self.zyngui)
+                elif art == "djimport":
+                    from . import start_import
+                    start_import(self.zyngui)
                 elif art in ("hybrid", "hybrid_zeigen", "hybrid_aus"):
                     hy = self.bridge.hybrid
                     try:
@@ -2607,7 +2617,7 @@ class zynsimple_screen(zynthian_gui_base):
         ("dj", "DJ-Pult", [("act", "s_dj", "♪"), ("set", "dj_auto_rec", "●"), ("act", "s_djhandy", "⌕"),
                            ("set", "dj_handpan_fx", "◎"), ("act", "s_djimport", "⇩"), ("act", "s_djordner", "▤"),
                            ("act", "s_mixxx26", "◆"), ("act", "s_stems", "≋")]),
-        ("buehne", "Bühne", [("act", "s_hybrid", "♫"), ("set", "takt", "⏱"), ("set", "start_modus", "⏻"),
+        ("buehne", "Bühne", [("act", "s_hybrid", "♫"), ("act", "s_djimport", "⇩"), ("set", "takt", "⏱"), ("set", "start_modus", "⏻"),
                              ("act", "s_gig_merken", "✓"), ("act", "s_gig_laden", "↺"), ("act", "s_strom", "⚡")]),
         ("system", "System", [("act", "s_imres", "♫"), ("act", "s_handy", "▤"), ("set", "update_check", "⟳"),
                               ("act", "s_sichern", "⇩"), ("act", "s_zurueck", "⇧"), ("act", "s_admin", "⚙")]),
@@ -2729,8 +2739,11 @@ class zynsimple_screen(zynthian_gui_base):
                         None, True, False)
             return ("Strom: in Ordnung", "bei Unterspannung warnt der Zynthian und sichert alles", None, True, False)
         if art == "s_djimport":
-            return ("Musik vom USB-Stick übernehmen", "kopiert den Ordner „MUSIK gekauft“ auf den Zynthian – "
-                    "lädt schneller, Stick kann danach raus", "Übernehmen", getattr(self, "dj_installed", False), False)
+            from . import dj
+            stick = dj.musik_stick()
+            return ("Musik übernehmen",
+                    (f"„{stick}“ steckt – " if stick else "Ordner „MUSIK gekauft“ von USB-Stick oder SD-Karte (Kartenleser) · ")
+                    + "kopiert nur Neues, danach kann er raus", "Übernehmen", getattr(self, "dj_installed", False), False)
         if art == "s_djordner":
             a = getattr(self, "set_addr", {}) or {}
             ip = a.get("ip") or "zynthian"

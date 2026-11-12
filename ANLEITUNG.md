@@ -73,6 +73,14 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 4.1 – Musik übernehmen in jedem Modus
+
+- **⇩ Musik übernehmen** gibt es jetzt auch auf der Seite **Einstellungen → Bühne** (neben *DJ + Instrumente*)
+  und im **⋯-Menü**, sobald ein USB-Stick oder eine SD-Karte (im USB-Kartenleser) mit Ordner
+  **„MUSIK gekauft“** steckt. Beim Einstecken erscheint ein Hinweis.
+- Im Modus **DJ + Instrumente** liest Mixxx die neuen Titel danach von selbst ein: Mixxx startet kurz neu
+  (ca. 20 s), aber erst, wenn gerade kein Deck spielt – ein laufendes Set reißt nicht ab.
+
 ## Neu in Version 4.0 – DJ + Instrumente, gemeinsamer Takt, Looper im Takt, Bühne
 
 **♫ DJ + Instrumente (Hybrid-Modus)** – Mixxx läuft *neben* dem Zynthian statt an seiner Stelle.

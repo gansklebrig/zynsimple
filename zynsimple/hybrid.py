@@ -124,6 +124,34 @@ class Hybrid:
         threading.Thread(target=self._stoppen, daemon=True).start()
         return "Mixxx wird beendet …"
 
+    def nach_import(self):
+        """Neue Titel auf dem Zynthian: Mixxx neu starten (liest dabei die Bibliothek neu ein) – aber erst,
+        wenn gerade kein Deck spielt, damit kein Set abreißt."""
+        if getattr(self, "_neu_wartet", False):
+            return
+        self._neu_wartet = True
+
+        def warten():
+            try:
+                still = 0
+                for _ in range(3 * 3600):
+                    if not self.laeuft():
+                        return
+                    still = still + 1 if not self.mixxx_spielt else 0
+                    if still >= 5:
+                        break
+                    time.sleep(1)
+                log.info("ZynSimple: Hybrid – Mixxx liest neue Musik ein")
+                self.stoppen()
+                for _ in range(40):
+                    if self.phase is None and not self.laeuft():
+                        break
+                    time.sleep(0.5)
+                self.starten()
+            finally:
+                self._neu_wartet = False
+        threading.Thread(target=warten, daemon=True).start()
+
     def _stoppen(self):
         p = self.proc
         try:

@@ -156,6 +156,15 @@ def samba_einrichten():
     _losgeloest(["samba"])
 
 
+def musik_stick():
+    """Eingesteckter USB-Stick oder SD-Karte (im USB-Kartenleser) mit Ordner „MUSIK gekauft“ – oder None."""
+    import glob
+    for q in sorted(glob.glob("/media/*/*/MUSIK gekauft") + glob.glob("/media/*/MUSIK gekauft")):
+        if os.path.isdir(q):
+            return os.path.basename(os.path.dirname(q))
+    return None
+
+
 def import_starten():
     """Musik vom USB-Stick übernehmen (läuft losgelöst; Fortschritt über import_stand())."""
     if not eingerichtet():

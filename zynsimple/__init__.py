@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "4.0"
+VERSION = "4.1"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -149,6 +149,16 @@ def _buehne(zyngui, bridge, settings):
             log.debug(f"ZynSimple: Takt: {e}")
         if getattr(bridge, "hybrid", None) is not None and zustand["n"] % 3 == 1:
             bridge.hybrid.kanal_pruefen()
+        try:
+            from . import dj
+            stick = dj.musik_stick() if dj.eingerichtet() else None
+            if stick and stick != zustand.get("stick"):
+                scr = zyngui.screens.get(SCREEN_NAME)
+                if scr is not None:
+                    scr._flash(f"„{stick}“ mit Musik erkannt · ⋯ → ⇩ Musik übernehmen")
+            zustand["stick"] = stick
+        except Exception:
+            pass
         try:
             from . import helfer
             st = helfer.strom()
@@ -519,8 +529,13 @@ def start_import(zyngui, *a, **k):
             time.sleep(0.4)
             st = dj.import_stand()
             if st["phase"] == "fertig":
+                hy = getattr(getattr(zyngui, "_zs_bridge", None), "hybrid", None)
+                extra = ""
+                if hy is not None and hy.laeuft():
+                    hy.nach_import()
+                    extra = " Mixxx liest die neuen Titel ein, sobald gerade nichts läuft (ca. 20 s)."
                 fs.fertig(st["text"] + " · der Stick kann raus")
-                show("Musik übernommen", "Antippen zum Schließen.", done=True)
+                show("Musik übernommen", "Antippen zum Schließen." + extra, done=True)
                 return
             if st["phase"] == "fehler":
                 fs.fehler(st["text"])
