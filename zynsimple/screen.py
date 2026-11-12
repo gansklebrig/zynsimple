@@ -3404,7 +3404,8 @@ class zynsimple_screen(zynthian_gui_base):
     # Aufbau der Einstellungen: Reiter → Zeilen. ("set", Schlüssel, Symbol) oder ("act", Aktion, Symbol)
     SET_PAGES = [
         ("anzeige", "Anzeige", [("set", "replace_home", "⌂"), ("set", "splash", "✦"), ("set", "idle_seconds", "◐"),
-                                ("set", "strip_min_width", "▥"), ("act", "s_theme", "◑"), ("set", "led_recolor", "●")]),
+                                ("set", "strip_min_width", "▥"), ("act", "s_theme", "◑"), ("set", "led_recolor", "●"),
+                                ("set", "boot_gans", "🪿")]),
         ("bedienung", "Bedienung", [("set", "autosave", "↺"), ("act", "s_save", "✓"), ("set", "master_limiter", "▣"),
                                     ("set", "tonart", "♯"), ("set", "xy_spring", "✥"), ("set", "synth_midi_chan", "♪"),
                                     ("act", "s_tasten", "⌨")]),

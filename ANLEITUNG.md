@@ -73,6 +73,14 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 5.2 – Die Gans beim Hochfahren
+
+- Beim Start zeigt der Zynthian jetzt die Gans (goldener Ring, warmer Hintergrund) statt des Vangelis-Bildes;
+  bei Fehlermeldungen dieselbe Gans mit rotem Ring. Wirkt ab dem nächsten Neustart.
+- Abschalten: Einstellungen → Anzeige → **Gans beim Start** (das Original-Bild kommt zurück).
+- Erzeugt der Zynthian sein Bild nach einem Update neu, setzt ZynSimple die Gans beim nächsten Start wieder drauf.
+- Die kurze Logo-Animation ganz am Anfang (vor dem Bild) gehört zum System und bleibt.
+
 ## Neu in Version 5.1 – Wache gegen Hänger
 
 - **Wache**: schreibt alle 10 Sekunden mit, wie es dem Zynthian geht (Strom, Temperatur, Last, freier Speicher,

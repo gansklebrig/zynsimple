@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "5.1"
+VERSION = "5.2"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -43,6 +43,7 @@ DEFAULTS = {
     "takt": "senden",
     "start_modus": "zynthian",
     "ton_anzeige": "keytar",
+    "boot_gans": True,
     "bsp_an": False,
     "bsp_drums": False,
     "keytar_geraet": None,
@@ -113,6 +114,11 @@ def setup(zyngui):
         bridge.geraete = None
         log.warning(f"ZynSimple: MIDI-Geräte nicht verfügbar ({e})")
     _buehne(zyngui, bridge, settings)
+    try:
+        from . import bootbild
+        bootbild.im_hintergrund(settings, os.path.join(HOME_DIR, ".bootbild.json"))
+    except Exception as e:
+        log.debug(f"ZynSimple: Startbild: {e}")
 
     if settings.get("led_recolor", True):
         try:
