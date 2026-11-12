@@ -11,6 +11,7 @@ Genutzt von ZynSimple (Display und Handy) und von der Handy-Seite im DJ-Modus.
 """
 import os
 import shutil
+import time
 
 MUSIK = "/zynthian/zynthian-my-data/dj/MUSIK gekauft"
 LISTE = "/run/zynsimple-import-liste.tsv"
@@ -25,8 +26,68 @@ def ist_audio(name):
     return not n.startswith("._") and os.path.splitext(n)[1] in AUDIO
 
 
+LESBAR = {"vfat", "exfat", "ntfs", "ntfs3", "ext2", "ext3", "ext4", "btrfs", "f2fs", "iso9660", "udf"}
+FORMAT_NAME = {"vfat": "FAT32", "exfat": "exFAT", "ntfs": "NTFS", "ntfs3": "NTFS", "hfsplus": "Mac (HFS+)",
+               "apfs": "Mac (APFS)", "ext4": "Linux (ext4)"}
+_eingehaengt = {"t": 0.0}
+
+
+def usb_laufwerke():
+    """Alle USB-Speicher (Stick, Kartenleser, Festplatte) mit Format und wo sie eingehängt sind."""
+    import json as _json
+    import subprocess
+    try:
+        out = subprocess.run(["lsblk", "-J", "-b", "-o", "NAME,PATH,TYPE,TRAN,FSTYPE,LABEL,SIZE,MOUNTPOINT"],
+                             capture_output=True, text=True, timeout=5).stdout
+        baum = _json.loads(out).get("blockdevices", [])
+    except Exception:
+        return []
+    teile = []
+    for d in baum:
+        if d.get("tran") != "usb":
+            continue
+        kinder = d.get("children") or [d]          # ohne Partitionstabelle: das ganze Gerät
+        for k in kinder:
+            if k.get("type") not in ("part", "disk"):
+                continue
+            teile.append({"pfad": k.get("path"), "format": k.get("fstype") or "", "name": k.get("label") or k.get("name"),
+                          "groesse": int(k.get("size") or 0), "eingehaengt": k.get("mountpoint") or ""})
+    return teile
+
+
+def einhaengen():
+    """USB-Speicher, die noch nicht eingehängt sind, einhängen (macht sonst devmon – falls das klemmt)."""
+    import subprocess
+    if time.monotonic() - _eingehaengt["t"] < 8:
+        return
+    _eingehaengt["t"] = time.monotonic()
+    for t in usb_laufwerke():
+        if t["eingehaengt"] or t["format"] not in LESBAR:
+            continue
+        ok = subprocess.call(["udisksctl", "mount", "--no-user-interaction", "-b", t["pfad"]],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20) == 0 \
+            if shutil.which("udisksctl") else False
+        if not ok:
+            ziel = os.path.join("/media/root", "".join(c for c in t["name"] if c.isalnum() or c in "-_ ") or "USB")
+            try:
+                os.makedirs(ziel, exist_ok=True)
+                typ = ["-t", "ntfs3"] if t["format"] in ("ntfs", "ntfs3") else []
+                subprocess.call(["mount"] + typ + [t["pfad"], ziel], stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, timeout=20)
+            except Exception:
+                pass
+
+
 def sticks():
+    """Eingehängte USB-Sticks/Karten: [{pfad, name}]."""
+    try:
+        einhaengen()
+    except Exception:
+        pass
     out = []
+    for t in usb_laufwerke():
+        if t["eingehaengt"] and t["eingehaengt"] not in [s["pfad"] for s in out]:
+            out.append({"pfad": t["eingehaengt"], "name": os.path.basename(t["eingehaengt"]) or t["name"]})
     for base in ("/media/root", "/media"):
         try:
             for d in sorted(os.listdir(base)):
@@ -36,6 +97,28 @@ def sticks():
         except OSError:
             pass
     return out
+
+
+def diagnose():
+    """Warum keine Musik? Für jeden USB-Speicher ein Satz."""
+    zeilen = []
+    for t in usb_laufwerke():
+        fmt = FORMAT_NAME.get(t["format"], t["format"] or "ohne erkennbares Format")
+        g = groesse(t["groesse"]) if t["groesse"] else ""
+        if not t["eingehaengt"]:
+            if t["format"] in ("hfsplus", "apfs"):
+                zeilen.append(f"„{t['name']}“ ({g}): {fmt} – kann der Zynthian nicht lesen. Am PC/Mac auf exFAT formatieren.")
+            elif t["format"] in LESBAR:
+                zeilen.append(f"„{t['name']}“ ({g}, {fmt}): erkannt, ließ sich aber nicht öffnen. Abziehen und neu einstecken.")
+            else:
+                zeilen.append(f"„{t['name']}“ ({g}): {fmt} – nicht lesbar. Am PC auf exFAT oder FAT32 formatieren.")
+            continue
+        n = len(_dateien(t["eingehaengt"])) if os.path.isdir(t["eingehaengt"]) else 0
+        zeilen.append(f"„{t['name']}“ ({g}, {fmt}): {n} Musikdateien" +
+                      ("" if n else " – mp3, flac, wav, m4a, aiff, ogg werden erkannt"))
+    if not zeilen:
+        zeilen.append("Kein USB-Speicher erkannt. Anderen USB-Anschluss probieren; SD-Karten brauchen einen USB-Kartenleser.")
+    return zeilen
 
 
 def _stick_von(pfad):
@@ -99,7 +182,7 @@ def _info(pfad):
 def liste(pfad=None):
     if not pfad:
         st = sticks()
-        return {"pfad": None, "name": "USB-Sticks und SD-Karten", "eltern": None,
+        return {"pfad": None, "name": "USB-Sticks und SD-Karten", "eltern": None, "diagnose": diagnose(),
                 "eintraege": [dict(name=s["name"], pfad=s["pfad"], ordner=True, **_info(s["pfad"])) for s in st]}
     if not erlaubt(pfad) or not os.path.isdir(pfad):
         raise RuntimeError("Dieser Ordner ist nicht (mehr) da – Stick abgezogen?")
@@ -121,7 +204,8 @@ def liste(pfad=None):
                               "da": 1 if _schon_da(e.path, g) else 0})
     eltern = None if rp == stick else os.path.dirname(rp)
     name = os.path.basename(stick) + ("" if rp == stick else " › " + os.path.relpath(rp, stick).replace(os.sep, " › "))
-    return {"pfad": rp, "name": name, "eltern": eltern if eltern is not None else "", "eintraege": eintraege}
+    return {"pfad": rp, "name": name, "eltern": eltern if eltern is not None else "", "eintraege": eintraege,
+            "diagnose": [] if eintraege else diagnose()}
 
 
 def _bereinigt(pfade):

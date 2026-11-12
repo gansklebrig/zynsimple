@@ -95,7 +95,8 @@ function zeigen() {
   document.getElementById("pfad").textContent = d.name;
   let h = "";
   if (d.eltern !== null && d.eltern !== undefined) h += '<button class="hoch" data-hoch="1">⟵ eine Ebene hoch</button>';
-  if (!d.eintraege.length) h += '<div class="leer">' + (d.pfad ? "Hier ist keine Musik (mp3, flac, wav, m4a, ogg …)." : "Kein USB-Stick und keine SD-Karte gefunden.<br>Einstecken und neu laden.") + "</div>";
+  if (!d.eintraege.length) h += '<div class="leer">' + ((d.diagnose && d.diagnose.length) ? "<b>Keine Musik gefunden – das sieht der Zynthian:</b><br><br>" + d.diagnose.map(esc).join("<br><br>")
+    : (d.pfad ? "Hier ist keine Musik (mp3, flac, wav, m4a, ogg …)." : "Kein USB-Stick und keine SD-Karte gefunden.")) + '<br><br><button class="hoch" onclick="laden(daten && daten.pfad || \'\')">⟳ Nochmal suchen</button></div>';
   for (const e of d.eintraege) {
     const an = gewaehlt(e.pfad), alle = e.da && e.da >= e.titel;
     h += `<div class="zeile${an ? " an" : ""}" data-p="${esc(e.pfad)}">

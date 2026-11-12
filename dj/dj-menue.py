@@ -266,6 +266,11 @@ class Menue:
         elif not n:
             hinweis = ("Noch keine Musik in der Bibliothek. USB-Stick einstecken und „USB-Stick neu einlesen“ tippen – "
                        "oder am PC Musik in \\\\zynthian\\MUSIK gekauft legen (Benutzer musik, Passwort gekauft).")
+            try:
+                import stick
+                hinweis += "  ·  USB: " + stick.diagnose()[0]
+            except Exception:
+                pass
         elif self.grund:
             hinweis = self.grund
         if hinweis:

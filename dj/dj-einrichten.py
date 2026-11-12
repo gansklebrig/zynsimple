@@ -285,7 +285,13 @@ def controller(data, ver):
 
 
 def sticks():
-    """Eingehängte USB-Sticks (Ordner unter /media/root bzw. /media)."""
+    """Eingehängte USB-Sticks/SD-Karten (hängt nicht eingehängte selbst ein) – siehe stick.py."""
+    try:
+        sys.path.insert(0, HIER)
+        import stick
+        return [x["pfad"] for x in stick.sticks()]
+    except Exception as e:
+        log("Sticks:", e)
     out = []
     for base in ("/media/root", "/media"):
         try:

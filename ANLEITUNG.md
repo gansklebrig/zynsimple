@@ -73,6 +73,15 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 4.5 – USB-Stick wird zuverlässiger gefunden
+
+- Sticks und Karten werden jetzt über das Gerät selbst erkannt (nicht nur über den Ordner /media) und, falls
+  das System sie nicht von selbst geöffnet hat, von ZynSimple eingehängt – auch NTFS.
+- Findet der Zynthian keine Musik, sagt er jetzt **warum** (im Stick-Browser, am Handy unter …:8090/import und
+  im DJ-Menü): z. B. „Mac-Format – nicht lesbar“, „erkannt, ließ sich nicht öffnen“ oder „0 Musikdateien“.
+- **Format**: am besten **exFAT** (auch für große Dateien und Sticks über 32 GB) oder **FAT32**; NTFS geht auch.
+  Mac-Formate (APFS, Mac OS Extended) kann der Zynthian nicht lesen.
+
 ## Neu in Version 4.4 – Tasten selbst belegen
 
 - **Einstellungen → Bedienung → ⌨ Tasten belegen** listet jede Funktion (kurz, mit ALT, gehalten) und auf

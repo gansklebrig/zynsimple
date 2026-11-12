@@ -606,8 +606,12 @@ class zynsimple_screen(zynthian_gui_base):
         seiten = max(1, math.ceil(len(zeilen) / pro))
         st["seite"] = min(st["seite"], seiten - 1)
         if not d["eintraege"]:
-            cv.create_text(W / 2, (y0 + y1) / 2, text="Hier ist keine Musik (mp3, flac, wav, m4a, ogg …)",
-                           font=self.f_mid, fill=P["tx2"])
+            diag = d.get("diagnose") or ["Hier ist keine Musik (mp3, flac, wav, m4a, ogg …)"]
+            cv.create_text(W / 2, y0 + 40, text="Keine Musik gefunden – das sieht der Zynthian:" if d.get("diagnose")
+                           else "", font=self.f_mid, fill=P["gold"])
+            cv.create_text(W / 2, (y0 + y1) / 2 + 10, text="\n\n".join(diag), font=self.f_small, fill=P["champ"],
+                           width=W - 80, justify="center")
+            self._tbtn(W / 2 - 110, y1 - 52, W / 2 + 110, y1 - 4, "⟳ Nochmal suchen", "k_neu", font=self.f_small)
         for k, (art, e) in enumerate(zeilen[st["seite"] * pro:(st["seite"] + 1) * pro]):
             ya, yb = y0 + k * rh + 2, y0 + (k + 1) * rh - 2
             if art == "hoch":
