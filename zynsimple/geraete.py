@@ -17,6 +17,7 @@ import time
 log = logging.getLogger("zynsimple")
 
 RX_BSP = re.compile(r"beat\s*step\s*pro|beatsteppro|\bBSP\b", re.I)
+RX_DDJ = re.compile(r"DDJ-?200", re.I)
 RX_NICHT = re.compile(r"zynsimple|ZynMidiRouter|VirMIDI|Virtual Raw|Midi Through|zynseq|zynmidi", re.I)
 
 # BeatStep Pro ab Werk: SEQ 1 = Kanal 1, SEQ 2 = Kanal 2, Drums = Kanal 10
@@ -60,6 +61,12 @@ class Geraete:
         self._letzte = {}
         self.lauf = False
         self._lock = threading.Lock()
+        # DJ-Controller (DDJ-200) bei „DJ + Instrumente“: SHIFT + Jog = Titel wählen, SHIFT + Kopfhörer = laden
+        self.ddj_namen = set()
+        self.ddj_q = collections.deque(maxlen=256)
+        self.ddj_aktionen = collections.deque(maxlen=64)
+        self._ddj_shift = [False, False]
+        self._ddj_jog = 0
 
     # ------------------------------------------------------------------
     def start(self):
@@ -79,8 +86,14 @@ class Geraete:
     def _process(self, frames):
         # Echtzeit: nur kopieren, nichts auswerten
         for name, p in list(self.ports.items()):
+            ddj = name in self.ddj_namen
             for _, data in p.incoming_midi_events():
-                if len(data) >= 3 and 0x80 <= data[0] < 0xA0:
+                if len(data) < 3:
+                    continue
+                if ddj:
+                    if 0x80 <= data[0] < 0xA0 or 0xB0 <= data[0] < 0xC0:
+                        self.ddj_q.append(bytes(data[:3]))
+                elif 0x80 <= data[0] < 0xA0:
                     self.q.append((name, bytes(data[:3])))
 
     def _pflege(self):
@@ -93,6 +106,8 @@ class Geraete:
                     if p is not None and not RX_NICHT.search(_text(p)):
                         da[p.name] = _name(p)
                 for pname, anzeige in da.items():
+                    if RX_DDJ.search(anzeige) or RX_DDJ.search(pname):
+                        self.ddj_namen.add(anzeige)
                     if anzeige not in self.ports:
                         nr = len(self.ports)
                         port = self.jc.midi_inports.register(f"in_{nr}")
@@ -108,8 +123,31 @@ class Geraete:
                 log.debug(f"ZynSimple: MIDI-Geräte: {e}")
             time.sleep(3)
 
+    def _ddj(self, st, d1, d2):
+        """DDJ-200 (Mixxx-Belegung ab Werk): SHIFT = Note 0x3F, Jog = CC 0x21 (64 = Stillstand),
+        SHIFT + Kopfhörer = Note 0x68 – jeweils Kanal 1 (Deck A) und 2 (Deck B)."""
+        typ, k = st & 0xF0, st & 0x0F
+        if k > 1:
+            return
+        an = typ == 0x90 and d2 > 0
+        if typ in (0x80, 0x90) and d1 == 0x3F:
+            self._ddj_shift[k] = an
+            self._ddj_jog = 0
+        elif typ == 0xB0 and d1 == 0x21 and any(self._ddj_shift):
+            self._ddj_jog += d2 - 64
+            if abs(self._ddj_jog) > 9:
+                self.ddj_aktionen.append(("runter" if self._ddj_jog > 0 else "hoch", 0))
+                self._ddj_jog = 0
+        elif typ == 0x90 and d1 == 0x68 and an:
+            self.ddj_aktionen.append(("laden", k + 1))
+
     def _auswerten(self):
         while self.lauf:
+            while self.ddj_q:
+                try:
+                    self._ddj(*self.ddj_q.popleft())
+                except Exception as e:
+                    log.debug(f"ZynSimple: DDJ: {e}")
             if not self.q:
                 time.sleep(0.01)
                 continue

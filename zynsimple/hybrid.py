@@ -130,6 +130,10 @@ class Hybrid:
             self.phase = "laeuft"
             log.info(f"ZynSimple: Hybrid läuft (Mixxx {m}, Kanal {self.cid})")
             self._virmidi_oeffnen()
+            g = getattr(self.b, "geraete", None)
+            if g is not None:
+                g.start()                          # DJ-Controller mithören: SHIFT + Jog / SHIFT + Kopfhörer
+                g.ddj_aktionen.clear()
             threading.Thread(target=self._waechter, daemon=True).start()
             threading.Thread(target=self._mixxx_lesen, daemon=True).start()
         except Exception as e:
@@ -191,6 +195,8 @@ class Hybrid:
         self.proc = None
         self.phase = None
         self.vorne = False
+        self._geladen = {}
+        self._deck = {1: {}, 2: {}}
         self._midi_zurueck()
         if self.vfd is not None:
             try:
@@ -486,6 +492,9 @@ class Hybrid:
         while self.laeuft():
             n += 1
             ok = self._jack_verbinden()
+            if getattr(self, "_versteckt_starten", False) and n > 4 and self._mixxx_fenster():
+                self._versteckt_starten = False
+                self.verstecken()
             if ok and not verbunden:
                 verbunden = True
                 log.info("ZynSimple: Hybrid – Mixxx spielt in den Kanal „DJ-Pult“")
@@ -493,9 +502,39 @@ class Hybrid:
                 self._midi_trennen()
             self._tempo()
             time.sleep(0.5 if n < 60 else 1.0)
-        if self.phase == "laeuft":
-            self.fehler = "Mixxx wurde beendet"
+        absturz = self.phase == "laeuft"
         self._aufraeumen()
+        if absturz:
+            # niemand hat beendet → Absturz: Protokoll sichern, Mixxx neu starten (höchstens 3× in 10 Minuten)
+            jetzt = time.monotonic()
+            self._abstuerze = [t for t in getattr(self, "_abstuerze", []) if jetzt - t < 600] + [jetzt]
+            self._absturz_sichern()
+            if len(self._abstuerze) <= 3:
+                log.warning("ZynSimple: Hybrid – Mixxx abgestürzt, starte neu")
+                try:
+                    self._versteckt_starten = True      # Mischer bleibt vorne – kein Ansichtswechsel durch den Neustart
+                    self.starten()
+                    self.fehler = "Mixxx war abgestürzt und wurde neu gestartet – Titel bitte neu laden"
+                except Exception as e:
+                    self.fehler = f"Mixxx abgestürzt: {e}"
+            else:
+                self.fehler = "Mixxx stürzt immer wieder ab – Protokoll liegt in „MUSIK gekauft/_Diagnose“"
+
+    def _absturz_sichern(self):
+        try:
+            ziel = os.path.join(DATEN, "MUSIK gekauft", "_Diagnose")
+            os.makedirs(ziel, exist_ok=True)
+            teile = [f"Mixxx (DJ + Instrumente) unerwartet beendet: {time.strftime('%F %T')}"]
+            for p in (LOG, os.path.join(DATEN, ".mixxx", "mixxx.log")):
+                try:
+                    with open(p, encoding="utf-8", errors="replace") as f:
+                        teile.append(f"--- {p} (Ende) ---\n" + "".join(f.readlines()[-250:]))
+                except OSError:
+                    pass
+            with open(os.path.join(ziel, time.strftime("mixxx-absturz-%F_%H%M%S.txt")), "w", encoding="utf-8") as f:
+                f.write("\n".join(teile))
+        except Exception as e:
+            log.debug(f"ZynSimple: Absturz-Protokoll: {e}")
 
     # ------------------------------------------------------------------
     # Bildschirm: Mixxx oder ZynSimple vorne

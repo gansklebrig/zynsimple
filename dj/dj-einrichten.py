@@ -262,6 +262,41 @@ def schluessel(name):
     return re.sub(r"[ /\\]", "_", name)
 
 
+DDJ_HYBRID_JS = """
+
+// ---- ZynSimple „DJ + Instrumente“ ----
+// Mixxx ist hier unsichtbar: Titel wählen (SHIFT + Jog) und laden (SHIFT + Kopfhörer) übernimmt ZynSimple
+// mit seiner Liste „Decks & Titel“ am Zynthian-Bildschirm. Mixxx selbst macht dabei nichts.
+DDJ200.LoadSelectedTrack = function() {};
+DDJ200.browseTracks = function() {};
+"""
+
+
+def ddj_hybrid(orig, ziel):
+    """Kopie der DDJ-200-Belegung für den Hybrid-Modus: Blättern/Laden macht ZynSimple, nicht Mixxx."""
+    try:
+        with open(orig, encoding="utf-8") as f:
+            xml = f.read()
+        m = re.search(r'filename="([^"]+\.js)"', xml)
+        if not m:
+            return None
+        js_orig = os.path.join(os.path.dirname(orig), m.group(1))
+        with open(js_orig, encoding="utf-8") as f:
+            js = f.read()
+        js_neu = "Pioneer-DDJ-200-ZynSimple-Hybrid.js"
+        xml = xml.replace(m.group(0), f'filename="{js_neu}"', 1)
+        xml = re.sub(r"<name>([^<]*)</name>", r"<name>\1 (ZynSimple Hybrid)</name>", xml, count=1)
+        with open(os.path.join(ziel, js_neu), "w", encoding="utf-8") as f:
+            f.write(js + DDJ_HYBRID_JS)
+        neu = os.path.join(ziel, "Pioneer-DDJ-200-ZynSimple-Hybrid.midi.xml")
+        with open(neu, "w", encoding="utf-8") as f:
+            f.write(xml)
+        return neu
+    except Exception as e:
+        log("DDJ-200 Hybrid-Belegung:", e)
+        return None
+
+
 def controller(data, ver):
     ziel = os.path.join(MIXXX, "controllers")
     os.makedirs(ziel, exist_ok=True)
@@ -273,6 +308,8 @@ def controller(data, ver):
         if kand:
             ddj = kand[0]
             break
+    if ddj and HYBRID:
+        ddj = ddj_hybrid(ddj, ziel) or ddj
     zyn = os.path.join(ziel, "Zynthian-V5-ZynSimple.midi.xml")
     for name in midi_namen():
         datei = None

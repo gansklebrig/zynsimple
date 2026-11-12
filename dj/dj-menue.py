@@ -41,7 +41,7 @@ HILFE = [
     ("Abspielen & Mischen", "am DDJ-200: PLAY ▶, Fader, Crossfader · SYNC drücken = Tempo passt sich an"),
     ("Ebenen (MIXER)", "MISCHEN: Titel · Kopfhörer · Filter A/B  │  EFFEKTE: 2 Effekte + Loops  │  HANDPAN: Eingang, Effekt, Lautstärken"),
     ("F1–F4", "Mischen: Stems Drums/Bass/Melodie/Vocals (ALT = Deck B) · Effekte: Loop 4/8/16/aus · Handpan: an/aus, Effekt"),
-    ("Schnelltasten", "CTRL Vorhören A → B → aus · PLAY Auto-DJ · REC Aufnahme · PAD Handpan · TEMPO tippen (ALT: Sync) · ZS3 große Liste"),
+    ("Schnelltasten", "CTRL Vorhören A → B → aus · PLAY Deck A ▶/❚❚ (ALT: B) · ALT+PAD Auto-DJ · REC Aufnahme · PAD Handpan · TEMPO tippen (ALT: Sync) · ZS3 große Liste"),
     ("Handy, Sterne, Cues", "Musik am Handy suchen: zynthian.local:8090 · ALT + ▲▼ = Sterne (ab ★★★★ in „★ Favoriten“) · "
                             "Hot Cues: Pads am DDJ-200 (SHIFT + Pad = löschen)"),
     ("Panik", "STOP: alle Effekte und Filter aus · Ausschalten: BACK 3 s → System-Menü"),

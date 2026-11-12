@@ -73,6 +73,20 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 5.5 – DJ-Controller bei „DJ + Instrumente“, PLAY spielt Deck A
+
+- **DDJ-200 bei „DJ + Instrumente“ voll nutzbar.** Mischen ging schon immer (Play, Cue, EQ, Crossfader,
+  Jog, Pads). Jetzt auch **Titel wählen und laden – ohne Zynthian-Tasten:**
+  - **SHIFT halten + Jog drehen** → öffnet „♫ Decks & Titel“ am Zynthian und wählt den Titel (Zeile leuchtet gold)
+  - **SHIFT + Kopfhörer-Taste** links = in **Deck A** laden, rechts = in **Deck B**
+  - Weiter zurück: BACK oder ✕. Die Deck-Karten oben zeigen Titel, Tempo und Restzeit.
+- **Reines DJ-Pult: PLAY (die ▶-Taste über SEL) startet/stoppt jetzt Deck A**, ALT + PLAY Deck B.
+  Auto-DJ liegt jetzt auf **ALT + PAD**. Die PLAY-LED leuchtet, solange ein Deck läuft.
+- **Mixxx-Absturz:** Statt zurück zum Zynthian-Startbild zu fallen, startet Mixxx von selbst neu
+  (im reinen DJ-Pult und bei „DJ + Instrumente“). Ein Protokoll liegt dann in „MUSIK gekauft/_Diagnose“
+  (`mixxx-absturz-….txt`) – bitte schicken, dann lässt sich die Ursache finden.
+- „Decks & Titel“: Die Auswahl bleibt sichtbar, auch wenn ein Deck spielt (vorher sprang der Rahmen jede Sekunde weg).
+
 ## Neu in Version 5.4 – Drehen wechselt nie die Ansicht
 
 - **Drehregler und Tasten wechseln nie mehr die Ansicht.** Ist Mixxx vorne, wirken sie weiter auf den Mischer
@@ -298,7 +312,7 @@ Bei jeder Bedienung erscheint kurz darüber, was passiert ist („Filter A: 62 %
 | EFFEKTE (grün) | Effekt 1 Stärke · ⏎ an/aus | Effekt 1 wählen · ⏎ Ziel A → B → A+B | Effekt 2 Stärke · ⏎ an/aus | Effekt 2 wählen · ⏎ Ziel | Loop 4 · 8 · 16 · Loop aus |
 | HANDPAN (rot) | Handpan-Lautstärke | Handpan-Effekt · ⏎ an/aus | Master | Kopfhörer | Handpan an/aus · Effekt an/aus · nächster Effekt · Durchsage |
 
-**Immer gleich:** SEL lädt den gewählten Titel ins **freie** Deck · ▲▼ Titel · ◀▶ Bereich · PLAY Auto-DJ · REC Aufnahme ·
+**Immer gleich:** SEL lädt den gewählten Titel ins **freie** Deck · ▲▼ Titel · ◀▶ Bereich · PLAY Deck A ▶/❚❚ (ALT: Deck B) · ALT+PAD Auto-DJ · REC Aufnahme ·
 PAD Handpan an/aus · TEMPO tippen (ALT + TEMPO: Sync) · CTRL Vorhören A → B → aus · ZS3 große Liste ·
 STOP kurz: Panik (alle Effekte und Filter aus), 3 s: ausschalten · ALT halten: fein drehen, Regler 1 springt seitenweise.
 
@@ -415,7 +429,7 @@ beim letzten Mal gedauert hat, und blendet sich aus, sobald Mixxx bereit ist.
 
 ### DJ-Pult
 - **Fertig eingerichtet:** Ton, DDJ-200, Bibliothek, Aufnahmen und Ansicht stellt ZynSimple vor jedem Start selbst ein. Mit USB-Soundkarte: Kopfhörer automatisch auf der USB-Karte.
-- **Zynthian als Zusatz-Controller:** Regler 1 Bibliothek blättern (drücken: in Deck A laden) · Regler 2 Bereich wechseln (drücken: in Deck B) · Regler 3/4 Effekt 1/2 (drücken: an/aus) · F1–F4 Sampler · PLAY Auto-DJ · REC Aufnahme · TEMPO Tempo tippen · PAD Handpan im Mix an/aus · MIXER/CTRL Vorhören Deck A/B · ZS3 große Bibliothek · ▲▼◀▶ SEL in der Bibliothek. Die LEDs zeigen, was läuft.
+- **Zynthian als Zusatz-Controller:** Regler 1 Bibliothek blättern (drücken: in Deck A laden) · Regler 2 Bereich wechseln (drücken: in Deck B) · Regler 3/4 Effekt 1/2 (drücken: an/aus) · F1–F4 Sampler · PLAY Deck A ▶/❚❚ (ALT: Deck B) · ALT+PAD Auto-DJ · REC Aufnahme · TEMPO Tempo tippen · PAD Handpan im Mix an/aus · MIXER/CTRL Vorhören Deck A/B · ZS3 große Bibliothek · ▲▼◀▶ SEL in der Bibliothek. Die LEDs zeigen, was läuft.
 - **BACK 2 s halten** → System-Menü · **MENU halten** → Barden Beats · **STOP 3 s halten** → speichern und ausschalten.
 - **Eigene Ansicht „ZynSimple Glut“** für das 5-Zoll-Display: Wellenformen Bässe rot, Mitten gold, Höhen grün – kein Blau. Startet sie nicht, nimmt Mixxx automatisch LateNight.
 - **Handpan/Mikro im Mix:** Zynthian-Eingänge 1+2 laufen in Mixxx mit (Effekt-Einheit 2 = Regler 4).

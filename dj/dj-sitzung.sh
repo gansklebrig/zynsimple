@@ -74,8 +74,20 @@ LEISTE=$!
 trap 'kill $HELFER $WEB $KNOPF $LEISTE 2>/dev/null' EXIT
 
 # Mixxx: Einstellungen und Bibliothek liegen in $DATEN/.mixxx (wird beim Zynthian-Backup mitgesichert)
+DIAG="$DATEN/MUSIK gekauft/_Diagnose"
+ABSTURZ=0
+# Mixxx unerwartet zu (Absturz)? Log-Ende sichern, damit sich die Ursache finden lässt
+absturz_sichern() {
+  mkdir -p "$DIAG" 2>/dev/null || return
+  {
+    echo "Mixxx unerwartet beendet: $(date '+%F %T') · Rückgabe $1 · $MIXXX"
+    echo "--- letzte Kernel-Meldungen ---"; dmesg 2>/dev/null | tail -n 25
+    echo "--- mixxx.log (Ende) ---"; tail -n 300 "$DATEN/.mixxx/mixxx.log" 2>/dev/null
+  } > "$DIAG/mixxx-absturz-$(date +%F_%H%M%S).txt" 2>/dev/null
+  ls -1t "$DIAG"/mixxx-absturz-*.txt 2>/dev/null | tail -n +11 | while read -r ALT; do rm -f "$ALT"; done
+}
 VERSUCH=0
-while [ $VERSUCH -lt 6 ]; do
+while [ $VERSUCH -lt 8 ]; do
   VERSUCH=$((VERSUCH + 1))
   START=$(date +%s)
   echo "DJ-Pult: starte Mixxx (Versuch $VERSUCH)"
@@ -100,6 +112,22 @@ while [ $VERSUCH -lt 6 ]; do
     phase einrichten
     /usr/bin/python3 "$HIER/dj-einrichten.py"
     phase mixxx
+    continue
+  fi
+  # Niemand hat beendet (kein Menü-Befehl) → Absturz: Log sichern und Mixxx neu starten, statt zum Zynthian zu fallen
+  if [ ! -f /run/zynsimple-dj.ziel ]; then
+    ABSTURZ=$((ABSTURZ + 1))
+    echo "DJ-Pult: Mixxx ist abgestürzt ($ABSTURZ.) – starte neu"
+    absturz_sichern "$RC"
+    # Mehrmals hintereinander mit Mixxx 2.6 (Stems)? Für diese Sitzung die normale Version nehmen
+    if [ $ABSTURZ -ge 3 ] && [ "$MIXXX" != mixxx ] && command -v mixxx >/dev/null; then
+      echo "DJ-Pult: Mixxx 2.6 stürzt wiederholt ab – nehme für jetzt die normale Version"
+      MIXXX=mixxx; ZS_MIXXX=mixxx; export ZS_MIXXX
+    fi
+    phase start
+    [ -n "$TKPY" ] && "$TKPY" "$HIER/dj-splash.py" &
+    phase mixxx
+    sleep 1
     continue
   fi
   break

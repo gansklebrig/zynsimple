@@ -513,6 +513,8 @@ class zynsimple_screen(zynthian_gui_base):
                 self.tick_lernen()
             elif self.mode == "bib":
                 self.tick_bib()
+            if self.mode != "splash":
+                self._ddj_tick()
             elif self.mode == "stick":
                 if self.stick.get("neu"):
                     self.stick["neu"] = False
@@ -1110,7 +1112,7 @@ class zynsimple_screen(zynthian_gui_base):
                                     fill=farbe, outline="")
             else:
                 cv.create_text(tx, y0 + dh / 2, anchor="w", font=self.f_small, fill=P["tx2"],
-                               text=f"leer · F{k + 1} lädt den gewählten Titel hierher")
+                               text=f"leer · F{k + 1} oder SHIFT + 🎧 {'A' if k == 0 else 'B'} lädt den gewählten Titel")
             self.trk_hits.append((x0, y0, x1, y0 + dh, "b_play", k + 1))
 
     def _bib_holen(self):
@@ -1170,8 +1172,9 @@ class zynsimple_screen(zynthian_gui_base):
                 ya, yb = y0 + k * rh + 2, y0 + (k + 1) * rh - 2
                 b["zeilen"].append((ya, yb, t["id"]))
                 hier = b["laedt"] and b["laedt"][0] == t["id"]
-                self.rrect(14, ya, W - 14, yb, 12, fill="#2a2014" if hier else P["card"],
-                           outline=P["gold"] if hier else P["line"])
+                gew = b.get("ddj") == k
+                self.rrect(14, ya, W - 14, yb, 12, fill="#2a2014" if hier or gew else P["card"],
+                           outline=P["gold"] if hier or gew else P["line"], width=2 if gew else 1)
                 tx_w = W - 50 - 2 * bw - 20
                 cv.create_text(28, ya + (yb - ya) * 0.34, anchor="w", font=self.f_small, fill=P["champ"],
                                text=self._clip_text(t["title"], tx_w, self.f_small))
@@ -1193,7 +1196,8 @@ class zynsimple_screen(zynthian_gui_base):
             cv.create_text(110, (by0 + by1) / 2, text=f"{seite + 1}/{seiten}", font=self.f_tiny, fill=P["tx2"])
             self._tbtn(150, by0, 206, by1, "▼", "b_seite", 1, font=self.f_small)
         cv.create_text(W - 16, (by0 + by1) / 2, anchor="e", font=self.f_tiny, fill=P["tx2"],
-                       text=(f"{d['gesamt']} Titel · " if d else "") + "Regler: Titel wählen · F1 = Deck A · F2 = Deck B · Handy: …:8090/bibliothek")
+                       text=(f"{d['gesamt']} Titel · " if d else "") + "wählen: Regler oder SHIFT+Jog · laden: F1/F2 oder SHIFT+🎧")
+        self._fokus_zeichnen()                     # Auswahl bleibt sichtbar, auch wenn die Decks neu gezeichnet werden
 
     def bib_press(self, ev):
         h = next((hh for hh in reversed(self.trk_hits) if hh[0] <= ev.x <= hh[2] and hh[1] <= ev.y <= hh[3]), None)
@@ -1224,6 +1228,7 @@ class zynsimple_screen(zynthian_gui_base):
             b["start"] = max(0, min(b["start"] + extra * n, max(0, (b["daten"] or {}).get("treffer", 0) - 1) // n * n))
         elif art == "b_laden":
             return self.bib_press_laden(*extra)
+        b["ddj"] = None
         self._bib_holen()
         self.draw_bib()
 
@@ -1232,7 +1237,8 @@ class zynsimple_screen(zynthian_gui_base):
         b = self.bib
         if role in ("F3", "F4"):
             ks = [k for k, _ in self.BIB_REITER]
-            b.update(reiter=ks[(ks.index(b["reiter"]) + (1 if role == "F4" else -1)) % len(ks)], start=0, buchstabe=None)
+            b.update(reiter=ks[(ks.index(b["reiter"]) + (1 if role == "F4" else -1)) % len(ks)], start=0, buchstabe=None,
+                     ddj=None)
             self.fokus_i = 0
             self._bib_holen()
             return self.draw_bib()
@@ -1263,6 +1269,62 @@ class zynsimple_screen(zynthian_gui_base):
             b["meldung"] = txt
         threading.Thread(target=lauf, daemon=True).start()
         self.draw_bib()
+
+    def _ddj_tick(self):
+        """DJ-Controller bei „DJ + Instrumente“: SHIFT + Jog wählt den Titel, SHIFT + Kopfhörer A/B lädt ihn.
+        (Mixxx ist unsichtbar – seine eigene Liste würde hier niemand sehen.)"""
+        g = getattr(self.bridge, "geraete", None)
+        if g is None or not g.ddj_aktionen:
+            return
+        akt = list(g.ddj_aktionen)
+        g.ddj_aktionen.clear()
+        hy = getattr(self.bridge, "hybrid", None)
+        if hy is None or not hy.laeuft():
+            return
+        self._touch()
+        if self.mode == "idle":
+            self.stop_idle()
+        if self.mode not in ("mix", "bib"):
+            self._flash("DJ-Controller: Titel wählen geht im Mischer und unter ♫ Decks & Titel")
+            return
+        self._mixxx_weg()
+        if self.mode != "bib":
+            self.open_bib()
+            if self.mode != "bib":
+                return
+            self.bib["ddj"] = None
+            if any(a[0] == "laden" for a in akt):
+                self._flash("Erst Titel wählen: SHIFT halten + Jog drehen · dann SHIFT + 🎧 lädt ins Deck")
+                return
+        b = self.bib
+        for art, deck in akt:
+            if art == "laden":
+                if b.get("ddj") is None and not getattr(self, "fokus_aktiv", False):
+                    self._flash("Erst Titel wählen: SHIFT halten + Jog drehen")
+                    continue
+                self._bib_taste("F1" if deck == 1 else "F2")
+                continue
+            n = len((b.get("daten") or {}).get("titel") or [])
+            if not n:
+                continue
+            i = b.get("ddj")
+            i = 0 if i is None else i + (1 if art == "runter" else -1)
+            if i >= n:
+                i = 0 if self._blaettern(1) else n - 1
+            elif i < 0:
+                i = len((b.get("daten") or {}).get("titel") or []) - 1 if self._blaettern(-1) else 0
+            b["ddj"] = i
+        if b.get("ddj") is not None:
+            self.draw_bib()
+            zeilen = b.get("zeilen") or []
+            if zeilen:
+                ya, yb, _ = zeilen[min(b["ddj"], len(zeilen) - 1)]
+                z = self._fokus_ziele()
+                drin = [k for k, r in enumerate(z) if ya <= (r[1] + r[3]) / 2 <= yb]
+                if drin:
+                    self.fokus_aktiv = True
+                    self.fokus_i = min(drin, key=lambda k: z[k][0])
+            self._fokus_neu()
 
     def tick_bib(self):
         b = self.bib

@@ -16,7 +16,7 @@
 //             F1 Handpan an/aus · F2 Handpan-Effekt an/aus · F3 nächster Handpan-Effekt · F4 Durchsage (Talkover)
 // IMMER
 //   SEL       Titel in das Deck laden, das gerade frei ist          ▲ ▼  Titel · ◀ ▶ Bereich (ALT: Ebene)
-//   PLAY      Auto-DJ an/aus          REC  Set aufnehmen            PAD  Handpan im Mix an/aus
+//   PLAY      Deck A ▶/❚❚ (ALT: Deck B) REC  Set aufnehmen            PAD  Handpan im Mix an/aus (ALT: Auto-DJ)
 //   ALT + ▲ ▼ Bewertung des laufenden Titels ★ +1 / −1 (ab ★★★★ in der Kiste „★ Favoriten“)
 //   TEMPO     Tempo tippen (ALT: Sync)   CTRL Vorhören: A → B → aus  ZS3  große Bibliothek
 //   STOP      Effekte und Filter aus (Panik)
@@ -96,7 +96,9 @@ ZynV5.init = function(id, debugging) {
             ZynV5.verbinde("[Channel" + dk + "_Stem" + st + "]", "mute", function() { ZynV5.fLeds(); });
         }
     }
-    ZynV5.verbinde("[AutoDJ]", "enabled", function(v) { ZynV5.led(ZynV5.N.PLAY, v ? 4 : 1); });
+    // PLAY-LED: grün = Deck A läuft (mit ALT: Deck B)
+    ZynV5.verbinde("[Channel1]", "play", function() { ZynV5.playLed(); });
+    ZynV5.verbinde("[Channel2]", "play", function() { ZynV5.playLed(); });
     ZynV5.verbinde("[Recording]", "status", function(v) { ZynV5.led(ZynV5.N.REC, v === 2 ? 3 : (v === 1 ? 5 : 1)); });
     ZynV5.verbinde("[Auxiliary1]", "main_mix", function(v) { ZynV5.led(ZynV5.N.PAD, v ? 2 : 1); ZynV5.fLeds(); });
     ZynV5.verbinde("[Channel1]", "pfl", function() { ZynV5.pflLed(); });
@@ -290,14 +292,27 @@ ZynV5.taste = function(channel, control, value, status, group) {
         ZynV5.setze("[Channel" + f + "]", "LoadSelectedTrack", 1);
         ZynV5.zeige("Titel → Deck " + (f === 1 ? "A" : "B"));
         return;
-    case N.PLAY: v = ZynV5.umschalten("[AutoDJ]", "enabled"); ZynV5.zeige(v ? "Auto-DJ an – mischt selbst weiter" : "Auto-DJ aus"); return;
+    case N.PLAY:
+        // PLAY = Deck A starten/stoppen · ALT + PLAY = Deck B
+        f = ZynV5.alt ? 2 : 1;
+        g = "[Channel" + f + "]";
+        if (!ZynV5.hole(g, "track_loaded")) { ZynV5.zeige("Deck " + (f === 1 ? "A" : "B") + " ist leer – erst einen Titel laden (SEL)"); return; }
+        v = ZynV5.umschalten(g, "play");
+        ZynV5.zeige((v ? "▶ " : "❚❚ ") + "Deck " + (f === 1 ? "A" : "B") + (f === 1 ? "  ·  ALT + PLAY = Deck B" : ""));
+        return;
     case N.REC: ZynV5.setze("[Recording]", "toggle_recording", 1); ZynV5.zeige("Aufnahme umgeschaltet (REC-LED: rot = läuft)"); return;
     case N.TEMPO:
         g = "[Channel" + ZynV5.vorne() + "]";
         if (ZynV5.alt) { ZynV5.setze(g, "beatsync", 1); ZynV5.zeige("Sync: Deck " + (ZynV5.vorne() === 1 ? "A" : "B") + " im Takt"); }
         else { ZynV5.setze(g, "bpm_tap", 1); ZynV5.zeige("Tempo tippen: " + ZynV5.hole(g, "bpm").toFixed(1) + " BPM"); }
         return;
-    case N.PAD: v = ZynV5.umschalten("[Auxiliary1]", "main_mix"); ZynV5.zeige("Handpan im Mix " + (v ? "an" : "aus")); return;
+    case N.PAD:
+        if (ZynV5.alt) {                                   // ALT + PAD = Auto-DJ
+            v = ZynV5.umschalten("[AutoDJ]", "enabled");
+            ZynV5.zeige(v ? "Auto-DJ an – mischt selbst weiter" : "Auto-DJ aus");
+            return;
+        }
+        v = ZynV5.umschalten("[Auxiliary1]", "main_mix"); ZynV5.zeige("Handpan im Mix " + (v ? "an" : "aus")); return;
     case N.CTRL:
         var a = ZynV5.hole("[Channel1]", "pfl"), b = ZynV5.hole("[Channel2]", "pfl");
         var neu = a ? 2 : (b ? 0 : 1);           // A → B → aus → A
@@ -434,4 +449,8 @@ ZynV5.deckSenden = function() {
         else { neu.pos = alt.pos; }
         ZynV5.deckAlt[d] = neu;
     }
+};
+
+ZynV5.playLed = function() {
+    ZynV5.led(ZynV5.N.PLAY, ZynV5.hole("[Channel1]", "play") ? 4 : (ZynV5.hole("[Channel2]", "play") ? 2 : 1));
 };
