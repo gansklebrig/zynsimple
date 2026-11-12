@@ -69,7 +69,9 @@ class zynsimple_screen(zynthian_gui_base):
         ("PLAY", "↯ Echo-Wurf, solange gedrückt"),
         ("STOP", "Panik: Hall, Echos und hängende Töne aus"),
         ("METRONOM", "Tempo tippen (TAP)"),
-        ("BACK", "zurück · 2 s halten: System-Menü (Update, Neustart, Ausschalten, DJ, Barden Beats)"),
+        ("BACK", "eine Ebene zurück – überall · 3 s halten: System-Menü (Update, Neustart, Ausschalten, DJ)"),
+        ("In Listen", "Drehregler oder Pfeile wählen, am Ende blättert es weiter · SEL = antippen"),
+        ("ALT + PLAY", "♫ Titel laden (bei DJ + Instrumente) · dort F1 = Deck A, F2 = Deck B, F3/F4 = Reiter"),
     ]
 
     def __init__(self, bridge, settings):
@@ -200,6 +202,34 @@ class zynsimple_screen(zynthian_gui_base):
         self._redraw()
         self._fokus_zeichnen()
 
+    def _blaettern(self, schritt):
+        """Listen mit Seiten (Titel laden, Stick, Tasten): eine Seite weiter/zurück. True, wenn geblättert."""
+        try:
+            if self.mode == "bib":
+                b = self.bib
+                n = self._bib_pro()
+                neu = b["start"] + schritt * n
+                if 0 <= neu < (b["daten"] or {}).get("treffer", 0):
+                    b["start"] = neu
+                    self._bib_holen()
+                    return True
+            elif self.mode == "stick":
+                st = self.stick
+                if st.get("daten") and (st["seite"] + schritt >= 0):
+                    alt = st["seite"]
+                    st["seite"] += schritt
+                    self.draw_stick()
+                    if st["seite"] != alt:
+                        return True
+            elif self.mode == "tasten" and not self.tst.get("wahl"):
+                alt = self.tst["seite"]
+                self.tst["seite"] = max(0, alt + schritt)
+                self.draw_tasten()
+                return self.tst["seite"] != alt
+        except Exception as e:
+            log.debug(f"Blättern: {e}")
+        return False
+
     def fokus_linear(self, schritt):
         z = self._fokus_ziele()
         if not z:
@@ -207,8 +237,25 @@ class zynsimple_screen(zynthian_gui_base):
         if not getattr(self, "fokus_aktiv", False):
             self.fokus_aktiv, self.fokus_i = True, 0
         else:
-            self.fokus_i = (getattr(self, "fokus_i", 0) + schritt) % len(z)
+            i = getattr(self, "fokus_i", 0) + schritt
+            if not 0 <= i < len(z) and self._blaettern(1 if i >= len(z) else -1):
+                z = self._fokus_ziele()
+                self.fokus_i = 0 if i >= 0 else len(z) - 1
+                if self.mode == "bib" and schritt > 0:
+                    self.fokus_i = self._bib_erste_zeile()
+            else:
+                self.fokus_i = i % len(z)
         self._fokus_neu()
+
+    def _bib_erste_zeile(self):
+        z = self._fokus_ziele()
+        zeilen = self.bib.get("zeilen") or []
+        if zeilen:
+            ya = zeilen[0][0]
+            for k, r in enumerate(z):
+                if r[1] >= ya - 2:
+                    return k
+        return 0
 
     def fokus_richtung(self, richtung):
         z = self._fokus_ziele()
@@ -233,6 +280,8 @@ class zynsimple_screen(zynthian_gui_base):
                 best, bi = wert, i
         if bi is not None:
             self.fokus_i = bi
+        elif dy and self._blaettern(dy):              # unten/oben am Rand: nächste/vorige Seite
+            self.fokus_i = self._bib_erste_zeile() if self.mode == "bib" and dy > 0 else 0
         self._fokus_neu()
 
     def fokus_ausloesen(self):
@@ -342,8 +391,16 @@ class zynsimple_screen(zynthian_gui_base):
         self.sig = None
         return True
 
+    BACK_HALTEN_S = 3.0      # BACK so lange halten → System-Menü
+
     def show(self):
         super().show()
+        # Lange Drücke selbst messen (BACK 3 s), statt dass der Zynthian nach 2 s von sich aus „lang“ meldet
+        try:
+            self._autolong_vorher = getattr(self.zyngui, "zynswitch_autolong_disabled", False)
+            self.zyngui.zynswitch_autolong_disabled = True
+        except Exception:
+            pass
         try:
             self.set_title("Live-Mischer")
         except Exception:
@@ -356,6 +413,11 @@ class zynsimple_screen(zynthian_gui_base):
             self.tick()
 
     def hide(self):
+        try:
+            self.zyngui.zynswitch_autolong_disabled = getattr(self, "_autolong_vorher", False)
+        except Exception:
+            pass
+        self._back_abbrechen()
         if self.shown:
             self._save_soon()
         if self.timer:
@@ -729,6 +791,13 @@ class zynsimple_screen(zynthian_gui_base):
         d = self.stick.get("daten") or {}
         if d.get("eltern") is None:
             return self.close_stick()
+        if d.get("eltern") == "":
+            try:
+                from . import dj
+                if len(dj.stick_modul().sticks()) <= 1:
+                    return self.close_stick()
+            except Exception:
+                return self.close_stick()
         self.fokus_i = 0
         self._stick_laden(d["eltern"] or None)
         self.draw_stick()
@@ -1037,8 +1106,10 @@ class zynsimple_screen(zynthian_gui_base):
         else:
             rh = (y1 - y0) / self._bib_pro()
             bw = max(64, W * 0.085)
+            b["zeilen"] = []
             for k, t in enumerate(d["titel"]):
                 ya, yb = y0 + k * rh + 2, y0 + (k + 1) * rh - 2
+                b["zeilen"].append((ya, yb, t["id"]))
                 hier = b["laedt"] and b["laedt"][0] == t["id"]
                 self.rrect(14, ya, W - 14, yb, 12, fill="#2a2014" if hier else P["card"],
                            outline=P["gold"] if hier else P["line"])
@@ -1063,7 +1134,7 @@ class zynsimple_screen(zynthian_gui_base):
             cv.create_text(110, (by0 + by1) / 2, text=f"{seite + 1}/{seiten}", font=self.f_tiny, fill=P["tx2"])
             self._tbtn(150, by0, 206, by1, "▼", "b_seite", 1, font=self.f_small)
         cv.create_text(W - 16, (by0 + by1) / 2, anchor="e", font=self.f_tiny, fill=P["tx2"],
-                       text=(f"{d['gesamt']} Titel · " if d else "") + "A / B = in Deck A oder B laden · suchen am Handy: …:8090/bibliothek")
+                       text=(f"{d['gesamt']} Titel · " if d else "") + "Regler: Titel wählen · F1 = Deck A · F2 = Deck B · Handy: …:8090/bibliothek")
 
     def bib_press(self, ev):
         h = next((hh for hh in reversed(self.trk_hits) if hh[0] <= ev.x <= hh[2] and hh[1] <= ev.y <= hh[3]), None)
@@ -1090,21 +1161,45 @@ class zynsimple_screen(zynthian_gui_base):
             n = self._bib_pro()
             b["start"] = max(0, min(b["start"] + extra * n, max(0, (b["daten"] or {}).get("treffer", 0) - 1) // n * n))
         elif art == "b_laden":
-            if b["laedt"]:
-                return
-            b["laedt"] = extra
-
-            def lauf():
-                try:
-                    txt = self.bridge.hybrid.laden(*extra)
-                except Exception as e:
-                    txt = f"Laden ging nicht: {e}"
-                b["laedt"] = None
-                b["meldung"] = txt
-            threading.Thread(target=lauf, daemon=True).start()
-            self.draw_bib()
-            return
+            return self.bib_press_laden(*extra)
         self._bib_holen()
+        self.draw_bib()
+
+    def _bib_taste(self, role):
+        """Titel laden mit den F-Tasten: F1 = Deck A, F2 = Deck B (ausgewählte Zeile) · F3/F4 = Reiter wechseln."""
+        b = self.bib
+        if role in ("F3", "F4"):
+            ks = [k for k, _ in self.BIB_REITER]
+            b.update(reiter=ks[(ks.index(b["reiter"]) + (1 if role == "F4" else -1)) % len(ks)], start=0, buchstabe=None)
+            self.fokus_i = 0
+            self._bib_holen()
+            return self.draw_bib()
+        zeilen = b.get("zeilen") or []
+        if not zeilen:
+            return
+        tid = zeilen[0][2]
+        if getattr(self, "fokus_aktiv", False):
+            z = self._fokus_ziele()
+            if z:
+                x0, y0, x1, y1 = z[min(self.fokus_i, len(z) - 1)]
+                cy = (y0 + y1) / 2
+                tid = next((r[2] for r in zeilen if r[0] <= cy <= r[1]), tid)
+        self.bib_press_laden(tid, 1 if role == "F1" else 2)
+
+    def bib_press_laden(self, tid, deck):
+        b = self.bib
+        if b["laedt"]:
+            return
+        b["laedt"] = (tid, deck)
+
+        def lauf():
+            try:
+                txt = self.bridge.hybrid.laden(tid, deck)
+            except Exception as e:
+                txt = f"Laden ging nicht: {e}"
+            b["laedt"] = None
+            b["meldung"] = txt
+        threading.Thread(target=lauf, daemon=True).start()
         self.draw_bib()
 
     def tick_bib(self):
@@ -3274,10 +3369,10 @@ class zynsimple_screen(zynthian_gui_base):
             return ("Jetzt speichern", "Mischer, Effekte und Spuren sofort sichern",
                     "✓ Gesichert" if armed else "Speichern", True, False)
         if art == "s_dj":
-            return ("DJ-Pult", "Mixxx im Vollbild mit dem DDJ-200 · zurück: BACK 2 s → System-Menü", "Starten",
+            return ("DJ-Pult", "Mixxx im Vollbild mit dem DDJ-200 · zurück: BACK 3 s → System-Menü", "Starten",
                     getattr(self, "dj_installed", False), False)
         if art == "s_imres":
-            return ("Barden Beats", "Bühne & Klangwelten im Vollbild · zurück: BACK 2 s → System-Menü", "Starten",
+            return ("Barden Beats", "Bühne & Klangwelten im Vollbild · zurück: BACK 3 s → System-Menü", "Starten",
                     getattr(self, "imres_installed", False), False)
         if art == "s_handy":
             a = getattr(self, "set_addr", {}) or {}
@@ -4207,11 +4302,20 @@ class zynsimple_screen(zynthian_gui_base):
         if role is None:
             return False
         if role == "BACK":
-            if t == "L":
-                from . import system_menue
-                system_menue(self.zyngui)
+            # BACK: kurz = eine Ebene zurück (überall), 3 s halten = System-Menü
+            if t == "P":
+                self._back_abbrechen()
+                self._back_timer = self.canvas.after(int(self.BACK_HALTEN_S * 1000), self._back_lang)
                 return True
-            return False
+            war_lang = getattr(self, "_back_lang_erledigt", False)
+            self._back_abbrechen()
+            if war_lang:
+                return True
+            self._touch()
+            if self.mode in ("mix", "splash"):
+                return False             # im Mischer: wie gewohnt (Zynthian)
+            self.back_action()
+            return True
         if self.mode == "idle":
             if t == "P":
                 self._touch()
@@ -4220,6 +4324,10 @@ class zynsimple_screen(zynthian_gui_base):
         if self.mode in self.FOKUS_MODES and role in ("UP", "DOWN", "LEFT", "RIGHT"):
             if t == "P":
                 self.fokus_richtung(role)
+            return True
+        if self.mode == "bib" and role in ("F1", "F2", "F3", "F4"):
+            if t == "S":
+                self._bib_taste(role)
             return True
         if self.mode == "help" and t == "P":
             self.on_press(type("E", (), {"x": 0, "y": 0})())
@@ -4283,6 +4391,10 @@ class zynsimple_screen(zynthian_gui_base):
                     t0, was = self.pad_t.pop(i, (time.monotonic(), False))
                     if was or time.monotonic() - t0 > 0.35:
                         self.x.set_freeze(chain, False)
+            elif role == "PLAY" and alt:                  # ALT + PLAY: ♫ Titel laden (DJ + Instrumente)
+                if t == "S":
+                    self.open_bib()
+                    return True
             elif role == "PLAY" and chain is not None:    # ↯ Echo-Wurf: solange gedrückt
                 b.action(chain.chain_id, "throw", t == "P")
             elif role == "TAP":                           # Tap-Tempo auf der METRONOM-Taste
@@ -4302,6 +4414,22 @@ class zynsimple_screen(zynthian_gui_base):
             self._flash(str(e))
         self.sig = None
         return True
+
+    def _back_lang(self):
+        self._back_timer = None
+        self._back_lang_erledigt = True
+        from . import system_menue
+        system_menue(self.zyngui)
+
+    def _back_abbrechen(self):
+        tm = getattr(self, "_back_timer", None)
+        if tm:
+            try:
+                self.canvas.after_cancel(tm)
+            except Exception:
+                pass
+        self._back_timer = None
+        self._back_lang_erledigt = False
 
     def switch_select(self, t="S"):
         self._touch()

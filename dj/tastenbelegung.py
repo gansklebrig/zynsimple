@@ -62,7 +62,7 @@ FUNKTIONEN = {
         "F1": ("Stem/Loop/Handpan 1", "Deck B", ""), "F2": ("Stem/Loop/Effekt 2", "Deck B", ""),
         "F3": ("Stem/Loop/Effekt 3", "Deck B", ""), "F4": ("Stem/Loop/Durchsage 4", "Deck B", ""),
         "REC": ("Set aufnehmen", "", ""),
-        "STOP": ("Panik (Effekte, Filter aus)", "", "ausschalten (3 s)"),
+        "STOP": ("Panik (Effekte, Filter aus)", "", ""),
         "PLAY": ("Auto-DJ an/aus", "", ""),
         "UP": ("Titel hoch", "★ +1", ""), "DOWN": ("Titel runter", "★ −1", ""),
         "LEFT": ("Bereich links", "Ebene zurück", ""), "RIGHT": ("Bereich rechts", "Ebene vor", ""),

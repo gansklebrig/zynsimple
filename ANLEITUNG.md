@@ -73,6 +73,30 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 4.7 – Tasten-Grundregeln, die überall gelten
+
+**Überall gleich:**
+- **BACK kurz** = eine Ebene zurück – in jeder Seite (Titel laden, Stick, Tasten belegen, Keytar, Einstellungen …).
+  Etwas länger gedrückt wirft dich nicht mehr aus ZynSimple heraus.
+- **BACK 3 s halten** = System-Menü (Update, Neustart, Ausschalten, DJ-Pult, Barden Beats) – in ZynSimple,
+  im DJ-Pult und in Barden Beats. (In den Original-Zynthian-Seiten bleiben es 2 s.)
+- **Drehregler oder Pfeile** = Auswahl bewegen; am Ende einer Liste blättert es von selbst auf die nächste Seite.
+- **SEL** = das Ausgewählte antippen.
+- Ist Mixxx vorne, holt jede Zynthian-Taste den Mischer zurück.
+
+**DJ + Instrumente – so spielt man damit:**
+1. **ALT + PLAY** (oder der goldene Knopf „♫ Titel laden“ im Kanal DJ-Pult) öffnet die Musik.
+2. Mit dem Drehregler einen Titel wählen, **F1 = in Deck A**, **F2 = in Deck B**. **F3 / F4** wechseln zwischen
+   „Neu dazu“, „★ Favoriten“ und „A – Z“. **BACK** = zurück zum Mischer.
+3. Abspielen, überblenden, EQ, Hot Cues: am **DDJ-200**. Lautstärke, Effekte, Freeze, Szenen der Musik und der
+   Instrumente: am **Zynthian** (die Musik ist der Kanal „DJ-Pult“ – wie jede andere Spur).
+4. Suchen per Text: am Handy (…:8090/bibliothek).
+
+**Ausschalten:** STOP gedrückt halten schaltet im DJ-Pult nicht mehr aus (STOP ist nur noch Panik). Zum
+Ausschalten am besten **BACK 3 s → Ausschalten** und erst danach den Netzschalter – so ist alles gespeichert.
+Wird einfach der Strom gezogen, prüft der Zynthian die Karte beim nächsten Start (das richtet die Version 4.0 ein),
+aber Einstellungen der letzten Sekunden können fehlen.
+
 ## Neu in Version 4.6 – Titel laden bei DJ + Instrumente
 
 - Im Mischer hat der Kanal **„DJ-Pult“** jetzt oben einen goldenen Knopf **♫ Titel laden** (auch im ⋯-Menü).

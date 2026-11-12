@@ -10,11 +10,10 @@ ZynSimple DJ-Pult: macht im DJ-Modus aus den Tasten und Reglern des Zynthian V5 
   Handy-Bibliothek     → Befehle über /tmp/zynsimple-dj-befehl.sock an Mixxx
   Strom zu schwach     → Hinweis in der Leiste (Unterspannung des Pi)
 
-  BACK 2 s halten    → DJ-Menü (Updates, Neustart, Ausschalten, Zynthian, Barden Beats)
+  BACK 3 s halten    → DJ-Menü (Updates, Neustart, Ausschalten, Zynthian, Barden Beats)
   MENU kurz          → DJ-Menü auf/zu
   Im Menü: Drehregler oder Pfeile = auswählen · SEL oder Regler drücken = los · BACK = zurück/schließen
   MENU 1,5 s halten  → weiter zu Barden Beats (wenn installiert)
-  STOP 3 s halten    → alles speichern und ausschalten
 
 Läuft nur, solange die DJ-Sitzung läuft (wird von dj-sitzung.sh gestartet).
 """
@@ -43,7 +42,7 @@ LED_NR = {"MENU": 0, "MIXER": 1, "CTRL": 2, "ZS3": 3, "F1": 4, "PAD": 5, "TEMPO"
 NUMMER = {v: k for k, v in TASTEN.items()}
 # LED-Farbcodes, die das Mixxx-Mapping schickt (ohne Blau)
 FARBE = {0: (0, 0, 0), 1: (26, 12, 2), 2: (200, 130, 15), 3: (210, 20, 25), 4: (30, 170, 60), 5: (235, 210, 60)}
-HALTEN = {"BACK": (2.0, "menue"), "MENU": (1.5, "imres"), "STOP": (3.0, "aus")}
+HALTEN = {"BACK": (3.0, "menue"), "MENU": (1.5, "imres")}
 HIER = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HIER)
 import tastenbelegung as tb  # noqa: E402   eigene Tastenbelegung (Einstellungen → Bedienung → Tasten belegen)
@@ -334,7 +333,7 @@ class Leds:
 
 # ---------------------------------------------------------------------------------------------------------
 def menue_zeigen():
-    """System-Menü über Mixxx legen (BACK 2 s)."""
+    """System-Menü über Mixxx legen (BACK 3 s)."""
     p = _menue["proc"]
     if p is not None and p.poll() is None:
         return

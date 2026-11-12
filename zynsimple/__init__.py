@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "4.6"
+VERSION = "4.7"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -267,7 +267,7 @@ def _ist_back(cfg_eintrag):
 
 
 def _hook_power(zyngui):
-    """BACK 2 s halten (Zynthians „lang“) und das Power-Menü → erweitertes System-Menü."""
+    """BACK 3 s halten (Zynthians „lang“) und das Power-Menü → erweitertes System-Menü."""
     try:
         adm = zyngui.screens.get("admin")
         if adm is not None and not getattr(adm, "_zs_power", False):
@@ -288,7 +288,7 @@ def _hook_power(zyngui):
 
             zyngui.custom_switch_ui_action = custom_switch_ui_action
             zyngui._zs_back_long = True
-        log.info("ZynSimple: BACK 2 s → System-Menü")
+        log.info("ZynSimple: BACK 3 s → System-Menü")
     except Exception as e:
         log.warning(f"ZynSimple: System-Menü nicht eingehängt: {e}")
 
@@ -502,7 +502,7 @@ def start_dj(zyngui, *a, **k):
             if not ok:
                 show("Mixxx fehlt noch", f"{msg} Antippen zum Schließen.", error=True)
                 return
-        show("DJ-Pult startet …", "Zurück: Mixxx beenden oder BACK 2 s halten → System-Menü")
+        show("DJ-Pult startet …", "Zurück: Mixxx beenden oder BACK 3 s halten → System-Menü")
         dj.system("dj")
 
     if scr is not None:

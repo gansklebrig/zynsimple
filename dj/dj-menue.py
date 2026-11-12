@@ -3,7 +3,7 @@
 """
 ZynSimple DJ-Pult: Start-Menü – übersichtlich und selbsterklärend, liegt über Mixxx.
 
-Öffnet sich über den ☰-Knopf oben rechts, mit BACK 2 s halten – und von selbst, wenn noch keine Musik da ist.
+Öffnet sich über den ☰-Knopf oben rechts, mit BACK 3 s halten – und von selbst, wenn noch keine Musik da ist.
 Oben steht, was gerade los ist (USB-Stick, Anzahl Titel, Mixxx-Version), darunter große Kacheln:
 Bedienung auch mit den Zynthian-Tasten: Drehregler/Pfeile wählen, SEL oder Regler drücken löst aus, BACK geht zurück.
   Musik:     Auflegen · USB-Stick neu einlesen · Musik übernehmen
@@ -44,8 +44,8 @@ HILFE = [
     ("Schnelltasten", "CTRL Vorhören A → B → aus · PLAY Auto-DJ · REC Aufnahme · PAD Handpan · TEMPO tippen (ALT: Sync) · ZS3 große Liste"),
     ("Handy, Sterne, Cues", "Musik am Handy suchen: zynthian.local:8090 · ALT + ▲▼ = Sterne (ab ★★★★ in „★ Favoriten“) · "
                             "Hot Cues: Pads am DDJ-200 (SHIFT + Pad = löschen)"),
-    ("Panik", "STOP kurz: alle Effekte und Filter aus · STOP 3 s halten: ausschalten"),
-    ("Menü", "☰ oben rechts, MENU kurz oder BACK 2 s halten – auch mit den Tasten bedienbar"),
+    ("Panik", "STOP: alle Effekte und Filter aus · Ausschalten: BACK 3 s → System-Menü"),
+    ("Menü", "☰ oben rechts, MENU kurz oder BACK 3 s halten – auch mit den Tasten bedienbar"),
 ]
 
 

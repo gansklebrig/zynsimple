@@ -19,7 +19,7 @@
 //   PLAY      Auto-DJ an/aus          REC  Set aufnehmen            PAD  Handpan im Mix an/aus
 //   ALT + ▲ ▼ Bewertung des laufenden Titels ★ +1 / −1 (ab ★★★★ in der Kiste „★ Favoriten“)
 //   TEMPO     Tempo tippen (ALT: Sync)   CTRL Vorhören: A → B → aus  ZS3  große Bibliothek
-//   STOP      Effekte und Filter aus (Panik) · 3 s halten: ausschalten
+//   STOP      Effekte und Filter aus (Panik)
 
 var ZynV5 = {};
 ZynV5.cfg = (typeof ZynV5Config !== "undefined") ? ZynV5Config : { autoRec: false, clock: true, handpanFx: true, folgen: false };
