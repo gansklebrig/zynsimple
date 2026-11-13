@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "6.0"
+VERSION = "6.1"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -177,7 +177,9 @@ def _buehne(zyngui, bridge, settings):
             if hy is not None and settings.get("dj_immer", True) and not hy.laeuft() and hy.phase is None \
                     and hy.status()["moeglich"] and time.monotonic() >= zustand.get("dj_naechster", 0):
                 from . import dj as dj_
-                if dj_.eingerichtet() and not os.path.exists("/run/zynsimple-dj.ziel"):
+                import subprocess as sp_
+                reines_dj = sp_.call(["systemctl", "is-active", "-q", "zynsimple-dj"]) == 0
+                if dj_.eingerichtet() and not reines_dj:
                     zustand["dj_naechster"] = time.monotonic() + (300 if hy.fehler else 60)
                     log.info("ZynSimple: DJ-Teil startet im Hintergrund")
                     hy.starten()

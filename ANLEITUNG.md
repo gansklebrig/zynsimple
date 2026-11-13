@@ -73,6 +73,10 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.1
+
+- DJ startet im Mischpult jetzt zuverlässig von selbst – auch wenn vorher Barden Beats oder das alte DJ-Pult lief.
+
 ## Neu in Version 6.0 – eine Oberfläche: das Mischpult (Instrumente & DJ)
 
 Es gibt keine getrennten Modi mehr („Einfacher Mischer“, „DJ-Pult“, „DJ + Instrumente“). Alles ist **ein Mischpult**,
