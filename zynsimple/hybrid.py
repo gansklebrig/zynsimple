@@ -623,6 +623,7 @@ class Hybrid:
 
     def _nachricht(self, st, d1, d2):
         """Eine Nachricht von Mixxx: Deck-Zustand (Kanal 2/3) oder Tempo (CC 100/101/103)."""
+        self._empfangen = getattr(self, "_empfangen", 0) + 1
         if st in (0xB1, 0xB2) and d1 == 28:
             self._deck.setdefault(st - 0xB0, {})["key_id"] = d2
         elif st in (0xB1, 0xB2) and 20 <= d1 <= 27:
@@ -693,6 +694,8 @@ class Hybrid:
             if n % 2 == 1:
                 self._midi_trennen()
             self._tempo()
+            if n == 60:                                   # ~30 s nach dem Start: antwortet Mixxx?
+                self._verbindung_pruefen()
             time.sleep(0.5 if n < 60 else 1.0)
         absturz = self.phase == "laeuft"
         self._aufraeumen()
@@ -711,6 +714,41 @@ class Hybrid:
                     self.fehler = f"Mixxx abgestürzt: {e}"
             else:
                 self.fehler = "Mixxx stürzt immer wieder ab – Protokoll liegt in „MUSIK gekauft/_Diagnose“"
+
+    def _verbindung_pruefen(self):
+        """Selbsttest: Mixxx schickt beim Start den Deck-Zustand. Kommt nichts an, ist die Steuerung nicht verbunden –
+        dann sichtbar melden und ein Protokoll für die Fehlersuche schreiben."""
+        n = getattr(self, "_empfangen", 0)
+        teile = [f"DJ-Verbindung {time.strftime('%F %T')} · Nachrichten von Mixxx: {n} · "
+                 f"Weg: {'ALSA-Sequencer' if self.seq else ('VirMIDI ' + str(getattr(self, 'vm_zyn_pfad', '')) if self.vfd is not None else 'keiner')}"]
+        for titel, cmd in (("aconnect -l", ["aconnect", "-l"]), ("xdotool Mixxx-Fenster", ["xdotool", "search", "--class", "mixxx"])):
+            try:
+                teile.append(f"--- {titel} ---\n" + subprocess.run(cmd, capture_output=True, text=True, timeout=5).stdout)
+            except Exception as e:
+                teile.append(f"--- {titel}: {e}")
+        try:
+            with open(os.path.join(DATEN, ".mixxx", "mixxx.cfg"), encoding="utf-8", errors="replace") as f:
+                teile.append("--- mixxx.cfg (Controller) ---\n" + "".join(
+                    z for z in f if re.search(r"Controller|ZynSimple|VirMIDI|DDJ|Zynthian-V5", z)))
+        except OSError:
+            pass
+        try:
+            with open(os.path.join(DATEN, ".mixxx", "mixxx.log"), encoding="utf-8", errors="replace") as f:
+                zeilen = [z for z in f if re.search(r"ontroller|PortMidi|MIDI|ZynSimple|DDJ|apping|preset", z)
+                          and "Unknown control" not in z and "getControl" not in z]
+            teile.append("--- mixxx.log (Controller) ---\n" + "".join(zeilen[-60:]))
+        except OSError:
+            pass
+        try:
+            ziel = os.path.join(DATEN, "MUSIK gekauft", "_Diagnose")
+            os.makedirs(ziel, exist_ok=True)
+            with open(os.path.join(ziel, "dj-verbindung.txt"), "w", encoding="utf-8") as f:
+                f.write("\n".join(teile))
+        except Exception:
+            pass
+        if n == 0:
+            self.fehler = "DJ: Mixxx antwortet nicht – Titel laden und DDJ gehen noch nicht (Protokoll in _Diagnose)"
+            log.warning("ZynSimple: Hybrid – keine Nachricht von Mixxx (Steuerung nicht verbunden)")
 
     def _absturz_sichern(self):
         try:

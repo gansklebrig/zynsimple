@@ -110,7 +110,7 @@ ZynV5.init = function(id, debugging) {
         .forEach(function(n) { ZynV5.led(n, 1); });
     ZynV5.led(ZynV5.N.MIXER, ZynV5.EBENE_FARBE[0]);
     // Takt für die TR-8S
-    for (var d = 1; d <= 4; d++) {
+    for (var d = 1; d <= Math.max(2, Math.min(4, ZynV5.hole("[Master]", "num_decks") || 2)); d++) {
         (function(deck) {
             ZynV5.verbinde("[Channel" + deck + "]", "beat_active", function(v) {
                 if (v > 0 && deck === ZynV5.fuehrend && ZynV5.cfg.clock) { midi.sendShortMsg(0xB0, 102, 127); }
@@ -185,7 +185,8 @@ ZynV5.fLeds = function() {
 // ---------------------------------------------------------------------------------------------
 ZynV5.waehleDeck = function() {
     var best = 0, bestW = 0, xf = ZynV5.hole("[Master]", "crossfader");
-    for (var d = 1; d <= 4; d++) {
+    var decks = Math.max(2, Math.min(4, ZynV5.hole("[Master]", "num_decks") || 2));   // nur vorhandene Decks (sonst Log-Flut)
+    for (var d = 1; d <= decks; d++) {
         var g = "[Channel" + d + "]";
         if (!ZynV5.hole(g, "play")) { continue; }
         var o = ZynV5.hole(g, "orientation");

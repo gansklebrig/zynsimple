@@ -360,6 +360,11 @@ def controller(data, ver):
         namen |= {f"DDJ-{mo}", f"DDJ-{mo} MIDI 1"}          # auch wenn der DDJ gerade nicht steckt
     if HYBRID and os.environ.get("ZS_SEQ") == "1":
         namen |= {"ZynSimple Mixxx", "ZynSimple DDJ"}
+    # alte Zuordnungen (frühere Versionen: VirMIDI, „ZynSimple DDJ-200“ …) erst einmal aus – unten wird neu belegt
+    for sek in ("[Controller]",):
+        for k in list(data.get(sek, {})):
+            if re.search(r"VirMIDI|Virtual_Raw|ZynSimple|DDJ", k, re.I):
+                data[sek][k] = "0"
     for name in namen:
         datei = None
         mo = ddj_modell(name) if not re.search(r"ZynSimple", name, re.I) else None

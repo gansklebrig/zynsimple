@@ -73,6 +73,13 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.2
+
+- Selbsttest der DJ-Verbindung: Antwortet Mixxx 30 s nach dem Start nicht, steht das am Bildschirm, und
+  „MUSIK gekauft/_Diagnose/dj-verbindung.txt“ zeigt, woran es liegt.
+- Alte Controller-Zuordnungen früherer Versionen werden aufgeräumt; Mixxx schreibt nicht mehr zehnmal pro Sekunde
+  Warnungen ins Protokoll.
+
 ## Neu in Version 6.1
 
 - DJ startet im Mischpult jetzt zuverlässig von selbst – auch wenn vorher Barden Beats oder das alte DJ-Pult lief.
