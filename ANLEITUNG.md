@@ -73,6 +73,12 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.6 – CTRL halten = DJ-Pult
+
+- **CTRL 1,5 Sekunden halten** (im Mischpult) öffnet das **DJ-Pult**: Mixxx im Vollbild mit dem DDJ.
+- **Im DJ-Pult CTRL 1,5 Sekunden halten** = zurück ins Mischpult.
+- CTRL kurz bleibt: im Mischpult Mischer ⇄ Effekte, im DJ-Pult Vorhören A → B → aus.
+
 ## Neu in Version 6.5
 
 - Die DJ-Ansicht öffnet jetzt **immer** (♫ DJ-Knopf, Kanal „DJ-Pult“, MIXER-Taste). Läuft Mixxx noch nicht,

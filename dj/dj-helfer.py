@@ -42,7 +42,7 @@ LED_NR = {"MENU": 0, "MIXER": 1, "CTRL": 2, "ZS3": 3, "F1": 4, "PAD": 5, "TEMPO"
 NUMMER = {v: k for k, v in TASTEN.items()}
 # LED-Farbcodes, die das Mixxx-Mapping schickt (ohne Blau)
 FARBE = {0: (0, 0, 0), 1: (26, 12, 2), 2: (200, 130, 15), 3: (210, 20, 25), 4: (30, 170, 60), 5: (235, 210, 60)}
-HALTEN = {"BACK": (3.0, "menue"), "MENU": (1.5, "imres")}
+HALTEN = {"BACK": (3.0, "menue"), "MENU": (1.5, "imres"), "CTRL": (1.5, "zynthian")}   # CTRL halten = zurück ins Mischpult
 HIER = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HIER)
 import tastenbelegung as tb  # noqa: E402   eigene Tastenbelegung (Einstellungen → Bedienung → Tasten belegen)
@@ -538,6 +538,10 @@ def main():
                         an_menue("BACK")
                     else:
                         v.send(0x90, nr, 127)           # STOP kurz: Panik (Effekte und Filter aus)
+                        v.send(0x80, nr, 0)
+                elif kurz and name == "CTRL":
+                    if not menue_offen():
+                        v.send(0x90, nr, 127)           # CTRL kurz: wie bisher in Mixxx (Vorhören A → B → aus)
                         v.send(0x80, nr, 0)
                 elif kurz and name == "MENU":
                     if not an_menue("BACK"):            # MENU kurz: Menü auf (oder wieder zu)

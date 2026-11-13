@@ -54,7 +54,7 @@ FUNKTIONEN = {
     "dj": {
         "MENU": ("☰ DJ-Menü", "", "zu Barden Beats"),
         "MIXER": ("Ebene wechseln", "", ""),
-        "CTRL": ("Vorhören A → B → aus", "", ""),
+        "CTRL": ("Vorhören A → B → aus", "", "zurück ins Mischpult (1,5 s)"),
         "ZS3": ("große Bibliothek", "", ""),
         "ALT": ("zweite Belegung (halten)", "", ""),
         "TEMPO": ("Tempo tippen", "Sync", ""),

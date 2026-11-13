@@ -4690,6 +4690,17 @@ class zynsimple_screen(zynthian_gui_base):
         txt = " ".join(str(v) for v in acts.values() if v).upper()
         if not txt or "ALT" in txt or "ZYNPOT" in txt:
             return False
+        if re.search(r"CHAIN_CONTROL|CONTROL", txt):
+            # CTRL 1,5 s halten = das richtige DJ-Pult (Mixxx im Vollbild mit dem DDJ); kurz = Mischer ⇄ Effekte
+            if t == "P":
+                self._ctrl_abbrechen()
+                self._ctrl_timer = self.canvas.after(1500, self._ctrl_lang)
+                return True
+            war_lang = getattr(self, "_ctrl_lang_erledigt", False)
+            self._ctrl_abbrechen()
+            if war_lang or t == "L":
+                return True
+            t = "S"
         if t != "S":
             return True
         self._touch()
@@ -4730,7 +4741,32 @@ class zynsimple_screen(zynthian_gui_base):
         self._flash(self.ANSICHT_HINWEIS)
         return True
 
-    ANSICHT_HINWEIS = "MIXER = Mischer ⇄ DJ · CTRL = Mischer ⇄ Effekte · MENU = ⋯"
+    def _ctrl_lang(self):
+        self._ctrl_timer = None
+        self._ctrl_lang_erledigt = True
+        if not getattr(self, "dj_installed", False):
+            self._flash("DJ-Pult ist noch nicht eingerichtet · Einstellungen → DJ-Pult")
+            return
+        self._wechsel_schirm("♪ DJ-Pult startet …", "Mixxx im Vollbild mit dem DDJ · zurück: CTRL 1,5 s halten")
+        try:
+            from . import start_dj
+            start_dj(self.zyngui)
+        except Exception as e:
+            self.mode = "mix"
+            self.sig = None
+            self._flash(f"DJ-Pult: {e}")
+
+    def _ctrl_abbrechen(self):
+        tm = getattr(self, "_ctrl_timer", None)
+        if tm:
+            try:
+                self.canvas.after_cancel(tm)
+            except Exception:
+                pass
+        self._ctrl_timer = None
+        self._ctrl_lang_erledigt = False
+
+    ANSICHT_HINWEIS = "MIXER = Mischer ⇄ DJ · CTRL halten = DJ-Pult (Vollbild) · MENU = ⋯"
 
     def _dj_da(self):
         hy = getattr(self.bridge, "hybrid", None)
