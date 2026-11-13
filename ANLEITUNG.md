@@ -73,6 +73,26 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.0 – eine Oberfläche: das Mischpult (Instrumente & DJ)
+
+Es gibt keine getrennten Modi mehr („Einfacher Mischer“, „DJ-Pult“, „DJ + Instrumente“). Alles ist **ein Mischpult**,
+in dem Instrumente und DJ gleichzeitig laufen. Gewechselt wird nur die **Ansicht** – nichts lädt neu, nichts stoppt:
+
+| Taste | wechselt |
+|---|---|
+| **MIXER** | Mischer ⇄ **DJ** (Decks A/B, Tempo, Tonart, Titelliste) |
+| **CTRL** | einfach ⇄ ausführlich: Mischer ⇄ **Profi-Mischer** · DJ ⇄ **Mixxx groß** (Wellenform) |
+| **MENU** | ⋯ – Barden Beats, Einstellungen, Hilfe |
+
+- **Mixxx startet von selbst** unsichtbar im Hintergrund und spielt im Kanal „DJ-Pult“. Der Kanal zeigt
+  „♫ DJ · MIXER“ – oder „DJ startet …“, solange Mixxx noch hochfährt.
+- Der DJ-Controller (DDJ-200/400/FLX4) spielt und mischt die Decks; BROWSE wählt, LOAD lädt.
+- **Nur Barden Beats bleibt eigenständig** – über ⋯ (unten rechts) erreichbar, zurück über dessen System-Menü
+  „Zum Mischpult“.
+- BACK im Mischpult fällt nicht mehr ins Zynthian-Menü, sondern zeigt kurz, welche Taste wohin wechselt.
+- Abschalten (spart Rechenleistung): Einstellungen → Bühne → „DJ im Mischpult“.
+- Beim Einschalten startet entweder das Mischpult oder Barden Beats (Einstellungen → Bühne).
+
 ## Neu in Version 5.12 – DDJ-400 (und FLX4) statt nur DDJ-200
 
 - **Der DDJ-400 wird jetzt erkannt und belegt** – bisher war alles nur auf den DDJ-200 eingestellt, deshalb kam kein

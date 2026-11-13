@@ -14,7 +14,7 @@ log = logging.getLogger("zynsimple")
 # (Schlüssel, Titel, Art, Auswahl, Hinweis)
 #  Art: "bool" = an/aus · "choice" = Liste von (Wert, Text)
 SPEC = [
-    ("replace_home", "Startbildschirm", "choice", [(True, "Einfacher Mischer"), (False, "Zynthian-Mischer")],
+    ("replace_home", "Startbildschirm", "choice", [(True, "Mischpult (Instrumente & DJ)"), (False, "Zynthian-Mischer")],
      "was nach dem Einschalten und bei „nach Hause“ erscheint"),
     ("splash", "Start-Logo", "bool", None, "die Gans beim Hochfahren zeigen"),
     ("idle_seconds", "Bühnenbild nach", "choice", [(0, "nie"), (20, "20 s"), (45, "45 s"), (90, "1½ min"), (180, "3 min")],
@@ -29,6 +29,8 @@ SPEC = [
     ("tonart", "Tonart der Band", "choice", None,
      "für Stimmgerät und DJ-Pult (passende Tracks) · z. B. Handpan-Grundton"),
     ("master_limiter", "Schutz vor Übersteuern", "bool", None, "Limiter am Hauptausgang · fängt laute Spitzen ab"),
+    ("dj_immer", "DJ im Mischpult", "bool", None,
+     "Mixxx läuft unsichtbar mit – Decks & Titel über die MIXER-Taste. Aus: spart Rechenleistung"),
     ("dj_analyse", "Titel automatisch analysieren", "bool", None,
      "Tempo (BPM) und Tonart aller Titel im Hintergrund ermitteln – nur wenn Mixxx gerade aus ist"),
     ("dj_auto_rec", "Set automatisch aufnehmen", "bool", None, "jedes DJ-Set landet als Datei auf dem USB-Stick"),
@@ -44,7 +46,7 @@ SPEC = [
     ("bsp_drums", "BeatStep-Drums im Zynthian", "bool", None,
      "an: die Drum-Spur (Kanal 10) spielt ein Drumkit im Zynthian · aus: Drums macht die TR-8S"),
     ("start_modus", "Nach dem Einschalten", "choice",
-     [("zynthian", "Mischer"), ("hybrid", "DJ + Instrumente"), ("dj", "DJ-Pult")],
+     [("zynthian", "Mischpult"), ("imres", "Barden Beats")],
      "womit der Zynthian startet – praktisch für den Auftritt"),
     ("dj_handpan_fx", "Handpan im DJ-Mix", "bool", None, "Zynthian-Eingänge 1+2 laufen mit in den Mix"),
     ("update_check", "Updates selbst suchen", "bool", None, "beim Start und alle 6 Stunden · braucht Internet"),
@@ -148,6 +150,10 @@ def apply_live(bridge, key):
     """Was sofort wirken kann, sofort wirken lassen."""
     s = bridge.settings
     try:
+        if key == "dj_immer" and not s.get("dj_immer", True):
+            hy = getattr(bridge, "hybrid", None)
+            if hy is not None and hy.laeuft():
+                hy.stoppen()                         # DJ-Teil aus → Mixxx beenden (startet sonst von selbst)
         if key == "autosave" and bridge.extras:
             bridge.extras.autosave_info["enabled"] = bool(s.get("autosave"))
         if key in ("boot_gans", "boot_animation"):

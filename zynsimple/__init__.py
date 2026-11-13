@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "5.12"
+VERSION = "6.0"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -51,6 +51,7 @@ DEFAULTS = {
     "keytar_kanal": None,
     "dj_handpan_fx": True,
     "dj_stems": True,
+    "dj_immer": True,
     "dj_analyse": True,
 }
 
@@ -171,6 +172,17 @@ def _buehne(zyngui, bridge, settings):
         if getattr(bridge, "hybrid", None) is not None and zustand["n"] % 3 == 1:
             bridge.hybrid.kanal_pruefen()
         hy = getattr(bridge, "hybrid", None)
+        # Eine Oberfläche für alles: der DJ-Teil (Mixxx im Kanal „DJ-Pult“) läuft immer mit – unsichtbar im Hintergrund
+        try:
+            if hy is not None and settings.get("dj_immer", True) and not hy.laeuft() and hy.phase is None \
+                    and hy.status()["moeglich"] and time.monotonic() >= zustand.get("dj_naechster", 0):
+                from . import dj as dj_
+                if dj_.eingerichtet() and not os.path.exists("/run/zynsimple-dj.ziel"):
+                    zustand["dj_naechster"] = time.monotonic() + (300 if hy.fehler else 60)
+                    log.info("ZynSimple: DJ-Teil startet im Hintergrund")
+                    hy.starten()
+        except Exception as e:
+            log.debug(f"ZynSimple: DJ-Teil starten: {e}")
         if hy is not None and hy.fehler and hy.fehler != zustand.get("hy_fehler"):
             zustand["hy_fehler"] = hy.fehler
             scr = zyngui.screens.get(SCREEN_NAME)
@@ -211,15 +223,17 @@ def _buehne(zyngui, bridge, settings):
     except OSError:
         return
     modus = settings.get("start_modus", "zynthian")
-    if modus == "dj":
-        top.after(9000, lambda: start_dj(zyngui))
-    elif modus == "hybrid" and getattr(bridge, "hybrid", None):
-        def hybrid_los():
+    if modus == "imres":
+        def bb_los():
             try:
-                _info(zyngui, bridge.hybrid.starten())
+                from . import imres
+                if imres.installed():
+                    import threading
+                    threading.Thread(target=imres.system, args=("imres",), daemon=True).start()
             except Exception as e:
-                _info(zyngui, str(e))
-        top.after(12000, hybrid_los)
+                log.warning(f"ZynSimple: Barden Beats beim Start: {e}")
+        top.after(9000, bb_los)
+    # „dj“ / „hybrid“ (frühere Versionen): der DJ-Teil läuft jetzt ohnehin immer im Mischpult mit
 
 
 def system_menue(zyngui):
@@ -253,21 +267,7 @@ def system_menue(zyngui):
                           "action": lambda *a, **k: threading.Thread(target=imres.system, args=("imres",), daemon=True).start()})
     except Exception:
         pass
-    try:
-        from . import dj
-        if dj.eingerichtet():
-            items.append({"icon": "audio_generator.png", "title": "DJ-Pult", "action": lambda *a, **k: start_dj(zyngui)})
-            hy = getattr(getattr(zyngui, "_zs_bridge", None), "hybrid", None)
-            if hy is not None and dj.mixxx_da():
-                if hy.laeuft():
-                    items.append({"icon": "audio_generator.png", "title": "DJ + Instrumente beenden",
-                                  "action": lambda *a, **k: (_info(zyngui, hy.stoppen()), zyngui.close_screen())})
-                else:
-                    items.append({"icon": "audio_generator.png", "title": "DJ + Instrumente",
-                                  "action": lambda *a, **k: (zyngui.show_screen_reset(SCREEN_NAME), _info(zyngui, hy.starten()))})
-    except Exception:
-        pass
-    items.append({"icon": "mixer.png", "title": "Einfacher Mischer",
+    items.append({"icon": "mixer.png", "title": "Mischpult",
                   "action": lambda *a, **k: zyngui.show_screen_reset(SCREEN_NAME)})
     zyngui.screens["grid_sel"].setup("System", items, cols=3)
     zyngui.show_screen("grid_sel")
@@ -296,6 +296,20 @@ def _hook_power(zyngui):
                     if t == "L" and _ist_back(cfg.custom_switch_ui_actions[i]):
                         system_menue(zyngui)
                         return True
+                    # Im Profi-Mischer: MIXER oder CTRL = zurück ins Mischpult (gleiche Tasten wie hin)
+                    if t == "S" and getattr(zyngui, "_zs_modus", "simple") == "profi" \
+                            and getattr(zyngui, "current_screen", None) != SCREEN_NAME:
+                        akt = str((cfg.custom_switch_ui_actions[i] or {}).get("S") or "").upper()
+                        if "SCREEN_AUDIO_MIXER" in akt or "CHAIN_CONTROL" in akt:
+                            zyngui._zs_modus = "simple"
+                            scr = zyngui.screens.get(SCREEN_NAME)
+                            if scr is not None:
+                                scr.mode = "mix"
+                                scr.sig = None
+                            zyngui.show_screen_reset(SCREEN_NAME)
+                            if scr is not None and "SCREEN_AUDIO_MIXER" in akt and scr._dj_da():
+                                scr.open_bib()                  # MIXER: weiter zur DJ-Ansicht
+                            return True
                 except Exception as e:
                     log.debug(f"ZynSimple: BACK lang: {e}")
                 return orig(i, t, *a, **k)
@@ -394,7 +408,7 @@ def _info(zyngui, text):
 
 
 def _add_menu_entry(zyngui):
-    """Eintrag „Einfacher Mischer“ ins Zynthian-Hauptmenü."""
+    """Eintrag „Mischpult“ ins Zynthian-Hauptmenü."""
     try:
         menu = zyngui.screens.get("main_menu")
         orig = getattr(menu, "get_config", None)
@@ -407,7 +421,7 @@ def _add_menu_entry(zyngui):
         def get_config():
             config = list(orig() or [])
             entries = [{
-                "title": "Einfacher\nMischer",
+                "title": "Misch-\npult",
                 "icon": "mixer.png",
                 "action": open_simple,
             }]
@@ -420,13 +434,6 @@ def _add_menu_entry(zyngui):
                         "action": lambda *a, **k: __import__("threading").Thread(
                             target=imres.system, args=("imres",), daemon=True).start(),
                     })
-            except Exception:
-                pass
-            try:
-                from . import dj
-                if dj.eingerichtet():
-                    entries.append({"title": "DJ-Pult", "icon": "playing.png",
-                                    "action": lambda *a, **k: start_dj(zyngui)})
             except Exception:
                 pass
 

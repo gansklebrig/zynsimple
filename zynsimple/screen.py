@@ -59,28 +59,28 @@ class zynsimple_screen(zynthian_gui_base):
     DEFER = set(EXPLAIN)
 
     TASTEN_HILFE = [
+        ("MIXER", "Ansicht wechseln: Mischer ⇄ DJ (Decks & Titel) – alles läuft weiter, nichts lädt neu"),
+        ("CTRL", "einfach ⇄ ausführlich: Mischer ⇄ Profi-Mischer · DJ ⇄ Mixxx groß (Wellenform)"),
+        ("MENU", "⋯ – Barden Beats, Einstellungen, Hilfe …"),
         ("Drehregler 1–4", "die vier LIVE-Regler rechts (Tiefe, Hall, Echo …) des gewählten Kanals"),
-        ("F1 – F4", "Effekt 1–4 des Kanals an/aus · lang: Regler des Effekts"),
+        ("F1 – F4", "Mischer: Effekt 1–4 an/aus · DJ: F1/F2 = in Deck A/B laden, F3/F4 = Reiter"),
         ("ALT + F1 – F4", "Szene 1–4 laden · lang: aktuellen Klang als Szene speichern"),
         ("◀  ▶", "anderen Kanal wählen"),
-        ("▲  ▼", "Tiefe (Regler 1) des Kanals hoch / runter"),
-        ("SEL", "kurz: stumm · doppelt: Solo"),
-        ("MENU", "⋯ – von hier aus zu DJ-Pult, DJ + Instrumente, Barden Beats, Profi-Mischer, Einstellungen"),
-        ("Drehregler drücken", "in Listen: antippen · im Mischer: zeigt, was der Regler gerade steuert"),
+        ("▲  ▼", "Tiefe (Regler 1) des Kanals hoch / runter · DJ: Titel wählen"),
+        ("SEL", "Mischer: kurz stumm, doppelt Solo · DJ: Titel ins freie Deck"),
+        ("PLAY", "Mischer: ↯ Echo-Wurf · DJ: Deck A ▶/❚❚ (ALT: Deck B)"),
         ("REC", "❄ Freeze – tippen = an/aus, halten = nur solange gedrückt"),
-        ("PLAY", "↯ Echo-Wurf, solange gedrückt"),
         ("STOP", "Panik: Hall, Echos und hängende Töne aus"),
         ("METRONOM", "Tempo tippen (TAP)"),
-        ("BACK", "eine Ebene zurück – überall · 3 s halten: System-Menü (Update, Neustart, Ausschalten, DJ)"),
-        ("In Listen", "Drehregler oder Pfeile wählen, am Ende blättert es weiter · SEL = antippen"),
-        ("ALT + PLAY", "♫ Titel laden (bei DJ + Instrumente) · dort F1 = Deck A, F2 = Deck B, F3/F4 = Reiter"),
+        ("BACK", "eine Ebene zurück · 3 s halten: System-Menü (Update, Neustart, Ausschalten)"),
+        ("DJ-Controller", "spielt und mischt die Decks · BROWSE = Titel wählen, LOAD = laden (DDJ-200: SHIFT + Jog / SHIFT + 🎧)"),
     ]
 
     def __init__(self, bridge, settings):
         zynthian_gui_base.__init__(self)
         self.bridge = bridge
         self.settings = settings
-        self.tts_title = "Einfacher Mischer"
+        self.tts_title = "Mischpult"
         self.selected = 0
         self.page = 0
         self.per_page = 1
@@ -1154,9 +1154,9 @@ class zynsimple_screen(zynthian_gui_base):
         W, H = self._geom()
         b = self.bib
         cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
-        cv.create_text(20, 28, anchor="w", text="♫ Decks & Titel", font=self.f_big, fill=P["gold"])
-        self._tbtn(W - 150, 8, W - 12, 50, "✕ Zurück", "b_zu", font=self.f_small)
-        self._tbtn(W - 330, 8, W - 160, 50, "Mixxx zeigen", "b_mixxx", font=self.f_small)
+        cv.create_text(20, 28, anchor="w", text="♫ DJ", font=self.f_big, fill=P["gold"])
+        self._tbtn(W - 190, 8, W - 12, 50, "Mischer · MIXER", "b_zu", font=self.f_small)
+        self._tbtn(W - 390, 8, W - 200, 50, "Mixxx groß · CTRL", "b_mixxx", font=self.f_small)
         dh = self._bib_deckhoehe()
         self._bib_decks_zeichnen(W, dh)
         ty = 56 + dh + 8
@@ -1771,10 +1771,14 @@ class zynsimple_screen(zynthian_gui_base):
         row_h = max(28, int(h * 0.085))
         aw = max(26, int(w * 0.22))
         hy_ = getattr(self.bridge, "hybrid", None)
-        if s["name"] == "DJ-Pult" and hy_ is not None and hy_.laeuft():
-            # DJ + Instrumente: direkter Weg zur Musik
-            self._button(cx0, cy, cx1 - cx0, row_h, "♫ Decks & Titel", True, "bib", cid, None, fill=P["gold"],
-                         fg=P["black"], font=self.f_small)
+        if s["name"] == "DJ-Pult" and hy_ is not None:
+            # Der DJ-Teil im Mischpult: direkter Weg zur Musik (auch mit der MIXER-Taste)
+            if hy_.laeuft():
+                self._button(cx0, cy, cx1 - cx0, row_h, "♫ DJ · MIXER", True, "bib", cid, None, fill=P["gold"],
+                             fg=P["black"], font=self.f_small)
+            else:
+                self._button(cx0, cy, cx1 - cx0, row_h, "DJ startet …" if hy_.phase == "start" else "DJ aus",
+                             False, "bib", cid, None, fill=P["card2"], fg=P["tx2"], font=self.f_small)
             if first_vis:
                 self._anchor(cx0, cy, cx1, cy + row_h, "Musik in Deck A oder B laden")
         elif s["preset"]:
@@ -2370,19 +2374,23 @@ class zynsimple_screen(zynthian_gui_base):
         cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
         cv.create_text(20, 26, anchor="w", text="Mehr", font=self.f_big, fill=P["gold"])
         try:
+            from . import VERSION as _v
+            cv.create_text(W - 20, 26, anchor="e", text=f"ZynSimple {_v}", font=self.f_tiny, fill=P["tx2"])
+        except Exception:
+            pass
+        try:
             from . import updater
             upd = updater.status.get("available") and updater.status.get("latest")
         except Exception:
             upd = None
         items = [("help", "? Hilfe", "erklärt Bildschirm und Tasten"),
                  ("menu", "Zynthian-Menü", "Ketten, Snapshots, Admin"),
-                 ("expert", "Profi-Mischer", "der originale Zynthian-Mischer"),
+                 ("expert", "Profi-Mischer", "ausführlich · auch mit der CTRL-Taste"),
                  ("newtrack", "＋ Neue Spur", "Eingang, Handpan, Gesang, Synth …"),
                  ("idle", "Bühnenbild", "Animation jetzt zeigen"),
                  ("settings", f"Update {upd} bereit" if upd else "Einstellungen", "Update, Start-Logo, Bühnenbild …"),
                  ("close", "Zurück", "")]
         if self.dj_installed:
-            items.insert(0, ("dj", "♪ DJ-Pult", "Mixxx mit dem DDJ"))
             try:
                 from . import dj as dj_
                 stick_ = dj_.musik_stick()
@@ -2392,11 +2400,7 @@ class zynsimple_screen(zynthian_gui_base):
                 items.insert(0, ("djimport", "⇩ Musik übernehmen", f"„{stick_}“: Alben/Titel auswählen"))
             hy = getattr(self.bridge, "hybrid", None)
             if hy is not None and hy.laeuft():
-                items.insert(0, ("hybrid_aus", "DJ + Instr. beenden", "Mixxx schließen · Spuren bleiben"))
-                items.insert(0, ("hybrid_zeigen", "Mixxx zeigen", "zurück: MENU-Taste"))
-                items.insert(0, ("bib", "♫ Titel laden", "Musik in Deck A oder B"))
-            elif hy is not None and hy.status()["moeglich"]:
-                items.insert(1, ("hybrid", "♫ DJ + Instrumente", "Mixxx im Kanal „DJ-Pult“ · Spuren laufen weiter"))
+                items.insert(0, ("bib", "♫ DJ: Decks & Titel", "auch mit der MIXER-Taste"))
         if self.imres_installed:
             items.insert(0, ("imres", "♫ Barden Beats", "Bühne & Klangwelten im Vollbild"))
         cols = 4 if len(items) > 6 else 3
@@ -3519,7 +3523,7 @@ class zynsimple_screen(zynthian_gui_base):
         ("dj", "DJ-Pult", [("act", "s_dj", "♪"), ("set", "dj_auto_rec", "●"), ("act", "s_djhandy", "⌕"),
                            ("set", "dj_handpan_fx", "◎"), ("set", "dj_analyse", "♯"), ("act", "s_djimport", "⇩"), ("act", "s_djordner", "▤"),
                            ("act", "s_mixxx26", "◆"), ("act", "s_stems", "≋")]),
-        ("buehne", "Bühne", [("act", "s_hybrid", "♫"), ("act", "s_djimport", "⇩"), ("set", "takt", "⏱"), ("set", "start_modus", "⏻"),
+        ("buehne", "Bühne", [("set", "dj_immer", "♫"), ("act", "s_djimport", "⇩"), ("set", "takt", "⏱"), ("set", "start_modus", "⏻"),
                              ("act", "s_gig_merken", "✓"), ("act", "s_gig_laden", "↺"), ("act", "s_strom", "⚡")]),
         ("geraete", "Geräte", [("act", "s_keytar", "🎸"), ("set", "ton_anzeige", "♪"), ("act", "s_bsp", "🎛"),
                                ("set", "bsp_drums", "🥁")]),
@@ -3543,7 +3547,11 @@ class zynsimple_screen(zynthian_gui_base):
             return ("Jetzt speichern", "Mischer, Effekte und Spuren sofort sichern",
                     "✓ Gesichert" if armed else "Speichern", True, False)
         if art == "s_dj":
-            return ("DJ-Pult", "Mixxx im Vollbild mit dem DDJ · zurück: BACK 3 s → System-Menü", "Starten",
+            # DJ läuft im Mischpult mit; nur zum ersten Einrichten (installiert Mixxx) braucht es das eigene DJ-Pult
+            hy = getattr(self.bridge, "hybrid", None)
+            if hy is not None and hy.status()["moeglich"]:
+                return ("", "", None, False, False)
+            return ("DJ einrichten", "installiert Mixxx einmalig (einige Minuten) · danach: MIXER-Taste = DJ", "Einrichten",
                     getattr(self, "dj_installed", False), False)
         if art == "s_imres":
             return ("Barden Beats", "Bühne & Klangwelten im Vollbild · zurück: BACK 3 s → System-Menü", "Starten",
@@ -4482,8 +4490,12 @@ class zynsimple_screen(zynthian_gui_base):
             if war_lang:
                 return True
             self._touch()
-            if self.mode in ("mix", "splash"):
-                return False             # im Mischer: wie gewohnt (Zynthian)
+            if self.mode == "splash":
+                return False
+            if self.mode == "mix":
+                # im Mischpult nicht ins Zynthian-Menü fallen – zeigen, wie man wechselt
+                self._flash(self.ANSICHT_HINWEIS)
+                return True
             self.back_action()
             return True
         if self.mode == "idle":
@@ -4640,11 +4652,52 @@ class zynsimple_screen(zynthian_gui_base):
                 self.draw_more()
             return True
         hy = getattr(self.bridge, "hybrid", None)
-        if re.search(r"MIXER", txt) and hy is not None and hy.laeuft() and self.mode == "mix":
-            self.open_bib()                               # bei DJ + Instrumente: MIXER = ♫ Titel laden
+        if re.search(r"SCREEN_AUDIO_MIXER|MIXER", txt):
+            # MIXER: Ansicht Mischer ⇄ DJ (Decks & Titel) – nichts wird neu geladen
+            if hy is not None and hy.vorne:
+                self._mixxx_weg()
+                self.mode = "mix"
+                self.sig = None
+            elif self.mode == "bib":
+                self.mode = "mix"
+                self.sig = None
+            elif self._dj_da():
+                self.open_bib()
+            else:
+                self._flash(self._dj_hinweis())
             return True
-        self._flash("Diese Taste hat hier keine Aufgabe · andere Ansicht: MENU (⋯)")
+        if re.search(r"CHAIN_CONTROL|CONTROL", txt):
+            # CTRL: einfach ⇄ ausführlich – Mischer ⇄ Profi-Mischer, DJ ⇄ Mixxx mit Wellenform
+            if hy is not None and hy.vorne:
+                self._mixxx_weg()
+                self.sig = None
+            elif self.mode == "bib" and hy is not None and hy.laeuft():
+                threading.Thread(target=hy.zeigen, daemon=True).start()
+                self._flash("Mixxx ausführlich · CTRL oder MENU = zurück")
+            elif self.mode == "mix":
+                self.open_expert()
+            else:
+                self.mode = "mix"
+                self.sig = None
+            return True
+        self._flash(self.ANSICHT_HINWEIS)
         return True
+
+    ANSICHT_HINWEIS = "MIXER = Mischer ⇄ DJ · CTRL = einfach ⇄ ausführlich · MENU = ⋯"
+
+    def _dj_da(self):
+        hy = getattr(self.bridge, "hybrid", None)
+        return hy is not None and hy.laeuft()
+
+    def _dj_hinweis(self):
+        hy = getattr(self.bridge, "hybrid", None)
+        if hy is None or not getattr(self, "dj_installed", False):
+            return "DJ ist noch nicht eingerichtet · ⋯ → Einstellungen → DJ-Pult"
+        if hy.phase == "start":
+            return "DJ startet gerade – einen Moment …"
+        if not self.settings.get("dj_immer", True):
+            return "DJ ist ausgeschaltet · Einstellungen → DJ-Pult → „DJ im Mischpult“"
+        return "DJ startet gleich" + (f" (zuletzt: {hy.fehler})" if hy.fehler else "")
 
     def cuia_v5_zynpot_switch(self, params):
         """Drehknopf drücken (V5). In ZynSimple nur Funktionen der aktuellen Seite – nie eine andere Ansicht
