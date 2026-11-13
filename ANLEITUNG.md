@@ -73,6 +73,11 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.8
+
+- Behoben: Das automatische Entfernen des Kanals „DJ-Pult“ hing („Removing the mixer channel …“).
+  Es passiert nicht mehr von selbst – den Kanal bei Bedarf über seinen Namen → Löschen entfernen.
+
 ## Neu in Version 6.7 – aufgeräumt: Mischpult für Instrumente, DJ-Pult für den DJ
 
 - Der DJ-Teil im Mischpult (Kanal „DJ-Pult“, Decks & Titel, Mixxx im Hintergrund) ist wieder **raus** –

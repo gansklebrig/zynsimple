@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "6.7"
+VERSION = "6.8"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -174,8 +174,6 @@ def _buehne(zyngui, bridge, settings):
         hy = getattr(bridge, "hybrid", None)
         # Eine Oberfläche für alles: der DJ-Teil (Mixxx im Kanal „DJ-Pult“) läuft immer mit – unsichtbar im Hintergrund
         try:
-            if hy is not None and not settings.get("dj_hybrid", False) and zustand["n"] == 1:
-                hy.kanal_entfernen()                    # DJ gibt es als eigenes DJ-Pult (CTRL halten)
             if hy is not None and settings.get("dj_hybrid", False) and not hy.laeuft() and hy.phase is None \
                     and hy.status()["moeglich"] and time.monotonic() >= zustand.get("dj_naechster", 0):
                 from . import dj as dj_
