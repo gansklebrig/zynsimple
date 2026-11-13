@@ -695,6 +695,8 @@ class Hybrid:
                 self._midi_trennen()
             if n % 4 == 2 and not self.vorne:
                 self._rueckfragen_weg()
+            if n % 2 == 0 and not self.vorne and not getattr(self, "_laedt", False):
+                self._versteckt_halten()
             self._tempo()
             if n == 60:                                   # ~30 s nach dem Start: antwortet Mixxx?
                 self._verbindung_pruefen()
@@ -806,6 +808,25 @@ class Hybrid:
         ids = self._xdo("search", "--class", "mixxx").split()
         return ids[-1] if ids else None
 
+    def _versteckt_halten(self):
+        """Mixxx bleibt unsichtbar: schiebt es sich (z. B. beim Start) ins Bild, kommt es wieder weg."""
+        w = self._mixxx_fenster()
+        if not w:
+            return
+        g = {}
+        for z in self._xdo("getwindowgeometry", "--shell", w).splitlines():
+            if "=" in z:
+                k, v = z.split("=", 1)
+                g[k] = v
+        try:
+            x = int(g.get("X", 0))
+        except ValueError:
+            return
+        bw, _ = self._bildgroesse()
+        if x < bw:
+            self._weg_vom_bild(w)
+            self._zynsimple_vorne()
+
     def _rueckfragen_weg(self):
         """Mixxx-Rückfragen (z. B. „kein Eingabegerät für diesen Aux“) kann am Zynthian niemand wegtippen, wenn Mixxx
         unsichtbar läuft – sie blockieren aber Laden und Tastatur. Darum: merken und mit Escape schließen."""
@@ -826,12 +847,27 @@ class Hybrid:
             raise RuntimeError("Mixxx läuft gerade nicht – erst „DJ + Instrumente“ starten")
         from . import dj
         vorher = self.vorne
+        self._laedt = True
         w = self._mixxx_fenster()
         if w and not vorher:
             self._weg_vom_bild(w)          # bekommt die Tastatur, bleibt aber unsichtbar (kein Bild-im-Bild)
             time.sleep(0.15)
+        empfangen_vorher = getattr(self, "_empfangen", 0)
+        dauer_vorher = (self._deck.get(int(deck)) or {}).get("dauer")
         try:
             txt = dj.bibliothek_modul().laden(track_id, deck, self.senden, fenster_zeigen=False)
+            # Hat Mixxx wirklich geladen? Der Deck-Zustand kommt zurück (Länge/geladen ändern sich)
+            ende = time.monotonic() + 3.0
+            while time.monotonic() < ende:
+                z = self._deck.get(int(deck)) or {}
+                if z.get("geladen") and z.get("dauer") != dauer_vorher:
+                    break
+                time.sleep(0.1)
+            else:
+                if getattr(self, "_empfangen", 0) == empfangen_vorher == 0:
+                    raise RuntimeError("Mixxx antwortet nicht – Steuerung nicht verbunden (Protokoll: _Diagnose/dj-verbindung.txt)")
+                if not (self._deck.get(int(deck)) or {}).get("geladen"):
+                    raise RuntimeError("Mixxx hat den Titel nicht ins Deck geladen (Suche ohne Treffer?)")
             try:
                 import sqlite3
                 db = sqlite3.connect(f"file:{dj.bibliothek_modul().DB}?mode=ro", uri=True, timeout=3)
@@ -843,6 +879,7 @@ class Hybrid:
                 pass
             return txt
         finally:
+            self._laedt = False
             if not vorher:
                 self.verstecken()
 

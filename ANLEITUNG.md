@@ -73,6 +73,16 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.4 – kein Profi-Mischer, Mixxx bleibt unsichtbar
+
+- **Der klassische Zynthian-Mischer („Profi-Mischer“) ist weg** – es gibt nur noch das Mischpult.
+  Auch Zynthian-Aufrufe seines Mischers landen im Mischpult. (Admin/WLAN: Einstellungen → System.)
+- **CTRL** = Mischer ⇄ alle Effekte. **MIXER** = Mischer ⇄ DJ.
+- **Mixxx bleibt immer unsichtbar** – schiebt es sich ins Bild, holt ZynSimple sofort wieder den Mischer nach vorne.
+  („Mixxx groß“ gibt es nicht mehr.)
+- **Laden wird geprüft:** Kommt der Titel nicht im Deck an, steht da, warum („Mixxx antwortet nicht“ oder
+  „Suche ohne Treffer“) statt nur „wird geladen“.
+
 ## Neu in Version 6.3 – leichter zu verstehen
 
 - **Großer goldener „♫ DJ“-Knopf** unten im Mischpult (statt „Effekte“ – die liegen jetzt unter ⋯ → „Alle Effekte“).

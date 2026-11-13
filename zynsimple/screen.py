@@ -60,7 +60,7 @@ class zynsimple_screen(zynthian_gui_base):
 
     TASTEN_HILFE = [
         ("MIXER", "Ansicht wechseln: Mischer ⇄ DJ (Decks & Titel) – alles läuft weiter, nichts lädt neu"),
-        ("CTRL", "einfach ⇄ ausführlich: Mischer ⇄ Profi-Mischer · DJ ⇄ Mixxx groß (Wellenform)"),
+        ("CTRL", "Mischer ⇄ alle Effekte auf einen Blick"),
         ("MENU", "⋯ – Barden Beats, Einstellungen, Hilfe …"),
         ("Drehregler 1–4", "die vier LIVE-Regler rechts (Tiefe, Hall, Echo …) des gewählten Kanals"),
         ("F1 – F4", "Mischer: Effekt 1–4 an/aus · DJ: F1/F2 = in Deck A/B laden, F3/F4 = Reiter"),
@@ -1156,7 +1156,6 @@ class zynsimple_screen(zynthian_gui_base):
         cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
         cv.create_text(20, 28, anchor="w", text="♫ DJ", font=self.f_big, fill=P["gold"])
         self._tbtn(W - 190, 8, W - 12, 50, "Mischer · MIXER", "b_zu", font=self.f_small)
-        self._tbtn(W - 390, 8, W - 200, 50, "Mixxx groß · CTRL", "b_mixxx", font=self.f_small)
         dh = self._bib_deckhoehe()
         self._bib_decks_zeichnen(W, dh)
         ty = 56 + dh + 8
@@ -1433,7 +1432,7 @@ class zynsimple_screen(zynthian_gui_base):
             self.rrect((W - tw) / 2, y0, (W + tw) / 2, y0 + 150, 14, fill=P["card"], outline=P["gold"], width=2)
             cv.create_text(W / 2, y0 + 24, text=titel, font=self.f_big, fill=P["gold"])
             for k, (taste, was) in enumerate((("MIXER", "Mischer ⇄ DJ (Decks & Titel)"),
-                                              ("CTRL", "einfach ⇄ ausführlich (Profi-Mischer / Mixxx groß)"),
+                                              ("CTRL", "Mischer ⇄ alle Effekte"),
                                               ("MENU", "⋯ – Barden Beats, Einstellungen, Hilfe"))):
                 yy = y0 + 56 + k * 24
                 cv.create_text((W - tw) / 2 + 24, yy, anchor="w", text=taste, font=self.f_small, fill=P["gold2"])
@@ -2407,10 +2406,8 @@ class zynsimple_screen(zynthian_gui_base):
         except Exception:
             upd = None
         items = [("help", "? Hilfe", "erklärt Bildschirm und Tasten"),
-                 ("menu", "Zynthian-Menü", "Ketten, Snapshots, Admin"),
-                 ("expert", "Profi-Mischer", "ausführlich · auch mit der CTRL-Taste"),
                  ("newtrack", "＋ Neue Spur", "Eingang, Handpan, Gesang, Synth …"),
-                 ("fxview", "Alle Effekte", "Effekte aller Spuren auf einen Blick"),
+                 ("fxview", "Alle Effekte", "auch mit der CTRL-Taste"),
                  ("idle", "Bühnenbild", "Animation jetzt zeigen"),
                  ("settings", f"Update {upd} bereit" if upd else "Einstellungen", "Update, Start-Logo, Bühnenbild …"),
                  ("close", "Zurück", "")]
@@ -4711,15 +4708,11 @@ class zynsimple_screen(zynthian_gui_base):
                 self._flash(self._dj_hinweis())
             return True
         if re.search(r"CHAIN_CONTROL|CONTROL", txt):
-            # CTRL: einfach ⇄ ausführlich – Mischer ⇄ Profi-Mischer, DJ ⇄ Mixxx mit Wellenform
+            # CTRL: Mischer ⇄ alle Effekte (auf einen Blick)
             if hy is not None and hy.vorne:
                 self._mixxx_weg()
-                self.sig = None
-            elif self.mode == "bib" and hy is not None and hy.laeuft():
-                threading.Thread(target=hy.zeigen, daemon=True).start()
-                self._flash("Mixxx ausführlich · CTRL oder MENU = zurück")
-            elif self.mode == "mix":
-                self.open_expert()
+            if self.mode == "mix":
+                self.open_fxview()
             else:
                 self.mode = "mix"
                 self.sig = None
@@ -4727,7 +4720,7 @@ class zynsimple_screen(zynthian_gui_base):
         self._flash(self.ANSICHT_HINWEIS)
         return True
 
-    ANSICHT_HINWEIS = "MIXER = Mischer ⇄ DJ · CTRL = einfach ⇄ ausführlich · MENU = ⋯"
+    ANSICHT_HINWEIS = "MIXER = Mischer ⇄ DJ · CTRL = Mischer ⇄ Effekte · MENU = ⋯"
 
     def _dj_da(self):
         hy = getattr(self.bridge, "hybrid", None)
@@ -4832,7 +4825,7 @@ class zynsimple_screen(zynthian_gui_base):
             if s["solo"] is not None:
                 self.bridge.action(s["id"], "solo")
         elif t == "L":
-            self._flash("Profi-Mischer und Zynthian-Menü: MENU oder ⋯")
+            self._flash(self.ANSICHT_HINWEIS)
         return True
 
     def select(self, index=None):

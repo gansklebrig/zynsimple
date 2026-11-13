@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "6.3"
+VERSION = "6.4"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -691,18 +691,8 @@ def redirect(zyngui, screen, hmode=None):
             return screen
         if screen not in HOME_NAMES:
             return screen
-        # Profi-Mischer bewusst gewählt: nie von selbst in ZynSimple zurückspringen (Regler, BACK, Menüs …)
-        if getattr(zyngui, "_zs_modus", "simple") == "profi":
-            return screen
-        # Ausdrücklich gewünscht (Taste „Profi-Mischer“)
-        if getattr(zyngui, "_zs_allow_home", False):
-            zyngui._zs_allow_home = False
-            return screen
-        # Ist der Profi-Mischer gerade offen, bleibt er offen –
-        # außer bei „nach Hause“ (BACK lang drücken = Verlauf zurücksetzen)
-        current = getattr(zyngui, "current_screen", None)
-        if current in HOME_NAMES and hmode != getattr(zyngui, "SCREEN_HMODE_RESET", 3):
-            return screen
+        # Der klassische Zynthian-Mischer wird nie gebraucht: immer das Mischpult zeigen
+        zyngui._zs_modus = "simple"
         return SCREEN_NAME
     except Exception:
         return screen
