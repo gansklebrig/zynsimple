@@ -29,8 +29,6 @@ SPEC = [
     ("tonart", "Tonart der Band", "choice", None,
      "für Stimmgerät und DJ-Pult (passende Tracks) · z. B. Handpan-Grundton"),
     ("master_limiter", "Schutz vor Übersteuern", "bool", None, "Limiter am Hauptausgang · fängt laute Spitzen ab"),
-    ("dj_immer", "DJ im Mischpult", "bool", None,
-     "Mixxx läuft unsichtbar mit – Decks & Titel über die MIXER-Taste. Aus: spart Rechenleistung"),
     ("dj_analyse", "Titel automatisch analysieren", "bool", None,
      "Tempo (BPM) und Tonart aller Titel im Hintergrund ermitteln – nur wenn Mixxx gerade aus ist"),
     ("dj_auto_rec", "Set automatisch aufnehmen", "bool", None, "jedes DJ-Set landet als Datei auf dem USB-Stick"),
@@ -150,7 +148,7 @@ def apply_live(bridge, key):
     """Was sofort wirken kann, sofort wirken lassen."""
     s = bridge.settings
     try:
-        if key == "dj_immer" and not s.get("dj_immer", True):
+        if key == "dj_hybrid" and not s.get("dj_hybrid", False):
             hy = getattr(bridge, "hybrid", None)
             if hy is not None and hy.laeuft():
                 hy.stoppen()                         # DJ-Teil aus → Mixxx beenden (startet sonst von selbst)

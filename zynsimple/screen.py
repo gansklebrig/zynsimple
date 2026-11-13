@@ -59,8 +59,8 @@ class zynsimple_screen(zynthian_gui_base):
     DEFER = set(EXPLAIN)
 
     TASTEN_HILFE = [
-        ("MIXER", "Ansicht wechseln: Mischer ⇄ DJ (Decks & Titel) – alles läuft weiter, nichts lädt neu"),
-        ("CTRL", "Mischer ⇄ alle Effekte auf einen Blick"),
+        ("CTRL halten", "1,5 s: DJ-Pult (Mixxx im Vollbild mit dem DDJ) · dort wieder 1,5 s = zurück"),
+        ("MIXER / CTRL", "kurz: Mischer ⇄ alle Effekte auf einen Blick"),
         ("MENU", "⋯ – Barden Beats, Einstellungen, Hilfe …"),
         ("Drehregler 1–4", "die vier LIVE-Regler rechts (Tiefe, Hall, Echo …) des gewählten Kanals"),
         ("F1 – F4", "Mischer: Effekt 1–4 an/aus · DJ: F1/F2 = in Deck A/B laden, F3/F4 = Reiter"),
@@ -1089,7 +1089,7 @@ class zynsimple_screen(zynthian_gui_base):
                 t1, t2 = "⏳ Mixxx startet …", "dauert etwa 30 Sekunden – die Titel unten kannst du schon ansehen"
             elif hy is not None and hy.fehler:
                 t1, t2 = "DJ läuft nicht", self._clip_text(str(hy.fehler), W - 60, self.f_tiny)
-            elif not self.settings.get("dj_immer", True):
+            elif not self.settings.get("dj_hybrid", False):
                 t1, t2 = "DJ ist ausgeschaltet", "Einstellungen → Bühne → „DJ im Mischpult“"
             else:
                 t1, t2 = "⏳ DJ startet gleich …", "Mixxx wird im Hintergrund gestartet"
@@ -1446,8 +1446,8 @@ class zynsimple_screen(zynthian_gui_base):
             y0 = H * 0.30
             self.rrect((W - tw) / 2, y0, (W + tw) / 2, y0 + 150, 14, fill=P["card"], outline=P["gold"], width=2)
             cv.create_text(W / 2, y0 + 24, text=titel, font=self.f_big, fill=P["gold"])
-            for k, (taste, was) in enumerate((("MIXER", "Mischer ⇄ DJ (Decks & Titel)"),
-                                              ("CTRL", "Mischer ⇄ alle Effekte"),
+            for k, (taste, was) in enumerate((("CTRL ⏱", "1,5 s halten: DJ-Pult mit dem DDJ"),
+                                              ("MIXER", "Mischer ⇄ alle Effekte"),
                                               ("MENU", "⋯ – Barden Beats, Einstellungen, Hilfe"))):
                 yy = y0 + 56 + k * 24
                 cv.create_text((W - tw) / 2 + 24, yy, anchor="w", text=taste, font=self.f_small, fill=P["gold2"])
@@ -1746,13 +1746,11 @@ class zynsimple_screen(zynthian_gui_base):
         mw = max(54, int(W * 0.08))
         ew = int(mw * 1.35)
         hy_ = getattr(self.bridge, "hybrid", None)
-        if hy_ is not None and getattr(self, "dj_installed", False) and self.settings.get("dj_immer", True):
-            # Der Weg zum DJ – groß und golden (auch: MIXER-Taste). „Effekte“ liegt dann unter ⋯.
-            bereit = hy_.laeuft()
+        if getattr(self, "dj_installed", False):
+            # Der Weg zum DJ-Pult – groß und golden (auch: CTRL 1,5 s halten). „Effekte“ liegt dann unter ⋯.
             self._button(W - 3 * (pad + mw) - (ew - mw), y + pad + 2, ew, h - 2 * pad - 2,
-                         "♫ DJ" if bereit else "DJ ⏳", True, "dj_ansicht", None, None,
-                         fill=P["gold"] if bereit else P["card2"], fg=P["black"] if bereit else P["tx2"],
-                         outline=P["gold"], font=self.f_mid if bereit else self.f_small)
+                         "♪ DJ", True, "dj_pult", None, None,
+                         fill=P["gold"], fg=P["black"], outline=P["gold"], font=self.f_mid)
         else:
             self._button(W - 3 * (pad + mw) - (ew - mw), y + pad + 2, ew, h - 2 * pad - 2, "Effekte", True, "fxview",
                          None, None, fill=P["card2"], fg=P["gold"], outline=P["gold_dim"], font=self.f_small)
@@ -1762,7 +1760,7 @@ class zynsimple_screen(zynthian_gui_base):
                      "AUFTRITT" if self.locked else "Auftritt", True, "lock", None, None,
                      fill=P["rose"] if self.locked else P["card2"], font=self.f_tiny)
         self._anchor(W - 3 * (pad + mw) - (ew - mw), y + pad, W - 3 * (pad + mw) - (ew - mw) + ew, y + h - pad,
-                     "DJ: Decks A/B und Titel laden (auch MIXER-Taste)" if hy_ is not None and getattr(self, "dj_installed", False)
+                     "DJ-Pult: Mixxx im Vollbild mit dem DDJ (auch: CTRL 1,5 s halten)" if getattr(self, "dj_installed", False)
                      else "alle Effekte aller Spuren", "up")
         self._anchor(W - 2 * (pad + mw), y + pad, W - pad, y + h - pad,
                      "Auftritt: nur Fader, Mute, Szenen, Panik · ⋯ = Mehr: DJ, Barden Beats, Einstellungen", "up")
@@ -2204,8 +2202,8 @@ class zynsimple_screen(zynthian_gui_base):
             elif art == "fxview":
                 self.open_fxview()
                 return
-            elif art == "dj_ansicht":
-                self.open_bib()
+            elif art == "dj_pult":
+                self._ctrl_lang()
                 return
             elif art == "help":
                 self.open_help()
@@ -2424,6 +2422,7 @@ class zynsimple_screen(zynthian_gui_base):
                  ("settings", f"Update {upd} bereit" if upd else "Einstellungen", "Update, Start-Logo, Bühnenbild …"),
                  ("close", "Zurück", "")]
         if self.dj_installed:
+            items.insert(0, ("djpult", "♪ DJ-Pult", "Mixxx im Vollbild mit dem DDJ · auch: CTRL 1,5 s halten"))
             try:
                 from . import dj as dj_
                 stick_ = dj_.musik_stick()
@@ -2507,6 +2506,8 @@ class zynsimple_screen(zynthian_gui_base):
                         self._flash(str(e))
                 elif art == "fxview":
                     return self.open_fxview()
+                elif art == "djpult":
+                    return self._ctrl_lang()
                 elif art == "newtrack":
                     self.open_newtrack()
                 elif art == "idle":
@@ -3576,7 +3577,7 @@ class zynsimple_screen(zynthian_gui_base):
         ("dj", "DJ-Pult", [("act", "s_dj", "♪"), ("set", "dj_auto_rec", "●"), ("act", "s_djhandy", "⌕"),
                            ("set", "dj_handpan_fx", "◎"), ("set", "dj_analyse", "♯"), ("act", "s_djimport", "⇩"), ("act", "s_djordner", "▤"),
                            ("act", "s_mixxx26", "◆"), ("act", "s_stems", "≋")]),
-        ("buehne", "Bühne", [("set", "dj_immer", "♫"), ("act", "s_djimport", "⇩"), ("set", "takt", "⏱"), ("set", "start_modus", "⏻"),
+        ("buehne", "Bühne", [("act", "s_djimport", "⇩"), ("set", "takt", "⏱"), ("set", "start_modus", "⏻"),
                              ("act", "s_gig_merken", "✓"), ("act", "s_gig_laden", "↺"), ("act", "s_strom", "⚡")]),
         ("geraete", "Geräte", [("act", "s_keytar", "🎸"), ("set", "ton_anzeige", "♪"), ("act", "s_bsp", "🎛"),
                                ("set", "bsp_drums", "🥁")]),
@@ -4717,16 +4718,12 @@ class zynsimple_screen(zynthian_gui_base):
             return True
         hy = getattr(self.bridge, "hybrid", None)
         if re.search(r"SCREEN_AUDIO_MIXER|MIXER", txt):
-            # MIXER: Ansicht Mischer ⇄ DJ (Decks & Titel) – nichts wird neu geladen
-            if hy is not None and hy.vorne:
-                self._mixxx_weg()
-                self.mode = "mix"
-                self.sig = None
-            elif self.mode == "bib":
-                self.mode = "mix"
-                self.sig = None
+            # MIXER: zurück zum Mischer (von überall) · im Mischer: Mischer ⇄ Effekte
+            if self.mode == "mix":
+                self.open_fxview()
             else:
-                self.open_bib()
+                self.mode = "mix"
+                self.sig = None
             return True
         if re.search(r"CHAIN_CONTROL|CONTROL", txt):
             # CTRL: Mischer ⇄ alle Effekte (auf einen Blick)
@@ -4766,7 +4763,7 @@ class zynsimple_screen(zynthian_gui_base):
         self._ctrl_timer = None
         self._ctrl_lang_erledigt = False
 
-    ANSICHT_HINWEIS = "MIXER = Mischer ⇄ DJ · CTRL halten = DJ-Pult (Vollbild) · MENU = ⋯"
+    ANSICHT_HINWEIS = "CTRL 1,5 s halten = DJ-Pult · MIXER = Mischer ⇄ Effekte · MENU = ⋯"
 
     def _dj_da(self):
         hy = getattr(self.bridge, "hybrid", None)
@@ -4778,7 +4775,7 @@ class zynsimple_screen(zynthian_gui_base):
             return "DJ ist noch nicht eingerichtet · ⋯ → Einstellungen → DJ-Pult"
         if hy.phase == "start":
             return "DJ startet gerade – einen Moment …"
-        if not self.settings.get("dj_immer", True):
+        if not self.settings.get("dj_hybrid", False):
             return "DJ ist ausgeschaltet · Einstellungen → DJ-Pult → „DJ im Mischpult“"
         return "DJ startet gleich" + (f" (zuletzt: {hy.fehler})" if hy.fehler else "")
 

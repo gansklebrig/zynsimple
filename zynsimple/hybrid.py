@@ -247,6 +247,18 @@ class Hybrid:
         except Exception as e:
             log.debug(f"ZynSimple: DJ-Kanal prüfen: {e}")
 
+    def kanal_entfernen(self):
+        """Der DJ läuft nicht im Mischpult: einen übrig gebliebenen Kanal „DJ-Pult“ wieder entfernen."""
+        if self.laeuft():
+            return
+        try:
+            for cid, ch in list(self.b.cm.chains.items()):
+                if cid != 0 and (getattr(ch, "title", "") or "") == KANAL:
+                    self.b.tracks.remove(cid)
+                    log.info("ZynSimple: leeren Kanal „DJ-Pult“ entfernt")
+        except Exception as e:
+            log.debug(f"ZynSimple: DJ-Kanal entfernen: {e}")
+
     def _kanal(self):
         cm = self.b.cm
         for cid, ch in list(cm.chains.items()):

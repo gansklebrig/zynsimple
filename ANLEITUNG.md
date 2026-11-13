@@ -73,6 +73,14 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.7 – aufgeräumt: Mischpult für Instrumente, DJ-Pult für den DJ
+
+- Der DJ-Teil im Mischpult (Kanal „DJ-Pult“, Decks & Titel, Mixxx im Hintergrund) ist wieder **raus** –
+  ohne eigene Anzeige für den DDJ war er nicht bedienbar. Der leere Kanal „DJ-Pult“ verschwindet von selbst.
+- **DJ = das DJ-Pult**: großer goldener **♪ DJ**-Knopf unten, **CTRL 1,5 s halten** oder ⋯ → ♪ DJ-Pult.
+  Zurück ins Mischpult: im DJ-Pult **CTRL 1,5 s halten**.
+- MIXER oder CTRL kurz: Mischer ⇄ alle Effekte.
+
 ## Neu in Version 6.6 – CTRL halten = DJ-Pult
 
 - **CTRL 1,5 Sekunden halten** (im Mischpult) öffnet das **DJ-Pult**: Mixxx im Vollbild mit dem DDJ.
