@@ -1062,10 +1062,7 @@ class zynsimple_screen(zynthian_gui_base):
     BIB_BUCHSTABEN = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + ["#"]
 
     def open_bib(self):
-        hy = getattr(self.bridge, "hybrid", None)
-        if hy is None or not hy.laeuft():
-            self._flash("Erst „DJ + Instrumente“ starten – dann lassen sich Titel laden")
-            return
+        # Die DJ-Ansicht öffnet immer – läuft Mixxx (noch) nicht, steht in den Deck-Karten, warum
         self.bib = {"reiter": "neu", "buchstabe": None, "start": 0, "daten": None, "fehler": None, "laedt": None}
         self.mode = "bib"
         self.fokus_i = 0
@@ -1084,8 +1081,23 @@ class zynsimple_screen(zynthian_gui_base):
     def _bib_decks(self, W, y0, dh):
         """Deck A und B: was geladen ist, läuft es, Tempo, Restzeit – antippen = Start/Stopp."""
         cv = self.canvas
+        hy = getattr(self.bridge, "hybrid", None)
+        if hy is None or not hy.laeuft():
+            # Mixxx läuft nicht: großer Hinweis statt leerer Decks
+            self.rrect(14, y0, W - 14, y0 + dh, 12, fill=P["card"], outline=P["gold_dim"], width=2)
+            if hy is not None and hy.phase == "start":
+                t1, t2 = "⏳ Mixxx startet …", "dauert etwa 30 Sekunden – die Titel unten kannst du schon ansehen"
+            elif hy is not None and hy.fehler:
+                t1, t2 = "DJ läuft nicht", self._clip_text(str(hy.fehler), W - 60, self.f_tiny)
+            elif not self.settings.get("dj_immer", True):
+                t1, t2 = "DJ ist ausgeschaltet", "Einstellungen → Bühne → „DJ im Mischpult“"
+            else:
+                t1, t2 = "⏳ DJ startet gleich …", "Mixxx wird im Hintergrund gestartet"
+            cv.create_text(W / 2, y0 + dh * 0.36, text=t1, font=self.f_mid, fill=P["gold"])
+            cv.create_text(W / 2, y0 + dh * 0.72, text=t2, font=self.f_tiny, fill=P["tx2"])
+            return
         try:
-            decks = self.bridge.hybrid.decks()
+            decks = hy.decks()
         except Exception:
             decks = [{}, {}]
         bw = (W - 28 - 8) / 2
@@ -1288,7 +1300,10 @@ class zynsimple_screen(zynthian_gui_base):
 
         def lauf():
             try:
-                txt = self.bridge.hybrid.laden(tid, deck)
+                hy = self.bridge.hybrid
+                if not hy.laeuft():
+                    raise RuntimeError("Mixxx läuft noch nicht – oben steht, warum")
+                txt = hy.laden(tid, deck)
             except Exception as e:
                 txt = f"Laden ging nicht: {e}"
             b["laedt"] = None
@@ -1793,8 +1808,8 @@ class zynsimple_screen(zynthian_gui_base):
                 self._button(cx0, cy, cx1 - cx0, row_h, "♫ DJ · MIXER", True, "bib", cid, None, fill=P["gold"],
                              fg=P["black"], font=self.f_small)
             else:
-                self._button(cx0, cy, cx1 - cx0, row_h, "DJ startet …" if hy_.phase == "start" else "DJ aus",
-                             False, "bib", cid, None, fill=P["card2"], fg=P["tx2"], font=self.f_small)
+                self._button(cx0, cy, cx1 - cx0, row_h, "DJ startet …" if hy_.phase == "start" else "♫ DJ",
+                             True, "bib", cid, None, fill=P["card2"], fg=P["gold"], font=self.f_small)
             if first_vis:
                 self._anchor(cx0, cy, cx1, cy + row_h, "Musik in Deck A oder B laden")
         elif s["preset"]:
@@ -2190,10 +2205,7 @@ class zynsimple_screen(zynthian_gui_base):
                 self.open_fxview()
                 return
             elif art == "dj_ansicht":
-                if self._dj_da():
-                    self.open_bib()
-                else:
-                    self._flash(self._dj_hinweis())
+                self.open_bib()
                 return
             elif art == "help":
                 self.open_help()
@@ -4702,10 +4714,8 @@ class zynsimple_screen(zynthian_gui_base):
             elif self.mode == "bib":
                 self.mode = "mix"
                 self.sig = None
-            elif self._dj_da():
-                self.open_bib()
             else:
-                self._flash(self._dj_hinweis())
+                self.open_bib()
             return True
         if re.search(r"CHAIN_CONTROL|CONTROL", txt):
             # CTRL: Mischer ⇄ alle Effekte (auf einen Blick)

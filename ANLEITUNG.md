@@ -73,6 +73,11 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.5
+
+- Die DJ-Ansicht öffnet jetzt **immer** (♫ DJ-Knopf, Kanal „DJ-Pult“, MIXER-Taste). Läuft Mixxx noch nicht,
+  steht oben groß, warum („Mixxx startet …“ oder die Fehlermeldung) – statt zurück in den Mischer zu springen.
+
 ## Neu in Version 6.4 – kein Profi-Mischer, Mixxx bleibt unsichtbar
 
 - **Der klassische Zynthian-Mischer („Profi-Mischer“) ist weg** – es gibt nur noch das Mischpult.
