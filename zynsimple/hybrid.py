@@ -693,6 +693,8 @@ class Hybrid:
                 log.info("ZynSimple: Hybrid – Mixxx spielt in den Kanal „DJ-Pult“")
             if n % 2 == 1:
                 self._midi_trennen()
+            if n % 4 == 2 and not self.vorne:
+                self._rueckfragen_weg()
             self._tempo()
             if n == 60:                                   # ~30 s nach dem Start: antwortet Mixxx?
                 self._verbindung_pruefen()
@@ -779,11 +781,44 @@ class Hybrid:
         except Exception:
             return ""
 
+    def _fenster_liste(self):
+        """Sichtbare Mixxx-Fenster als [(id, breite, höhe, name)]."""
+        out = []
+        for w in self._xdo("search", "--onlyvisible", "--class", "mixxx").split():
+            g = {}
+            for z in self._xdo("getwindowgeometry", "--shell", w).splitlines():
+                if "=" in z:
+                    k, v = z.split("=", 1)
+                    g[k] = v
+            try:
+                out.append((w, int(g.get("WIDTH", 0)), int(g.get("HEIGHT", 0)), self._xdo("getwindowname", w).strip()))
+            except ValueError:
+                pass
+        return out
+
     def _mixxx_fenster(self):
-        ids = self._xdo("search", "--onlyvisible", "--class", "mixxx").split() or \
-            self._xdo("search", "--class", "mixxx").split()
+        """Das Hauptfenster (das größte) – nicht eine Rückfrage oder ein Hilfsfenster."""
+        liste = [f for f in self._fenster_liste() if f[1] >= 200 and f[2] >= 150]
+        if liste:
+            if getattr(self, "_haupt", None) not in [f[0] for f in liste]:
+                self._haupt = max(liste, key=lambda f: f[1] * f[2])[0]
+            return self._haupt
+        ids = self._xdo("search", "--class", "mixxx").split()
         return ids[-1] if ids else None
 
+    def _rueckfragen_weg(self):
+        """Mixxx-Rückfragen (z. B. „kein Eingabegerät für diesen Aux“) kann am Zynthian niemand wegtippen, wenn Mixxx
+        unsichtbar läuft – sie blockieren aber Laden und Tastatur. Darum: merken und mit Escape schließen."""
+        haupt = getattr(self, "_haupt", None)
+        if not haupt:
+            return
+        for w, bw, bh, name in self._fenster_liste():
+            if w == haupt or bw < 120 or bh < 60:
+                continue
+            log.warning(f"ZynSimple: Hybrid – Mixxx-Rückfrage geschlossen: {name!r}")
+            self.meldung = f"Mixxx-Meldung geschlossen: {name}" if name else "Mixxx-Meldung geschlossen"
+            self._xdo("windowfocus", w)
+            self._xdo("key", "--window", w, "Escape")
     def laden(self, track_id, deck):
         """Titel aus der Bibliothek in Deck 1 (A) oder 2 (B) laden. Mixxx muss dafür kurz sichtbar sein
         (der Titel wird in sein Suchfeld getippt); war ZynSimple vorne, kommt es danach wieder nach vorne."""

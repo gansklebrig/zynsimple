@@ -468,7 +468,7 @@ class zynsimple_screen(zynthian_gui_base):
                         self.sig = None
                 except Exception:
                     pass
-            if self.mode == "mix" and not self.settings.get("help_seen") and self.splash_done \
+            if self.mode == "mix" and not self.settings.get("help_seen_v6") and self.splash_done \
                     and any(s_["kind"] != "main" for s_ in self.strips) and time.monotonic() - self.last_input > 1.5:
                 self.open_help(willkommen=True)
             if self.mode == "mix":
@@ -514,8 +514,6 @@ class zynsimple_screen(zynthian_gui_base):
                 self.tick_lernen()
             elif self.mode == "bib":
                 self.tick_bib()
-            if self.mode != "splash":
-                self._ddj_tick()
             elif self.mode == "stick":
                 if self.stick.get("neu"):
                     self.stick["neu"] = False
@@ -531,6 +529,8 @@ class zynsimple_screen(zynthian_gui_base):
                 self.strips = self.data["strips"]
                 self.draw_idle()
                 delay = 50
+            if self.mode not in ("splash", "wechsel"):
+                self._ddj_tick()                      # DJ-Controller: BROWSE / LOAD
         except Exception as e:
             log.exception(f"ZynSimple Bildschirm: {e}")
         self.timer = self.canvas.after(delay, self.tick)
@@ -1390,10 +1390,10 @@ class zynsimple_screen(zynthian_gui_base):
     def close_help(self):
         self.mode = "mix"
         self.sig = None
-        if not self.settings.get("help_seen"):
+        if not self.settings.get("help_seen_v6"):
             try:
                 from . import settings as st
-                st.save_intern(self.settings, "help_seen", True)
+                st.save_intern(self.settings, "help_seen_v6", True)
             except Exception:
                 pass
 
@@ -1427,12 +1427,19 @@ class zynsimple_screen(zynthian_gui_base):
                 box = self.rrect(bx, by, bx + bw, by + bh, 8, fill="#2a2014", outline=P["gold"])
                 cv.coords(t, bx + 8, by + 6)
                 cv.tag_raise(t)
-            titel = "Willkommen bei ZynSimple!" if getattr(self, "help_welcome", False) else "So funktioniert der Mischer"
-            tw = min(W - 40, 520)
-            self.rrect((W - tw) / 2, H * 0.36, (W + tw) / 2, H * 0.36 + 74, 14, fill=P["card"], outline=P["gold"], width=2)
-            cv.create_text(W / 2, H * 0.36 + 24, text=titel, font=self.f_big, fill=P["gold"])
-            cv.create_text(W / 2, H * 0.36 + 52, font=self.f_tiny, fill=P["tx2"],
-                           text="Antippen: weiter zu den Tasten am Zynthian · langer Druck auf M, S, ❄ … erklärt sie auch")
+            titel = "Willkommen im Mischpult!" if getattr(self, "help_welcome", False) else "So funktioniert das Mischpult"
+            tw = min(W - 40, 560)
+            y0 = H * 0.30
+            self.rrect((W - tw) / 2, y0, (W + tw) / 2, y0 + 150, 14, fill=P["card"], outline=P["gold"], width=2)
+            cv.create_text(W / 2, y0 + 24, text=titel, font=self.f_big, fill=P["gold"])
+            for k, (taste, was) in enumerate((("MIXER", "Mischer ⇄ DJ (Decks & Titel)"),
+                                              ("CTRL", "einfach ⇄ ausführlich (Profi-Mischer / Mixxx groß)"),
+                                              ("MENU", "⋯ – Barden Beats, Einstellungen, Hilfe"))):
+                yy = y0 + 56 + k * 24
+                cv.create_text((W - tw) / 2 + 24, yy, anchor="w", text=taste, font=self.f_small, fill=P["gold2"])
+                cv.create_text((W - tw) / 2 + 110, yy, anchor="w", text=was, font=self.f_small, fill=P["champ"])
+            cv.create_text(W / 2, y0 + 134, font=self.f_tiny, fill=P["tx2"],
+                           text="Antippen: weiter zu allen Tasten · langer Druck auf M, S, ❄ … erklärt sie auch")
         else:
             cv.delete("all")
             cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
@@ -1724,15 +1731,25 @@ class zynsimple_screen(zynthian_gui_base):
         # rechts: Effekte, Sperre, Mehr
         mw = max(54, int(W * 0.08))
         ew = int(mw * 1.35)
-        self._button(W - 3 * (pad + mw) - (ew - mw), y + pad + 2, ew, h - 2 * pad - 2, "Effekte", True, "fxview",
-                     None, None, fill=P["card2"], fg=P["gold"], outline=P["gold_dim"], font=self.f_small)
+        hy_ = getattr(self.bridge, "hybrid", None)
+        if hy_ is not None and getattr(self, "dj_installed", False) and self.settings.get("dj_immer", True):
+            # Der Weg zum DJ – groß und golden (auch: MIXER-Taste). „Effekte“ liegt dann unter ⋯.
+            bereit = hy_.laeuft()
+            self._button(W - 3 * (pad + mw) - (ew - mw), y + pad + 2, ew, h - 2 * pad - 2,
+                         "♫ DJ" if bereit else "DJ ⏳", True, "dj_ansicht", None, None,
+                         fill=P["gold"] if bereit else P["card2"], fg=P["black"] if bereit else P["tx2"],
+                         outline=P["gold"], font=self.f_mid if bereit else self.f_small)
+        else:
+            self._button(W - 3 * (pad + mw) - (ew - mw), y + pad + 2, ew, h - 2 * pad - 2, "Effekte", True, "fxview",
+                         None, None, fill=P["card2"], fg=P["gold"], outline=P["gold_dim"], font=self.f_small)
         self._button(W - pad - mw, y + pad + 2, mw, h - 2 * pad - 2, "⋯", True, "more", None, None,
                      font=self.f_big, fg=P["gold"])
         self._button(W - 2 * (pad + mw), y + pad + 2, mw, h - 2 * pad - 2,
                      "AUFTRITT" if self.locked else "Auftritt", True, "lock", None, None,
                      fill=P["rose"] if self.locked else P["card2"], font=self.f_tiny)
         self._anchor(W - 3 * (pad + mw) - (ew - mw), y + pad, W - 3 * (pad + mw) - (ew - mw) + ew, y + h - pad,
-                     "alle Effekte aller Spuren", "up")
+                     "DJ: Decks A/B und Titel laden (auch MIXER-Taste)" if hy_ is not None and getattr(self, "dj_installed", False)
+                     else "alle Effekte aller Spuren", "up")
         self._anchor(W - 2 * (pad + mw), y + pad, W - pad, y + h - pad,
                      "Auftritt: nur Fader, Mute, Szenen, Panik · ⋯ = Mehr: DJ, Barden Beats, Einstellungen", "up")
         try:
@@ -2173,6 +2190,12 @@ class zynsimple_screen(zynthian_gui_base):
             elif art == "fxview":
                 self.open_fxview()
                 return
+            elif art == "dj_ansicht":
+                if self._dj_da():
+                    self.open_bib()
+                else:
+                    self._flash(self._dj_hinweis())
+                return
             elif art == "help":
                 self.open_help()
                 return
@@ -2192,7 +2215,7 @@ class zynsimple_screen(zynthian_gui_base):
                 def fertig(res, t=title):
                     self.mode = "mix"
                     self.sig = None
-                    if "e" not in res and not self.settings.get("help_seen"):
+                    if "e" not in res and not self.settings.get("help_seen_v6"):
                         self.canvas.after(600, lambda: self.open_help(willkommen=True))
                 self.mode = "newtrack"
                 self.ntrk = {"tpl": tp, "inputs": ins}
@@ -2387,6 +2410,7 @@ class zynsimple_screen(zynthian_gui_base):
                  ("menu", "Zynthian-Menü", "Ketten, Snapshots, Admin"),
                  ("expert", "Profi-Mischer", "ausführlich · auch mit der CTRL-Taste"),
                  ("newtrack", "＋ Neue Spur", "Eingang, Handpan, Gesang, Synth …"),
+                 ("fxview", "Alle Effekte", "Effekte aller Spuren auf einen Blick"),
                  ("idle", "Bühnenbild", "Animation jetzt zeigen"),
                  ("settings", f"Update {upd} bereit" if upd else "Einstellungen", "Update, Start-Logo, Bühnenbild …"),
                  ("close", "Zurück", "")]
@@ -2418,6 +2442,23 @@ class zynsimple_screen(zynthian_gui_base):
                                width=gw - 24, justify="center")
             self.more_hits.append((cx, cy, cx + gw, cy + gh, art))
 
+    def _wechsel_schirm(self, titel, unter):
+        """Großer Hinweis während ein Wechsel dauert – damit man sieht, dass der Knopf etwas getan hat."""
+        cv = self.canvas
+        W, H = self._geom()
+        cv.delete("all")
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        cv.create_text(W / 2, H * 0.40, text=titel, font=self.f_huge, fill=P["gold"])
+        cv.create_text(W / 2, H * 0.55, text=unter, font=self.f_small, fill=P["champ"])
+        self.mode = "wechsel"                       # bleibt stehen, bis die andere Oberfläche übernimmt
+
+        def zurueck():
+            if self.mode == "wechsel":                 # hat nicht geklappt → wieder ins Mischpult
+                self.mode = "mix"
+                self.sig = None
+                self._flash("Der Wechsel hat nicht geklappt – noch einmal versuchen")
+        self.canvas.after(90000, zurueck)
+
     def more_press(self, ev):
         for h in self.more_hits:
             if h[0] <= ev.x <= h[2] and h[1] <= ev.y <= h[3]:
@@ -2433,7 +2474,8 @@ class zynsimple_screen(zynthian_gui_base):
                 elif art == "imres":
                     from . import imres
                     threading.Thread(target=imres.system, args=("imres",), daemon=True).start()
-                    self._flash("Barden Beats startet …")
+                    self._wechsel_schirm("Barden Beats startet …", "dauert etwa 20–30 Sekunden · zurück: dort ⚙ → „Zum Mischpult“")
+                    return
                 elif art == "dj":
                     from . import start_dj
                     start_dj(self.zyngui)
@@ -2454,6 +2496,8 @@ class zynsimple_screen(zynthian_gui_base):
                             self._flash(hy.stoppen())
                     except Exception as e:
                         self._flash(str(e))
+                elif art == "fxview":
+                    return self.open_fxview()
                 elif art == "newtrack":
                     self.open_newtrack()
                 elif art == "idle":

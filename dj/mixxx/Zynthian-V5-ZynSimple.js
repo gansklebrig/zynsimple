@@ -32,6 +32,11 @@ ZynV5.STEM_FARBE = [3, 2, 4, 5];        // Drums rot, Bass gold, Melodie grün, 
 ZynV5.STEM_NAME = ["Drums", "Bass", "Melodie", "Vocals"];
 ZynV5.LOOPS = [4, 8, 16];
 ZynV5.HANDPAN_FX = "[EffectRack1_EffectUnit3]";
+ZynV5.auxDa = function() { return ZynV5.hole("[Auxiliary1]", "input_configured") > 0; };
+ZynV5.auxUm = function(key, text) {
+    if (!ZynV5.auxDa()) { ZynV5.zeige("Handpan: kein Eingang in Mixxx eingerichtet (im Mischpult läuft die Handpan über den Zynthian)"); return 0; }
+    var v = ZynV5.umschalten("[Auxiliary1]", key); ZynV5.zeige(text + (v ? " an" : " aus")); return v;
+};
 ZynV5.ebene = 0;
 ZynV5.alt = false;
 ZynV5.fuehrend = 0;
@@ -75,7 +80,9 @@ ZynV5.vorne = function() { return ZynV5.fuehrend || 1; };
 // ---------------------------------------------------------------------------------------------
 ZynV5.init = function(id, debugging) {
     // Handpan/Mikro (Zynthian-Eingänge) in den Mix, mit eigener Effekt-Einheit 3
-    if (ZynV5.cfg.handpanFx) {
+    // Handpan-Eingang nur anfassen, wenn Mixxx dafür wirklich ein Eingangsgerät hat – sonst öffnet Mixxx eine
+    // Rückfrage („kein Eingabegerät für diesen Aux“), die am Zynthian niemand wegtippen kann
+    if (ZynV5.cfg.handpanFx && ZynV5.auxDa()) {
         ZynV5.setze("[Auxiliary1]", "main_mix", 1);
         ZynV5.setze("[Auxiliary1]", "master", 1);
         ZynV5.setze("[EffectRack1_EffectUnit2]", "group_[Auxiliary1]_enable", 0);
@@ -313,7 +320,7 @@ ZynV5.taste = function(channel, control, value, status, group) {
             ZynV5.zeige(v ? "Auto-DJ an – mischt selbst weiter" : "Auto-DJ aus");
             return;
         }
-        v = ZynV5.umschalten("[Auxiliary1]", "main_mix"); ZynV5.zeige("Handpan im Mix " + (v ? "an" : "aus")); return;
+        ZynV5.auxUm("main_mix", "Handpan im Mix"); return;
     case N.CTRL:
         var a = ZynV5.hole("[Channel1]", "pfl"), b = ZynV5.hole("[Channel2]", "pfl");
         var neu = a ? 2 : (b ? 0 : 1);           // A → B → aus → A
@@ -352,10 +359,10 @@ ZynV5.taste = function(channel, control, value, status, group) {
         }
         ZynV5.fLeds();
     } else {
-        if (f === 0) { v = ZynV5.umschalten("[Auxiliary1]", "main_mix"); ZynV5.zeige("Handpan im Mix " + (v ? "an" : "aus")); }
+        if (f === 0) { ZynV5.auxUm("main_mix", "Handpan im Mix"); }
         else if (f === 1) { v = ZynV5.umschalten(ZynV5.HANDPAN_FX, "enabled"); ZynV5.zeige("Handpan-Effekt " + (v ? "an" : "aus")); }
         else if (f === 2) { ZynV5.setze(ZynV5.HANDPAN_FX.replace("]", "_Effect1]"), "effect_selector", 1); ZynV5.zeige("Nächster Handpan-Effekt"); }
-        else { v = ZynV5.umschalten("[Auxiliary1]", "talkover"); ZynV5.zeige("Durchsage (Talkover) " + (v ? "an – Musik wird leiser" : "aus")); }
+        else { ZynV5.auxUm("talkover", "Durchsage (Talkover)"); }
         ZynV5.fLeds();
     }
 };

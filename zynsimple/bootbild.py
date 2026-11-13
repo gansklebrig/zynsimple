@@ -20,7 +20,7 @@ log = logging.getLogger("zynsimple")
 IMG_DIR = "/zynthian/config/img"
 ZIELE = {"boot": os.path.join(IMG_DIR, "fb_zynthian_boot.jpg"), "fehler": os.path.join(IMG_DIR, "fb_zynthian_error.jpg")}
 GANS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img", "gans_380.png")
-BILD_VERSION = 2                       # neue Gestaltung → einmal neu erzeugen
+BILD_VERSION = 3                       # neue Gestaltung → einmal neu erzeugen
 ANIM_SKRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plymouth-gans.sh")
 ANIM_FRAME = "/usr/share/plymouth/themes/zynloganim/frame-0.png"
 
@@ -63,7 +63,7 @@ def bild_bauen(ziel, art, w, h):
            "-fill", "#f3e9d8", "-font", "DejaVu-Sans", "-pointsize", str(titel),
            "-gravity", "north", "-annotate", f"+0+{y_titel}", "zynthian",
            "-fill", ring, "-pointsize", str(zeile), "-annotate", f"+0+{y_zeile}",
-           "ZynSimple   ·   Barden Beats   ·   DJ-Pult" if art == "boot" else "Da ging etwas schief",
+           "Mischpult startet  …  einen Moment" if art == "boot" else "Da ging etwas schief",
            "-strip", "-quality", "92", tmp]
     subprocess.run(cmd, check=True, capture_output=True, timeout=60)
     os.replace(tmp, ziel)

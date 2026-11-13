@@ -73,6 +73,17 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.3 – leichter zu verstehen
+
+- **Großer goldener „♫ DJ“-Knopf** unten im Mischpult (statt „Effekte“ – die liegen jetzt unter ⋯ → „Alle Effekte“).
+  Solange Mixxx noch startet, steht dort „DJ ⏳“.
+- **Willkommens-Seite** beim ersten Öffnen: erklärt MIXER, CTRL und MENU.
+- **Mixxx-Rückfragen** (z. B. „Es ist kein Eingabegerät für diesen Aux ausgewählt“) kommen nicht mehr bzw. werden
+  automatisch geschlossen – sie ließen sich am Zynthian nicht wegtippen.
+- **Wechsel zu Barden Beats** zeigt groß „Barden Beats startet …“, statt scheinbar nichts zu tun.
+- Startbild sagt „Mischpult startet … einen Moment“.
+- Behoben: Bildschirmschoner, Update-Anzeige, Stimmgerät/Looper und Stick-Ansicht aktualisierten sich seit 5.x nicht mehr.
+
 ## Neu in Version 6.2
 
 - Selbsttest der DJ-Verbindung: Antwortet Mixxx 30 s nach dem Start nicht, steht das am Bildschirm, und
