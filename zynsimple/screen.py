@@ -123,6 +123,9 @@ class zynsimple_screen(zynthian_gui_base):
         self.tip_items = []
         self.tuner = None
         self.autogain = None
+        self.set_armed = {}
+        self.set_page = "anzeige"
+        self.set_pick = None
 
         family = getattr(cfg, "font_family", None) or "Audiowide"
         h = max(320, int(self.height))
@@ -1748,9 +1751,11 @@ class zynsimple_screen(zynthian_gui_base):
         hy_ = getattr(self.bridge, "hybrid", None)
         if getattr(self, "dj_installed", False):
             # Der Weg zum DJ-Pult – groß und golden (auch: CTRL 1,5 s halten). „Effekte“ liegt dann unter ⋯.
+            scharf = getattr(self, "_dj_scharf", 0) > time.monotonic()
             self._button(W - 3 * (pad + mw) - (ew - mw), y + pad + 2, ew, h - 2 * pad - 2,
-                         "♪ DJ", True, "dj_pult", None, None,
-                         fill=P["gold"], fg=P["black"], outline=P["gold"], font=self.f_mid)
+                         "Sicher?" if scharf else "♪ DJ", True, "dj_pult", None, None,
+                         fill=P["rose"] if scharf else P["gold"], fg=P["black"], outline=P["gold"],
+                         font=self.f_small if scharf else self.f_mid)
         else:
             self._button(W - 3 * (pad + mw) - (ew - mw), y + pad + 2, ew, h - 2 * pad - 2, "Effekte", True, "fxview",
                          None, None, fill=P["card2"], fg=P["gold"], outline=P["gold_dim"], font=self.f_small)
@@ -2203,7 +2208,19 @@ class zynsimple_screen(zynthian_gui_base):
                 self.open_fxview()
                 return
             elif art == "dj_pult":
-                self._ctrl_lang()
+                # aus Versehen angetippt? Der Wechsel lässt alle Instrumente verstummen → zweimal tippen
+                if getattr(self, "_dj_scharf", 0) > time.monotonic():
+                    self._dj_scharf = 0
+                    self._ctrl_lang()
+                else:
+                    self._dj_scharf = time.monotonic() + 3
+                    self._flash("Zum DJ-Pult? Noch einmal tippen – die Instrumente verstummen dabei")
+                    self.sig = None
+
+                    def zurueck():
+                        if self.mode == "mix":
+                            self.sig = None
+                    self.canvas.after(3100, zurueck)
                 return
             elif art == "help":
                 self.open_help()
@@ -3763,7 +3780,9 @@ class zynsimple_screen(zynthian_gui_base):
         except Exception:
             us = {}
         now = time.monotonic()
-        page = getattr(self, "set_page", "anzeige")
+        page = getattr(self, "set_page", None) or "anzeige"
+        if page not in [p[0] for p in self.SET_PAGES]:
+            page = self.set_page = "anzeige"
 
         # Kopf: Titel + Fertig
         hh = max(40, int(H * 0.09))
@@ -4393,7 +4412,10 @@ class zynsimple_screen(zynthian_gui_base):
         # Schrift
         cv.create_text(W / 2, H * 0.47, text="✦", font=self.f_huge, fill=_mix(P["gold_dim"], P["gold2"], g))
         sc = self.data.get("last_scene")
-        bpm = self.x.tempo()
+        try:
+            bpm = self.x.tempo() if self.x is not None else None
+        except Exception:
+            bpm = None
         info = "   ·   ".join(v for v in (f"Szene {sc}" if sc else "", f"{bpm:g} BPM" if bpm else "",
                                           "FREEZE" if frozen else "") if v)
         if info:
@@ -4551,6 +4573,16 @@ class zynsimple_screen(zynthian_gui_base):
                 self._flash(self.ANSICHT_HINWEIS)
                 return True
             self.back_action()
+            return True
+        if role == "STOP" and self.mode not in ("mix", "splash"):
+            # Panik wirkt überall gleich – auch in Menüs, Einstellungen und Werkzeugen
+            if t == "S":
+                self._touch()
+                try:
+                    self.bridge.action(None, "panic")
+                    self._flash("Panik – alles beruhigt")
+                except Exception as e:
+                    self._flash(f"Panik: {e}")
             return True
         if self.mode == "idle":
             if t == "P":

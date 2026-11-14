@@ -73,6 +73,18 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.9 – Bugtest
+
+Automatischer Test: 40 000 zufällige Eingaben (alle Tasten kurz/lang, alle Drehregler, Drücken, Antippen überall)
+in allen Ansichten. Behoben:
+
+- **STOP = Panik wirkt jetzt überall** (vorher nur im Mischer – in Menüs ging die Taste an den Zynthian).
+- **♪ DJ-Knopf braucht zwei Tipps** („Sicher?“) – ein versehentlicher Tipp hätte alle Instrumente verstummen lassen.
+  CTRL 1,5 s halten wechselt weiterhin direkt.
+- Einstellungen öffneten in seltenen Fällen nicht (Seite unbekannt) – behoben.
+- Bildschirmschoner stürzte ab, wenn das Tempo nicht lesbar war – behoben.
+- Aus jeder Ansicht führt BACK in höchstens ein paar Schritten zurück ins Mischpult (geprüft).
+
 ## Neu in Version 6.8
 
 - Behoben: Das automatische Entfernen des Kanals „DJ-Pult“ hing („Removing the mixer channel …“).
