@@ -73,6 +73,13 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.10 – Nachfrage im DJ-Pult
+
+- Läuft gerade Musik, fragt das DJ-Pult nach, bevor **MENU 1,5 s halten** (Barden Beats) oder
+  **CTRL 1,5 s halten** (Mischpult) wechselt: In der Hinweisleiste steht „⚠ Musik läuft! …“.
+  Noch einmal 1,5 s halten (innerhalb von 8 Sekunden) = wirklich wechseln. Sonst einfach weiterspielen.
+- Ist keine Musik an, wechselt es wie bisher sofort.
+
 ## Neu in Version 6.9 – Bugtest
 
 Automatischer Test: 40 000 zufällige Eingaben (alle Tasten kurz/lang, alle Drehregler, Drücken, Antippen überall)

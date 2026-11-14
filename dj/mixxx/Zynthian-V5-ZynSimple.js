@@ -1,7 +1,7 @@
 // ZynSimple: Tasten und Drehregler des Zynthian V5 als Zusatz-Controller für Mixxx – mit Ebenen wie bei Barden Beats.
 // Der DJ-Helfer schickt: Tasten als Note 1–24 (an/aus), Drehregler als CC 1–4 (relativ, 64 = Mitte).
 // Zurück an den Helfer: Note n = LED-Farbe (0 aus, 1 glimmen, 2 gold, 3 rot, 4 grün, 5 gelb),
-// CC 100/101 = Tempo × 10, CC 102 = Schlag, CC 103 = läuft, SysEx = Text für die Hinweisleiste.
+// CC 100/101 = Tempo × 10, CC 102 = Schlag, CC 103 = läuft (Takt), CC 104 = Musik läuft, SysEx = Text für die Hinweisleiste.
 // Befehle an Mixxx (vom Helfer, von ZynSimple oder vom Handy): CC 110/111 = Tempo von außen × 10 (TR-8S oder
 // Zynthian geben den Takt vor), CC 112 = Bibliothek-Bereich wählen, CC 113 = gefundenen Titel in Deck 1/2 laden.
 //
@@ -207,6 +207,9 @@ ZynV5.tempoSenden = function() {
     var alt = ZynV5.fuehrend;
     ZynV5.fuehrend = ZynV5.waehleDeck();
     if (alt !== ZynV5.fuehrend && ZynV5.ebene === 1) { ZynV5.fLeds(); }
+    // CC 104: läuft gerade Musik? (für die Nachfrage vor einem Wechsel – unabhängig vom Takt-Senden)
+    var musik = (ZynV5.hole("[Channel1]", "play") > 0 || ZynV5.hole("[Channel2]", "play") > 0) ? 127 : 0;
+    if (musik !== ZynV5.musikAlt) { ZynV5.musikAlt = musik; midi.sendShortMsg(0xB0, 104, musik); }
     if (!ZynV5.cfg.clock) { return; }
     if (!ZynV5.fuehrend) { midi.sendShortMsg(0xB0, 103, 0); return; }
     var v = Math.max(0, Math.min(16383, Math.round(ZynV5.hole("[Channel" + ZynV5.fuehrend + "]", "bpm") * 10)));

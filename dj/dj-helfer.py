@@ -460,9 +460,12 @@ def mixxx_lesen(v, clock, leds):
                     elif d1 == 103:
                         with clock.lock:
                             clock.spielt = d2 > 0
+                    elif d1 == 104:
+                        clock.musik = d2 > 0
 
 
 def main():
+    scharf = {}                     # Wechsel, die nach einer Nachfrage bestätigt werden dürfen (Ziel → bis wann)
     s = einstellungen()
     v = Virtuell()
     clock = Clock(s["takt"] == "senden")
@@ -549,7 +552,17 @@ def main():
             t0 = seit.get(idx)
             if t0 is not None and name in HALTEN and idx not in erledigt and jetzt - t0 >= HALTEN[name][0]:
                 erledigt.add(idx)
-                umschalten(HALTEN[name][1])
+                ziel = HALTEN[name][1]
+                musik = getattr(clock, "musik", False)
+                if ziel in ("imres", "zynthian") and musik and scharf.get(ziel, 0) < jetzt:
+                    # Musik läuft: ein Wechsel würde sie abbrechen → erst nachfragen (noch einmal halten = ja)
+                    scharf[ziel] = jetzt + 8
+                    wohin = "Barden Beats" if ziel == "imres" else "ins Mischpult"
+                    an_hud(f"T|⚠ Musik läuft! Wirklich {'zu ' if ziel == 'imres' else ''}{wohin}? "
+                           f"{name} noch einmal 1,5 s halten – sonst einfach weiterspielen")
+                else:
+                    scharf.pop(ziel, None)
+                    umschalten(ziel)
         for i in range(npots):
             d = lib.get_value_zynpot(i)
             if d:
