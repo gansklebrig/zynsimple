@@ -51,6 +51,7 @@ DEFAULTS = {
     "keytar_kanal": None,
     "dj_handpan_fx": True,
     "dj_stems": True,
+    "geraet_melden": True,
     "dj_analyse": True,
 }
 
@@ -162,6 +163,20 @@ def _buehne(zyngui, bridge, settings):
                 takt.anwenden(settings)          # auch, wenn die TR-8S erst später eingesteckt wird
         except Exception as e:
             log.debug(f"ZynSimple: Takt: {e}")
+        # Neues Instrument eingesteckt (USB-MIDI)? → im Mischpult anbieten, eine Spur dafür anzulegen
+        try:
+            import zynautoconnect as za
+            from .geraete import RX_NICHT, RX_DDJ, _name, _text
+            jetzt_da = {_name(p) for p in list(za.devices_in or [])
+                        if p is not None and not RX_NICHT.search(_text(p)) and not RX_DDJ.search(_text(p))}
+            if "midi_da" in zustand:
+                for neu_ in sorted(jetzt_da - zustand["midi_da"]):
+                    scr = zyngui.screens.get(SCREEN_NAME)
+                    if scr is not None and settings.get("geraet_melden", True):
+                        scr.neues_geraet(neu_)
+            zustand["midi_da"] = jetzt_da
+        except Exception as e:
+            log.debug(f"ZynSimple: Geräte-Wache: {e}")
         try:
             from . import dj
             stick = dj.musik_stick() if dj.eingerichtet() else None

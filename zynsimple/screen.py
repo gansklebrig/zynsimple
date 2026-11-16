@@ -352,7 +352,9 @@ class zynsimple_screen(zynthian_gui_base):
 
     def _redraw(self):
         self.sig = None
-        if self.mode == "edit":
+        if self.mode == "geraetneu":
+            self.draw_geraetneu()
+        elif self.mode == "edit":
             self.draw_editor()
         elif self.mode == "browse":
             self.draw_browser()
@@ -1697,6 +1699,8 @@ class zynsimple_screen(zynthian_gui_base):
             self.fokus_aktiv = False
         if self.mode == "splash":
             return self.stop_splash()
+        if self.mode == "geraetneu":
+            return self.geraetneu_press(ev)
         if self.mode == "update":
             u = getattr(self, "upd", {})
             from . import fortschritt as fs
@@ -2087,6 +2091,71 @@ class zynsimple_screen(zynthian_gui_base):
                 cv.create_text(cx + gw / 2, cy + gh * 0.68, text=sub, font=self.f_tiny, fill=P["tx2"],
                                width=gw - 24, justify="center")
             self.more_hits.append((cx, cy, cx + gw, cy + gh, art))
+
+    # ------------------------------------------------------------------
+    # Neues Instrument eingesteckt
+    # ------------------------------------------------------------------
+    def neues_geraet(self, name):
+        """Ein MIDI-Gerät wurde eingesteckt: im Mischpult fragen, ob es eine eigene Spur bekommen soll."""
+        if self.mode != "mix" or self.locked:
+            self._flash(f"🎹 „{name}“ eingesteckt · eigene Spur: ⋯ → ＋ Neue Spur")
+            return
+        self.geraet_neu = name
+        self.mode = "geraetneu"
+        self.draw_geraetneu()
+
+        def weg():
+            if self.mode == "geraetneu" and getattr(self, "geraet_neu", None) == name:
+                self.mode = "mix"
+                self.sig = None
+        self.canvas.after(25000, weg)
+
+    def draw_geraetneu(self):
+        cv = self.canvas
+        W, H = self._geom()
+        cv.delete("all")
+        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        tw = min(W - 40, 620)
+        x0, y0 = (W - tw) / 2, H * 0.16
+        self.rrect(x0, y0, x0 + tw, y0 + H * 0.66, 16, fill=P["card"], outline=P["gold"], width=2)
+        cv.create_text(W / 2, y0 + 40, text="🎹 Neues Instrument", font=self.f_big, fill=P["gold"])
+        cv.create_text(W / 2, y0 + 80, text=f"„{self._clip_text(getattr(self, 'geraet_neu', ''), tw - 40, self.f_mid)}“",
+                       font=self.f_mid, fill=P["champ"])
+        cv.create_text(W / 2, y0 + 112, font=self.f_small, fill=P["tx2"],
+                       text=("BeatStep Pro: Bass-, Melodie- (und Drum-)Spur passend anlegen?"
+                             if "beatstep" in str(getattr(self, "geraet_neu", "")).lower() else
+                             "Es spielt schon alle Synth-Spuren mit. Eigene Spur mit eigenem Klang anlegen?"))
+        bh = 64
+        by = y0 + H * 0.66 - bh - 24
+        bw = (tw - 60) / 2
+        self.gn_ja = (x0 + 20, by, x0 + 20 + bw, by + bh)
+        self.gn_nein = (x0 + 40 + bw, by, x0 + 40 + 2 * bw, by + bh)
+        self.rrect(*self.gn_ja, 14, fill=P["gold"], outline=P["gold"])
+        cv.create_text((self.gn_ja[0] + self.gn_ja[2]) / 2, by + bh / 2, text="＋ Spur anlegen  (SEL)",
+                       font=self.f_mid, fill=P["black"])
+        self.rrect(*self.gn_nein, 14, fill=P["card2"], outline=P["line"])
+        cv.create_text((self.gn_nein[0] + self.gn_nein[2]) / 2, by + bh / 2, text="Nein danke  (BACK)",
+                       font=self.f_mid, fill=P["champ"])
+
+    def geraetneu_press(self, ev):
+        def drin(r):
+            return r[0] <= ev.x <= r[2] and r[1] <= ev.y <= r[3]
+        if drin(getattr(self, "gn_ja", (0, 0, 0, 0))):
+            self.geraetneu_ja()
+        elif drin(getattr(self, "gn_nein", (0, 0, 0, 0))):
+            self.mode = "mix"
+            self.sig = None
+
+    def geraetneu_ja(self):
+        self.mode = "mix"
+        if "beatstep" in str(getattr(self, "geraet_neu", "")).lower() and self.x is not None:
+            drums = bool(self.settings.get("bsp_drums"))
+            self.sig = None
+            return self._run_track(lambda: {"chain": self.x.create_beatstep(drums)},
+                                   "BeatStep Pro ist da: Bass auf Kanal 1, Melodie auf Kanal 2" +
+                                   (", Drums auf Kanal 10" if drums else ""))
+        self.open_newtrack()
+        self._flash(f"Neue Spur für „{getattr(self, 'geraet_neu', '')}“: Synth wählen")
 
     def _wechsel_schirm(self, titel, unter):
         """Großer Hinweis während ein Wechsel dauert – damit man sieht, dass der Knopf etwas getan hat."""
@@ -4380,6 +4449,10 @@ class zynsimple_screen(zynthian_gui_base):
 
     def switch_select(self, t="S"):
         self._touch()
+        if self.mode == "geraetneu":
+            if t == "S":
+                self.geraetneu_ja()
+            return True
         if self.mode == "idle":
             self.stop_idle()
             return True
@@ -4447,7 +4520,10 @@ class zynsimple_screen(zynthian_gui_base):
 
     def back_action(self):
         self._touch()
-        if self.mode == "splash":
+        if self.mode == "geraetneu":
+            self.mode = "mix"
+            self.sig = None
+        elif self.mode == "splash":
             self.stop_splash()
         elif self.mode == "idle":
             self.stop_idle()
