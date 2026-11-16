@@ -40,7 +40,7 @@ DATEN = os.environ.get("BH_DATEN", "/zynthian/zynthian-my-data/bardhero")
 EINST_DATEI = os.path.join(DATEN, "einstellungen.json")
 REKORD_DATEI = os.path.join(DATEN, "rekorde.json")
 BEFEHL = "/usr/local/bin/bard-hero"
-VERSION = "1.0"
+VERSION = "1.1"
 
 STANDARD = {
     "grafik": 2, "fps": 60, "tempo": "normal", "versatz_ms": 0, "durchfallen": False, "insp_auto": True,
@@ -51,7 +51,7 @@ STANDARD = {
     "belegung": {},
 }
 SICHT = {"langsam": 1.8, "normal": 1.35, "schnell": 1.0}
-MODUS_NAME = {"hero": "Hero · 5 Tasten", "barde": "Barde · echte Töne"}
+MODUS_NAME = {"hero": "Hero · Tasten", "barde": "Barde · echte Töne"}
 
 
 def einstellungen_laden():
@@ -182,7 +182,9 @@ class Ton:
 # Spieler
 # ---------------------------------------------------------------------------------------------------------
 class Spieler:
-    def __init__(self, nr, modus, stufe, teil="lead", geraete=None):
+    def __init__(self, nr, modus, stufe, teil="lead", geraete=None, form="reihe5", haupt=None):
+        self.form = form                  # Bauform des Controllers (Hero): reihe5 · reihe6 · 3x2
+        self.haupt = haupt                # Gerät, mit dem sich der Spieler gemeldet hat
         self.nr = nr
         self.modus = modus
         self.stufe = stufe
@@ -210,6 +212,10 @@ class Spieler:
         self.text = []                    # [(text, farbe, bis)]
         self.ausgebuht = False
         self.punkte_float = 0.0
+
+    def kopie(self):
+        """Frischer Spieler mit gleichen Einstellungen (Neustart, nächstes Lied)."""
+        return Spieler(self.nr, self.modus, self.stufe, self.teil, self.geraete, self.form, self.haupt)
 
     @property
     def multi(self):
@@ -260,7 +266,7 @@ class Menue:
         x, y, w, h = rect
         n = len(self.e)
         zh = min(h / max(1, n), (groesse or h / 7) * 1.9)
-        gr = groesse or int(zh * 0.42)
+        gr = groesse or int(min(zh * 0.42, h * 0.07))
         self.rects = []
         for i, (k, t, v) in enumerate(self.e):
             r = pygame.Rect(x, y + i * zh + zh * 0.08, w, zh * 0.84)
@@ -270,10 +276,74 @@ class Menue:
             if v is None:
                 g.text_zeigen(s, t, gr, r.center, g.GOLD2 if an else g.CHAMP)
             else:
-                g.text_zeigen(s, t, gr, (r.x + gr, r.centery), g.GOLD2 if an else g.CHAMP, "links")
                 wert = f"◀ {v} ▶" if an and mit_pfeilen else str(v)
-                g.text_zeigen(s, wert, gr, (r.right - gr, r.centery), g.GLUT if an else g.TX2, "rechts")
+                gz = gr
+                while gz > gr * 0.6 and g.schrift(gz).size(t)[0] + g.schrift(gz).size(wert)[0] + gz * 3 > r.w:
+                    gz -= 1
+                g.text_zeigen(s, t, gz, (r.x + gr, r.centery), g.GOLD2 if an else g.CHAMP, "links")
+                g.text_zeigen(s, wert, gz, (r.right - gr, r.centery), g.GLUT if an else g.TX2, "rechts")
             self.rects.append(r)
+
+
+FORM_WAHL = [("keytar", "Keytar / Keyboard (C D E F G)"), ("reihe5", "5 Tasten in einer Reihe"),
+             ("3x2", "6 Tasten: 3 oben, 3 unten"), ("reihe6", "6 Tasten in einer Reihe")]
+FORM_TEXT = {"keytar": "C D E F G", "reihe5": "5 Tasten", "reihe6": "6 Tasten", "3x2": "3 oben + 3 unten"}
+SPALTE = ["links", "Mitte", "rechts"]
+
+
+def tasten_text(form, i):
+    """Welche Taste ist gemeint? (für das Anlernen)"""
+    if form == "3x2":
+        return f"{'obere' if i >= 3 else 'untere'} Reihe, {SPALTE[i % 3]}"
+    return f"Taste {i + 1} von links"
+
+
+def zeichne_controller(s, mitte, u, form, aktiv=None, fertig=-1, gedrueckt=()):
+    """Bauform des Controllers als kleine Zeichnung. aktiv = Taste, die gerade gemeint ist."""
+    cx, cy = mitte
+    if form == "3x2":
+        rahmen = pygame.Rect(0, 0, u * 3.6, u * 1.75)
+        rahmen.center = (cx, cy)
+        g.rrect(s, (30, 22, 16), rahmen, int(u * 0.25))
+        for i in range(6):
+            oben = i >= 3
+            r = pygame.Rect(0, 0, u * 0.95, u * 0.62)
+            r.center = (cx + (i % 3 - 1) * u * 1.1, cy + (-u * 0.38 if oben else u * 0.38))
+            grund = g.KOHLE if oben else g.ELFENBEIN
+            rand = g.ORANGE if oben else g.GOLD
+            if i <= fertig or i in gedrueckt:
+                grund = g.misch(grund, rand, 0.65)
+            if i == aktiv:
+                g.leuchten(s, r.center, u * 0.9, rand, 0.9)
+            g.rrect(s, grund, r, int(u * 0.12))
+            g.rrect(s, rand, r, int(u * 0.12), 4 if i == aktiv else 2)
+        return
+    if form in ("reihe5", "reihe6"):
+        n = 5 if form == "reihe5" else 6
+        rahmen = pygame.Rect(0, 0, u * (n * 0.9 + 0.5), u * 1.1)
+        rahmen.center = (cx, cy)
+        g.rrect(s, (30, 22, 16), rahmen, int(u * 0.25))
+        for i in range(n):
+            x = cx + (i - (n - 1) / 2) * u * 0.9
+            c = g.SPUR_FARBEN[i]
+            an = i <= fertig or i in gedrueckt or i == aktiv
+            if i == aktiv:
+                g.leuchten(s, (x, cy), u * 0.8, c, 0.9)
+            pygame.draw.circle(s, c if an else g.heller(c, 0.35), (int(x), int(cy)), int(u * 0.33))
+            pygame.draw.circle(s, g.heller(c, 0.8), (int(x), int(cy)), int(u * 0.33), 2)
+        return
+    # Keytar / Keyboard: eine Oktave, C bis G farbig
+    w = u * 0.5
+    links = cx - 4 * w
+    for k in range(8):
+        r = pygame.Rect(links + k * w, cy - u * 0.6, w - 2, u * 1.2)
+        c = g.SPUR_FARBEN[k] if k < 5 else g.ELFENBEIN
+        g.rrect(s, g.misch(g.ELFENBEIN, c, 0.55 if k < 5 else 0), r, 4)
+        if k < 5:
+            g.text_zeigen(s, "CDEFG"[k], int(u * 0.3), (r.centerx, r.bottom - u * 0.2), g.SCHWARZ, schatten=False)
+    for k in (0, 1, 3, 4, 5):
+        r = pygame.Rect(links + (k + 1) * w - w * 0.3, cy - u * 0.6, w * 0.6, u * 0.7)
+        g.rrect(s, (20, 14, 10), r, 3)
 
 
 HINWEIS = "Keytar: C ▲  D ▼  E ◀  F ▶  G ✓  A zurück   ·   Zynthian: Pfeile · SEL · BACK"
@@ -412,30 +482,36 @@ class Titel(Szene):
 
 
 class Spielerwahl(Szene):
-    """Wer spielt mit welchem Gerät, Spielart und Stufe."""
+    """Wer spielt mit welchem Gerät (Bauform wird erkannt bzw. angelernt), Spielart und Stufe."""
 
     def __init__(self, app, art):
         super().__init__(app)
         self.art = art
         self.zwei = art in ("duell", "duett")
-        self.schritt = "geraet1" if self.zwei else "optionen"
+        self.schritt = "geraet1"
         self.geraete = [None, None]
 
     def betreten(self):
         self.hg = Hintergrundbild(self.app, "taverne", 100)
         self.baue_menue()
 
+    def anzahl(self):
+        return 2 if self.zwei else 1
+
     def baue_menue(self):
         e = self.app.e["spieler"]
         eintraege = []
-        for i in range(2 if self.zwei else 1):
-            wer = f"Spieler {i + 1}" if self.zwei else "Spielart"
+        for i in range(self.anzahl()):
+            wer = f"Spieler {i + 1}" if self.zwei else ""
             teil = ""
             if self.art == "duett":
                 teil = " (Melodie)" if i == 0 else " (Bass)"
-            eintraege.append((f"modus{i}", (wer + teil + " · Spielart") if self.zwei else "Spielart",
-                              MODUS_NAME[e[i]["modus"]]))
-            eintraege.append((f"stufe{i}", (wer + " · Stufe") if self.zwei else "Stufe", chart.STUFEN_NAME[e[i]["stufe"]]))
+            def zeile(text):
+                return f"{wer}{teil} · {text}" if self.zwei else text
+            dev = self.geraete[i]
+            eintraege.append((f"ctrl{i}", zeile("Controller"), FORM_TEXT[self.app.anzeige_form(dev)]))
+            eintraege.append((f"modus{i}", zeile("Spielart"), MODUS_NAME[e[i]["modus"]]))
+            eintraege.append((f"stufe{i}", zeile("Stufe"), chart.STUFEN_NAME[e[i]["stufe"]]))
         eintraege.append(("los", "Weiter zur Liedauswahl", None))
         alt = getattr(self, "m", None)
         self.m = Menue(eintraege, alt.wahl if alt else len(eintraege) - 1)
@@ -451,11 +527,16 @@ class Spielerwahl(Szene):
                     return
                 self.geraete[i] = geraet
                 self.app.sfx("ok")
-                self.schritt = "geraet2" if i == 0 else "optionen"
+                self.schritt = "geraet2" if (i == 0 and self.zwei) else "optionen"
+                self.baue_menue()
             return
         if nav == "zurueck":
             return self.app.wechsel(Titel(self.app))
         self.m.nav(nav)
+        if self.m.key.startswith("ctrl"):
+            if nav == "ok":
+                self.einrichten()
+            return
         if nav in ("links", "rechts") or (nav == "ok" and self.m.key != "los"):
             self.aendern(1 if nav != "links" else -1)
         elif nav == "ok":
@@ -467,8 +548,15 @@ class Spielerwahl(Szene):
         if self.m.tipp(pos):
             if self.m.key == "los":
                 self.los()
+            elif self.m.key.startswith("ctrl"):
+                self.einrichten()
             else:
                 self.aendern(1)
+
+    def einrichten(self):
+        i = int(self.m.key[-1])
+        self.app.sfx("ok")
+        self.app.wechsel(Anlernen(self.app, i + 1, self.geraete[i], zurueck=self))
 
     def aendern(self, d):
         k = self.m.key
@@ -487,12 +575,11 @@ class Spielerwahl(Szene):
         e = self.app.e["spieler"]
         self.app.speichern()
         spieler = []
-        if self.zwei:
-            for i in range(2):
-                teil = "bass" if (self.art == "duett" and i == 1) else "lead"
-                spieler.append(Spieler(i + 1, e[i]["modus"], e[i]["stufe"], teil, {self.geraete[i]}))
-        else:
-            spieler.append(Spieler(1, e[0]["modus"], e[0]["stufe"]))
+        for i in range(self.anzahl()):
+            teil = "bass" if (self.art == "duett" and i == 1) else "lead"
+            dev = self.geraete[i]
+            spieler.append(Spieler(i + 1, e[i]["modus"], e[i]["stufe"], teil, {dev} if self.zwei else None,
+                                   self.app.form_von(dev), dev))
         self.app.sfx("ok")
         self.app.wechsel(Liedwahl(self.app, self.art, spieler))
 
@@ -504,25 +591,38 @@ class Spielerwahl(Szene):
         g.text_zeigen(s, titel, int(H * 0.08), (W / 2, H * 0.1), g.GOLD2, fett=True)
         if self.schritt.startswith("geraet"):
             i = 0 if self.schritt == "geraet1" else 1
-            g.text_zeigen(s, f"Spieler {i + 1}:", int(H * 0.07), (W / 2, H * 0.36), g.SPUR_FARBEN[i * 2])
-            g.text_zeigen(s, "drück eine Taste auf deinem Instrument", int(H * 0.05), (W / 2, H * 0.47), g.CHAMP)
-            g.text_zeigen(s, "Keytar, BeatStep, Zynthian-Tasten, Tastatur oder Gamepad", int(H * 0.035),
-                          (W / 2, H * 0.56), g.TX2)
+            wer = f"Spieler {i + 1}:" if self.zwei else "Los geht's:"
+            g.text_zeigen(s, wer, int(H * 0.07), (W / 2, H * 0.32), g.SPUR_FARBEN[i * 3])
+            g.text_zeigen(s, "drück eine Taste auf deinem Instrument", int(H * 0.05), (W / 2, H * 0.43), g.CHAMP)
+            g.text_zeigen(s, "Keytar, Gitarren-Controller, BeatStep, Zynthian-Tasten, Tastatur oder Gamepad",
+                          int(H * 0.034), (W / 2, H * 0.52), g.TX2)
             if i == 1 and self.geraete[0]:
                 g.text_zeigen(s, "Spieler 1: " + self.app.geraet_name(self.geraete[0]), int(H * 0.035),
-                              (W / 2, H * 0.7), g.GRUEN)
+                              (W / 2, H * 0.62), g.GRUEN)
+                zeichne_controller(s, (W / 2, H * 0.74), H * 0.07, self.app.anzeige_form(self.geraete[0]))
             g.text_zeigen(s, "BACK / Esc = zurück", int(H * 0.03), (W / 2, H * 0.92), g.TX2)
             return
-        bw = min(W * 0.75, H * 1.3)
-        self.m.zeichnen(s, (W / 2 - bw / 2, H * 0.2, bw, H * 0.6), mit_pfeilen=True)
-        tipp = ("Hero: 5 Tasten C D E F G – die Noten fallen auf ihre Spur."
+        mw = W * 0.6
+        self.m.zeichnen(s, (W * 0.03, H * 0.19, mw, H * 0.64), mit_pfeilen=True)
+        # rechts: die Controller, so wie das Spiel sie sieht
+        rx = W * 0.03 + mw + (W - mw - W * 0.03) / 2
+        for i in range(self.anzahl()):
+            dev = self.geraete[i]
+            form = self.app.anzeige_form(dev)
+            y = H * (0.36 if self.anzahl() == 1 else 0.3 + i * 0.3)
+            if self.zwei:
+                g.text_zeigen(s, f"Spieler {i + 1}", int(H * 0.035), (rx, y - H * 0.11), g.SPUR_FARBEN[i * 3])
+            u = min(H * 0.07, (W - mw) * 0.2)
+            zeichne_controller(s, (rx, y), u, form)
+            g.text_zeigen(s, self.app.geraet_name(dev), int(H * 0.03), (rx, y + u * 1.3), g.CHAMP)
+            hinweis = self.app.einricht_hinweis(dev)
+            if hinweis:
+                g.text_zeigen(s, hinweis, int(H * 0.026), (rx, y + u * 1.3 + H * 0.04), g.GLUT)
+        tipp = ("Hero: die Noten fallen auf die Tasten deines Controllers."
                 if self.app.e["spieler"][0]["modus"] == "hero" else
                 "Barde: spiel die echten Töne der Melodie – jede Oktave zählt.")
-        g.text_zeigen(s, tipp, int(H * 0.034), (W / 2, H * 0.85), g.TX2)
-        if self.zwei:
-            g.text_zeigen(s, "  ·  ".join(f"Spieler {i + 1}: {self.app.geraet_name(self.geraete[i])}" for i in range(2)),
-                          int(H * 0.03), (W / 2, H * 0.9), g.GRUEN)
-        g.text_zeigen(s, HINWEIS, int(H * 0.026), (W / 2, H * 0.96), g.TX2)
+        g.text_zeigen(s, tipp, int(H * 0.032), (W / 2, H * 0.87), g.TX2)
+        g.text_zeigen(s, HINWEIS, int(H * 0.026), (W / 2, H * 0.95), g.TX2)
 
 
 class Liedwahl(Szene):
@@ -687,11 +787,13 @@ class Spiel(Szene):
                 bw = min(W * 0.4, H * 0.9)
                 cx = W * (0.25 if i == 0 else 0.75)
                 rect = (cx - bw / 2, H * 0.12, bw, H * 0.88)
-            spuren = chart.SPUREN[sp.stufe] if sp.modus == "hero" else 12
+            spuren = chart.spuren_anzahl(sp.form, sp.stufe) if sp.modus == "hero" else 12
+            if sp.modus == "hero":
+                sp.noten, _ = chart.bauen(self.c, sp.teil, sp.modus, sp.stufe, spuren)
             namen = sp.namen
             if sp.modus == "hero":
-                namen = self.app.spur_namen(sp)
-            sp.bahn = g.Bahn(rect, sp.modus, spuren, namen, sicht)
+                namen = self.app.spur_namen(sp, spuren)
+            sp.bahn = g.Bahn(rect, sp.modus, spuren, namen, sicht, sp.form)
         self.hg = g.Hintergrund(self.c["thema"], app.groesse, app.e["grafik"], g.hex2rgb(self.c["farbe"]))
         app.render_pausieren(True)
         app.ton.cmd(cmd="pegel", **app.e["pegel"])
@@ -737,6 +839,13 @@ class Spiel(Szene):
             return
         if art == "taste" and ev[1] == "tast" and ev[2] == "space" and ev[4]:
             return self.inspiration(sp)
+        # Gitarren mit Anschlag-Leiste: Bünde greifen, gewertet wird beim Anschlagen
+        bel = eingabe.belegung_von(self.app.e["belegung"], ev[1]) or {}
+        anschlag = bel.get("_anschlag") if sp.modus == "hero" else None
+        if anschlag and art == "taste" and str(ev[2]) in anschlag:
+            if ev[4]:
+                self.werten(sp, set(sp.gedrueckt), t)
+            return
         if sp.modus == "hero":
             spur, an = eingabe.hero_spur(ev, self.app.e["belegung"], sp.bahn.n)
         else:
@@ -750,12 +859,18 @@ class Spiel(Szene):
                     n.gehalten = False
             return
         sp.gedrueckt.add(spur)
-        # Inspiration: äußere Spuren gleichzeitig (Hero) bzw. zwei Töne gleichzeitig
+        # Inspiration: äußere Spuren gleichzeitig
         sp.letzte_drueck[spur] = t
         if sp.modus == "hero" and spur in (0, sp.bahn.n - 1):
             andere = sp.bahn.n - 1 if spur == 0 else 0
             if abs(sp.letzte_drueck.get(andere, -9) - t) < 0.07:
                 self.inspiration(sp)
+        if anschlag:
+            return
+        self.werten(sp, {spur}, t)
+
+    def werten(self, sp, spuren, t):
+        """Gegriffene Spur(en) zum Zeitpunkt t → Treffer, Fehlgriff oder (weit weg von Noten) nichts."""
         fenster = chart.FENSTER[sp.stufe]
         beste = None
         naechste_irgendwo = 9.0
@@ -768,7 +883,7 @@ class Spiel(Szene):
                 break
             if n.status == 0:
                 naechste_irgendwo = min(naechste_irgendwo, abs(n.t - t))
-                if n.spur == spur and abs(n.t - t) <= fenster:
+                if n.spur in spuren and abs(n.t - t) <= fenster:
                     if beste is None or abs(n.t - t) < abs(beste.t - t):
                         beste = n
             i += 1
@@ -867,7 +982,7 @@ class Spiel(Szene):
         elif k == "neu":
             self.pause = None
             self.app.ton.cmd(cmd="stop")
-            neu = [Spieler(sp.nr, sp.modus, sp.stufe, sp.teil, sp.geraete) for sp in self.spieler]
+            neu = [sp.kopie() for sp in self.spieler]
             self.app.wechsel(Spiel(self.app, self.art, neu, self.lied))
         elif k == "pegel":
             self.app.wechsel(Pegel(self.app, self))
@@ -877,7 +992,7 @@ class Spiel(Szene):
             self.app.ton.cmd(cmd="gate", stem="lead", an=True)
             self.app.ton.cmd(cmd="gate", stem="bass", an=True)
             self.app.render_pausieren(False)
-            neu = [Spieler(sp.nr, sp.modus, sp.stufe, sp.teil, sp.geraete) for sp in self.spieler]
+            neu = [sp.kopie() for sp in self.spieler]
             self.app.wechsel(Liedwahl(self.app, self.art, neu))
 
     def fortsetzen(self):
@@ -1081,7 +1196,7 @@ class Spiel(Szene):
         if not zwei:
             g.text_zeigen(s, "Publikum", int(H * 0.024), (x2 + b / 2, y + h + H * 0.065), g.TX2)
         if f >= 0.5 and not sp.insp_aktiv and not self.app.e["insp_auto"]:
-            g.text_zeigen(s, "C+G!", int(H * 0.03), (x + b, y - H * 0.03), g.GOLD2)
+            g.text_zeigen(s, "Außen!", int(H * 0.03), (x + b, y - H * 0.03), g.GOLD2)
 
 
 def heller_rand(c):
@@ -1109,7 +1224,7 @@ class Ergebnis(Szene):
         if time.monotonic() - self.t0 < 1.0:
             return
         if nav in ("ok", "zurueck"):
-            neu = [Spieler(sp.nr, sp.modus, sp.stufe, sp.teil, sp.geraete) for sp in self.spieler]
+            neu = [sp.kopie() for sp in self.spieler]
             self.app.wechsel(Liedwahl(self.app, self.art, neu))
 
     def tipp(self, pos):
@@ -1256,9 +1371,9 @@ class Einstellungen(Szene):
             ("versatz", "Verzögerung ausgleichen", f"{e['versatz_ms']} ms"),
             ("kalib", "Verzögerung messen …", None),
             ("durchfallen", "Ausbuhen möglich", "an" if e["durchfallen"] else "aus"),
-            ("insp_auto", "Inspiration", "zündet selbst" if e["insp_auto"] else "per C+G"),
-            ("anlernen1", "Tasten anlernen: Spieler 1 …", None),
-            ("anlernen2", "Tasten anlernen: Spieler 2 …", None),
+            ("insp_auto", "Inspiration", "zündet selbst" if e["insp_auto"] else "äußere Tasten zugleich"),
+            ("anlernen1", "Controller einrichten: Spieler 1 …", None),
+            ("anlernen2", "Controller einrichten: Spieler 2 …", None),
             ("ausgabe", "Bild", {"auto": "automatisch", "display": "Zynthian-Display", "hdmi": "Beamer (HDMI)",
                                  "beide": "Display + Beamer"}[e["ausgabe"]]),
             ("fertig", "Fertig", None)], wahl)
@@ -1384,61 +1499,153 @@ class Kalibrieren(Szene):
 
 
 class Anlernen(Szene):
-    """Fünf Tasten für die Hero-Spuren anlernen – auf jedem Gerät."""
+    """Controller einrichten: Bauform wählen (5er-Reihe, 3 + 3, 6er-Reihe, Keytar), Tasten der Reihe nach drücken,
+    bei Gitarren mit Anschlag-Leiste auch den Anschlag. Gilt für jedes Gerät (MIDI, Gamepad, Tastatur, Zynthian)."""
 
-    def __init__(self, app, nr):
+    def __init__(self, app, nr, geraet=None, zurueck=None):
         super().__init__(app)
         self.nr = nr
+        self.geraet = geraet
+        self.zurueck = zurueck
+        self.schritt = "form" if geraet else "geraet"
+        self.form = None
         self.spur = 0
-        self.geraet = None
         self.belegung = {}
+        self.anschlag = []
+        self.seit = 0.0
+        self.menue_bauen()
+
+    def menue_bauen(self):
+        vorschlag = self.app.form_vorschlag(self.geraet) if self.geraet else "keytar"
+        wahl = next((i for i, (k, _) in enumerate(FORM_WAHL) if k == vorschlag), 0)
+        self.m = Menue([(k, t, None) for k, t in FORM_WAHL], wahl)
+
+    def raus(self):
+        z = self.zurueck
+        if z is None:
+            return self.app.wechsel(Einstellungen(self.app, 6 + self.nr))
+        if hasattr(z, "baue_menue"):
+            z.baue_menue()
+        self.app.wechsel(z, neu=False)
+
+    def gedrueckt(self, ev):
+        return ev[0] == "an" or (ev[0] == "taste" and ev[4])
 
     def ereignis(self, ev, nav):
-        art, geraet = ev[0], ev[1]
-        if art == "taste" and geraet in ("zyn", "tast") and ev[2] in ("BACK", "escape") and ev[4]:
-            return self.app.wechsel(Einstellungen(self.app, 6 + self.nr))
-        if art == "an" or (art == "taste" and ev[4]):
-            if self.geraet is None:
-                self.geraet = geraet
-            if geraet != self.geraet:
-                return
-            if art == "an":
-                schluessel = str(ev[2])
-                schluessel_k = "k" + str(ev[2] % 12)
-            else:
-                schluessel = str(ev[2])
-                schluessel_k = None
+        if self.schritt == "geraet":
+            if nav == "zurueck" and ev[1] in ("zyn", "tast"):
+                return self.raus()
+            if self.gedrueckt(ev):
+                self.geraet = ev[1]
+                self.schritt = "form"
+                self.menue_bauen()
+                self.app.sfx("ok")
+            return
+        if self.schritt == "form":
+            if nav == "zurueck":
+                return self.raus()
+            self.m.nav(nav)
+            if nav == "ok":
+                self.form_gewaehlt()
+            return
+        # Tasten und Anschlag: nur das gewählte Gerät zählt; andere Geräte dürfen abbrechen
+        if ev[1] != self.geraet:
+            if nav == "zurueck":
+                return self.raus()
+            return
+        if not self.gedrueckt(ev):
+            return
+        schluessel = str(ev[2])
+        if self.schritt == "tasten":
             if schluessel in self.belegung:
                 return
             self.belegung[schluessel] = self.spur
-            if schluessel_k:
-                self.belegung.setdefault(schluessel_k, self.spur)
+            if ev[0] == "an":
+                self.belegung.setdefault("k" + str(ev[2] % 12), self.spur)
             self.app.sfx("ok")
             self.spur += 1
-            if self.spur >= 5:
-                ziel = self.geraet.rsplit(":", 1)[0] if self.geraet.startswith("midi:") else self.geraet
-                self.app.e["belegung"][ziel] = self.belegung
-                self.app.speichern()
-                self.app.meldung(f"Tasten für {self.app.geraet_name(self.geraet)} gespeichert")
-                self.app.wechsel(Einstellungen(self.app, 6 + self.nr))
+            if self.spur >= chart.FORMEN[self.form]["tasten"]:
+                if self.geraet.startswith("pad"):
+                    self.schritt = "anschlag"
+                    self.seit = time.monotonic()
+                else:
+                    self.speichern()
+        elif self.schritt == "anschlag":
+            if schluessel in self.belegung:
+                return
+            self.anschlag = ["hoch", "runter"] if schluessel in ("hoch", "runter") else [schluessel]
+            self.app.sfx("ok")
+            self.speichern()
+
+    def tipp(self, pos):
+        if self.schritt == "form" and self.m.tipp(pos):
+            self.form_gewaehlt()
+        elif self.schritt == "anschlag":
+            self.speichern()
+
+    def form_gewaehlt(self):
+        self.form = self.m.key
+        self.app.sfx("ok")
+        if self.form == "keytar":
+            # zurück zur Standardbelegung (Keytar C D E F G, Tastatur 1–5 …)
+            self.app.e["belegung"].pop(self.ziel(), None)
+            self.app.speichern()
+            self.app.meldung(f"{self.app.geraet_name(self.geraet)}: Standard-Belegung")
+            return self.raus()
+        self.schritt = "tasten"
+        self.spur = 0
+        self.belegung = {}
+
+    def ziel(self):
+        return self.geraet.rsplit(":", 1)[0] if self.geraet.startswith("midi:") else self.geraet
+
+    def speichern(self):
+        b = dict(self.belegung)
+        b["_form"] = self.form
+        if self.anschlag:
+            b["_anschlag"] = self.anschlag
+        self.app.e["belegung"][self.ziel()] = b
+        self.app.speichern()
+        extra = " · mit Anschlag-Leiste" if self.anschlag else ""
+        self.app.meldung(f"{self.app.geraet_name(self.geraet)}: {chart.FORMEN[self.form]['name']}{extra} gespeichert")
+        self.raus()
+
+    def update(self, dt):
+        if self.schritt == "anschlag" and time.monotonic() - self.seit > 6:
+            self.speichern()                        # keine Anschlag-Leiste → jede Taste zählt sofort
 
     def zeichnen(self, s):
         W, H = s.get_size()
         s.fill(g.BG)
-        g.text_zeigen(s, f"Tasten anlernen · Spieler {self.nr}", int(H * 0.06), (W / 2, H * 0.1), g.GOLD2, fett=True)
-        g.text_zeigen(s, "Drück nacheinander die Tasten für die fünf Spuren", int(H * 0.04), (W / 2, H * 0.22), g.CHAMP)
-        for i in range(5):
-            x = W / 2 + (i - 2) * H * 0.16
-            c = g.SPUR_FARBEN[i]
-            an = i == self.spur
-            if an:
-                g.leuchten(s, (x, H * 0.5), H * 0.11, c, 0.9)
-            pygame.draw.circle(s, c if i < self.spur or an else g.heller(c, 0.35), (int(x), int(H * 0.5)), int(H * 0.055))
+        g.text_zeigen(s, f"Controller einrichten · Spieler {self.nr}", int(H * 0.06), (W / 2, H * 0.09), g.GOLD2,
+                      fett=True)
         if self.geraet:
-            g.text_zeigen(s, self.app.geraet_name(self.geraet), int(H * 0.035), (W / 2, H * 0.68), g.TX2)
-        g.text_zeigen(s, "Standard ohne Anlernen: Keytar C D E F G · Tastatur 1–5 · Zynthian F1–F4 + PLAY", int(H * 0.03),
-                      (W / 2, H * 0.82), g.TX2)
-        g.text_zeigen(s, "BACK / Esc = abbrechen", int(H * 0.03), (W / 2, H * 0.92), g.TX2)
+            g.text_zeigen(s, self.app.geraet_name(self.geraet), int(H * 0.035), (W / 2, H * 0.16), g.TX2)
+        if self.schritt == "geraet":
+            g.text_zeigen(s, "Drück eine Taste auf dem Controller, den du einrichten willst", int(H * 0.042),
+                          (W / 2, H * 0.45), g.CHAMP)
+        elif self.schritt == "form":
+            g.text_zeigen(s, "Wie sehen die Tasten aus?", int(H * 0.045), (W / 2, H * 0.24), g.CHAMP)
+            mw = W * 0.5
+            self.m.zeichnen(s, (W * 0.04, H * 0.3, mw, H * 0.52), int(H * 0.034))
+            form = self.m.key
+            zeichne_controller(s, (W * 0.04 + mw + (W * 0.96 - mw - W * 0.04) / 2, H * 0.56),
+                               min(H * 0.1, (W - mw) * 0.16), form)
+            erkannt = self.app.pad_name(self.geraet)
+            if erkannt:
+                g.text_zeigen(s, f"Erkannt: {erkannt}", int(H * 0.03), (W / 2, H * 0.86), g.GLUT)
+        elif self.schritt == "tasten":
+            ges = chart.FORMEN[self.form]["tasten"]
+            g.text_zeigen(s, f"Drück: {tasten_text(self.form, self.spur)}", int(H * 0.05), (W / 2, H * 0.28), g.CHAMP)
+            g.text_zeigen(s, f"{self.spur + 1} von {ges}", int(H * 0.035), (W / 2, H * 0.35), g.TX2)
+            zeichne_controller(s, (W / 2, H * 0.58), H * 0.1, self.form, aktiv=self.spur, fertig=self.spur - 1)
+        elif self.schritt == "anschlag":
+            g.text_zeigen(s, "Hat deine Gitarre eine Anschlag-Leiste?", int(H * 0.05), (W / 2, H * 0.34), g.CHAMP)
+            g.text_zeigen(s, "Dann jetzt einmal anschlagen.", int(H * 0.042), (W / 2, H * 0.44), g.GOLD2)
+            rest = max(0, 6 - (time.monotonic() - self.seit))
+            g.text_zeigen(s, f"Sonst einfach warten ({rest:.0f} s) – dann zählt jeder Tastendruck sofort.",
+                          int(H * 0.034), (W / 2, H * 0.56), g.TX2)
+        g.text_zeigen(s, "BACK / Esc = abbrechen", int(H * 0.03), (W / 2, H * 0.94), g.TX2)
 
 
 class System(Szene):
@@ -1625,23 +1832,70 @@ class App:
             return "Touch"
         return self.eingaben.geraete.get(geraet, geraet.split(":")[1].replace("_", " "))
 
-    def spur_namen(self, sp):
-        geraete = sp.geraete or {"midi"}
-        g0 = next(iter(geraete))
-        if g0 in ("zyn",):
-            return ["F1", "F2", "F3", "F4", "PLAY"]
-        if g0 == "tast":
-            return ["1", "2", "3", "4", "5"]
-        if g0.startswith("pad"):
-            return ["A", "B", "X", "Y", "L"]
-        bel = self.e["belegung"].get(g0.rsplit(":", 1)[0])
+    def pad_name(self, geraet):
+        if geraet and geraet.startswith("pad"):
+            try:
+                return self.pads[int(geraet[3:])].get_name()
+            except (IndexError, ValueError, pygame.error):
+                return None
+        return None
+
+    def form_vorschlag(self, geraet):
+        """Bauform, die zum Gerät passt: angelernt, sonst am Namen erkannt (Gamepad), sonst Keytar."""
+        bel = eingabe.belegung_von(self.e["belegung"], geraet)
+        if bel and bel.get("_form"):
+            return bel["_form"]
+        name = (self.pad_name(geraet) or "").lower()
+        if name:
+            if "live" in name or "ghl" in name:
+                return "3x2"
+            return "reihe5"
+        if geraet and (geraet.startswith("midi:")):
+            return "keytar"
+        return "reihe5"
+
+    def form_von(self, geraet):
+        """Bauform für die Notenbahn (Keytar = 5 Tasten C D E F G)."""
+        f = self.form_vorschlag(geraet)
+        return "reihe5" if f == "keytar" else f
+
+    def anzeige_form(self, geraet):
+        bel = eingabe.belegung_von(self.e["belegung"], geraet)
+        if bel and bel.get("_form"):
+            return bel["_form"]
+        if geraet in ("tast", "zyn") or not geraet:
+            return "reihe5"
+        return self.form_vorschlag(geraet)
+
+    def einricht_hinweis(self, geraet):
+        """Kurzer Hinweis, wenn ein Gerät noch eingerichtet werden sollte."""
+        if not geraet or eingabe.belegung_von(self.e["belegung"], geraet):
+            return ""
+        if geraet.startswith("pad"):
+            return "bitte einrichten: ✓ auf „Controller“"
+        if geraet.startswith("midi:"):
+            return "anders belegt? ✓ auf „Controller“"
+        return ""
+
+    def spur_namen(self, sp, anzahl=5):
+        """Beschriftung unter den Tasten der Notenbahn (None = keine)."""
+        g0 = sp.haupt
+        if sp.form == "3x2":
+            return None
+        bel = eingabe.belegung_von(self.e["belegung"], g0)
+        if g0 == "zyn" and not bel:
+            return ["F1", "F2", "F3", "F4", "PLAY", ""]
+        if g0 == "tast" and not bel:
+            return ["1", "2", "3", "4", "5", "6"]
+        if g0 and g0.startswith("pad"):
+            return None
         if bel:
-            namen = ["?"] * 5
+            namen = [""] * 6
             for k, v in bel.items():
-                if k.isdigit() and v < 5 and namen[v] == "?":
-                    namen[v] = chart.NAMEN[int(k) % 12]
+                if k.isdigit() and isinstance(v, int) and v < 6 and not namen[v]:
+                    namen[v] = chart.NAMEN[int(k) % 12] if g0.startswith("midi:") else k
             return namen
-        return eingabe.SPUR_NAMEN_MIDI
+        return eingabe.SPUR_NAMEN_MIDI + [""]
 
     def rekord_schluessel(self, lied, sp):
         return f"{lied}:{sp.teil}:{sp.modus}:{sp.stufe}"

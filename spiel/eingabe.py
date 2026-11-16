@@ -29,7 +29,7 @@ DIN = os.environ.get("BH_DIN", "/dev/ttyAMA0")
 # Standard-Belegung der Hero-Spuren
 MIDI_TONKLASSE = {0: 0, 2: 1, 4: 2, 5: 3, 7: 4}                 # C D E F G (jede Oktave)
 ZYN_SPUREN = ["F1", "F2", "F3", "F4", "PLAY"]
-TASTATUR_SPUREN = [["1", "a"], ["2", "s"], ["3", "d"], ["4", "f"], ["5", "g"]]
+TASTATUR_SPUREN = [["1", "a"], ["2", "s"], ["3", "d"], ["4", "f"], ["5", "g"], ["6", "h"]]
 SPUR_NAMEN_MIDI = ["C", "D", "E", "F", "G"]
 
 
@@ -273,10 +273,17 @@ def navigation(ev):
     return None
 
 
+def belegung_von(belegung, geraet):
+    """Angelernte Belegung eines Geräts (MIDI: unabhängig vom Kanal)."""
+    if not geraet:
+        return None
+    return belegung.get(geraet) or belegung.get(geraet.rsplit(":", 1)[0] if geraet.startswith("midi:") else geraet)
+
+
 def hero_spur(ev, belegung, anzahl=5):
     """Ereignis → (Spur, gedrückt?) im Hero-Modus. belegung: {geraet: {schlüssel: spur}} (angelernt)."""
     art, geraet, wert, t, extra = ev
-    eigen = belegung.get(geraet) or belegung.get(geraet.rsplit(":", 1)[0] if geraet.startswith("midi:") else geraet)
+    eigen = belegung_von(belegung, geraet)
     if art in ("an", "aus"):
         gedrueckt = art == "an"
         if eigen:
@@ -294,7 +301,7 @@ def hero_spur(ev, belegung, anzahl=5):
         elif geraet == "tast":
             s = next((i for i, k in enumerate(TASTATUR_SPUREN) if wert in k), None)
         elif geraet.startswith("pad"):
-            s = int(wert) if str(wert).isdigit() and int(wert) < 5 else None
+            s = int(wert) if str(wert).isdigit() else None
         else:
             s = None
         return (s, bool(extra)) if s is not None and s < anzahl else (None, bool(extra))

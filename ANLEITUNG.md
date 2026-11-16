@@ -73,6 +73,21 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.17 – Bard Hero mit jedem Gitarren-Controller
+
+- **Controller einrichten:** Nach „drück eine Taste auf deinem Instrument“ zeigt Bard Hero den erkannten Controller
+  als kleine Zeichnung. Mit ✓ auf „Controller“ wählst du die Bauform und drückst die Tasten einmal der Reihe nach:
+  - *Keytar / Keyboard* – C D E F G (Standard, nichts anzulernen)
+  - *5 Tasten in einer Reihe* – klassische Guitar-Hero- und Rock-Band-Gitarren
+  - *6 Tasten: 3 oben, 3 unten* – wie Guitar Hero Live
+  - *6 Tasten in einer Reihe*
+- **3 oben + 3 unten:** Die Notenbahn hat dann 3 Bahnen; jede Note ist ein Plektrum – hell = untere Taste,
+  dunkel mit Glutrand = obere Taste. Auf *Leicht* nur die untere Reihe.
+- **Gitarren mit Anschlag-Leiste** (USB-Gitarren als Gamepad): Beim Einrichten einmal anschlagen – dann gilt wie im
+  Original: Bund greifen und anschlagen. Ohne Anschlag-Leiste zählt jeder Tastendruck sofort.
+- USB-Gitarren werden am Namen erkannt („Guitar Hero Live“ → 3 + 3) und die Bauform schon vorgeschlagen.
+- Einrichten geht auch unter Einstellungen → „Controller einrichten“. Jedes Gerät merkt sich seine Belegung.
+
 ## Neu in Version 6.16 – Bard Hero: Rhythmusspiel mit der Keytar
 
 Die dritte App neben Mischpult und DJ-Pult: **Bard Hero**, ein Guitar-Hero-artiges Spiel. Du spielst die Melodie
@@ -86,7 +101,7 @@ eines Liedes, die Band spielt den Rest. Greifst du daneben, verstummt die Melodi
   Die Hexe vom Moor (Folk-Jig im 6/8-Takt), Galopp der Goblins (Ska-Punk), Mondwalzer (Walzer),
   Sturm über Thalgard (Speed Metal), Handpan-Traum (Ambient Techno in D-Kurd), Ritt des Kraken (Surf-Rock),
   Laut und Ehrlich (Pop-Punk) und Die Feuerinsel (Tribal-Finale). Jedes Lied hat einen eigenen bewegten Hintergrund.
-- **Spielarten:** *Hero* – 5 Tasten (Keytar C D E F G, jede Oktave), *Barde* – die echten Töne auf einer Klaviatur.
+- **Spielarten:** *Hero* – die Tasten deines Controllers (Keytar C D E F G, jede Oktave), *Barde* – die echten Töne auf einer Klaviatur.
   Stufen Leicht, Mittel, Schwer, Meister.
 - **Zu zweit:** *Duell* (beide die Melodie, wer hat mehr Punkte?) und *Duett* (Spieler 1 Melodie, Spieler 2 Bass).
   Jeder drückt am Anfang eine Taste auf seinem Gerät: Keytar, BeatStep, ein anderes MIDI-Gerät, die Zynthian-Tasten

@@ -31,7 +31,10 @@ ORANGE = (255, 144, 0)
 WEISS = (255, 248, 236)
 SCHWARZ = (0, 0, 0)
 
-SPUR_FARBEN = [GRUEN, ROT, GELB, VIOLETT, ORANGE]
+SPUR_FARBEN = [GRUEN, ROT, GELB, VIOLETT, ORANGE, (255, 96, 150)]
+# 3+3-Controller (wie Guitar Hero Live): untere Reihe hell (Elfenbein), obere dunkel mit Glutrand
+ELFENBEIN = (246, 232, 206)
+KOHLE = (46, 36, 30)
 # Barden-Modus: 12 Farben quer durchs warme Spektrum – ohne Blautöne
 _HUES = [0, 22, 40, 52, 68, 95, 135, 280, 300, 318, 335, 350]
 TON_FARBEN = [tuple(int(c * 255) for c in colorsys.hsv_to_rgb(h / 360, 0.78, 1.0)) for h in _HUES]
@@ -671,12 +674,15 @@ class Hintergrund:
 # Notenbahn
 # ---------------------------------------------------------------------------------------------------------
 class Bahn:
-    """Perspektivische Notenbahn. modus 'hero' (n Spuren) oder 'barde' (Klaviatur, 12 Spuren)."""
+    """Perspektivische Notenbahn. modus 'hero' (n Spuren) oder 'barde' (Klaviatur, 12 Spuren).
+    form '3x2': 3 Bahnen, jede Note liegt oben (dunkel) oder unten (hell) – wie der Controller."""
 
-    def __init__(self, rect, modus, spuren=5, namen=None, sicht=1.4):
+    def __init__(self, rect, modus, spuren=5, namen=None, sicht=1.4, form="reihe5"):
         self.rect = pygame.Rect(rect)
         self.modus = modus
+        self.form = form if modus == "hero" else "klavier"
         self.n = 12 if modus == "barde" else spuren
+        self.spalten = 3 if self.form == "3x2" else self.n
         self.namen = namen
         self.sicht = sicht
         x, y, w, h = self.rect
@@ -713,8 +719,8 @@ class Bahn:
             links = max(k for k in weiss if k < spur)
             i = weiss.index(links)
             return -b / 2 + ww * (i + 1), ww * 0.62
-        sw = b / self.n
-        return -b / 2 + sw * (spur + 0.5), sw * 0.86
+        sw = b / self.spalten
+        return -b / 2 + sw * (spur % self.spalten + 0.5), sw * 0.86
 
     def _brett(self):
         x, y, w, h = self.rect
@@ -736,7 +742,7 @@ class Bahn:
                     pts.append((w / 2 + m - bw / 2, yy - y))
                     pts.append((w / 2 + m + bw / 2, yy - y))
                 pygame.draw.polygon(s, (8, 5, 4, 230), [pts[0], pts[1], pts[3], pts[2]])
-        grenzen = self.n + 1 if self.modus == "hero" else 8
+        grenzen = self.spalten + 1 if self.modus == "hero" else 8
         for i in range(grenzen):
             pts = []
             for z in (1.0, -0.12):
@@ -747,6 +753,31 @@ class Bahn:
             pygame.draw.line(s, c, pts[0], pts[1], 3 if i in (0, grenzen - 1) else 1)
         _ = tr
         return s
+
+    def _plektrum(self, oben, r, insp, glut=False):
+        """Note für 3+3: unten helles, oben dunkles Plektrum (Spitze zeigt zur Reihe)."""
+        r = max(5, int(r))
+        key = ("p", oben, r, insp, glut)
+        sp = self._sprites.get(key)
+        if sp is None:
+            w, h = r * 2 + 6, int(r * 1.5) + 6
+            sp = pygame.Surface((w, h), pygame.SRCALPHA)
+            cx = w / 2
+            if oben:          # Spitze nach oben
+                pkt = [(cx, 3), (cx + r, h * 0.55), (cx + r * 0.7, h - 4), (cx - r * 0.7, h - 4), (cx - r, h * 0.55)]
+                innen, rand = KOHLE, ORANGE
+            else:             # Spitze nach unten
+                pkt = [(cx, h - 3), (cx + r, h * 0.45), (cx + r * 0.7, 4), (cx - r * 0.7, 4), (cx - r, h * 0.45)]
+                innen, rand = ELFENBEIN, GOLD
+            if glut:
+                innen = misch(innen, (255, 150, 40), 0.5)
+            pygame.draw.polygon(sp, (0, 0, 0, 150), [(x, y + 2) for x, y in pkt])
+            pygame.draw.polygon(sp, innen, pkt)
+            pygame.draw.polygon(sp, rand, pkt, max(2, r // 5))
+            if insp:
+                pygame.draw.polygon(sp, WEISS, pkt, max(2, r // 4))
+            self._sprites[key] = sp
+        return sp
 
     def _gem(self, farbe, r, insp):
         r = max(4, int(r))
@@ -768,7 +799,9 @@ class Bahn:
         return sp
 
     def farbe(self, spur):
-        return TON_FARBEN[spur] if self.modus == "barde" else SPUR_FARBEN[spur % 5]
+        if self.form == "3x2":
+            return ORANGE if spur >= 3 else ELFENBEIN
+        return TON_FARBEN[spur] if self.modus == "barde" else SPUR_FARBEN[spur % 6]
 
     def treffer(self, spur, perfekt=False):
         y, b = self.tiefe(0)
@@ -805,6 +838,16 @@ class Bahn:
             self.gedrueckt_glow[s] = 1.0 if an else max(0.0, self.gedrueckt_glow[s] - dt * 5)
             g = self.gedrueckt_glow[s]
             r = bw * 0.42
+            if self.form == "3x2":
+                oben = s >= 3
+                rr = pygame.Rect(0, 0, bw * 0.78, r * 0.78)
+                rr.center = (x, yt + (-r * 0.44 if oben else r * 0.44))
+                grund = KOHLE if oben else (90, 80, 66)
+                rrect(ziel, misch(grund, ORANGE if oben else ELFENBEIN, 0.15 + 0.85 * g), rr, 7)
+                rrect(ziel, ORANGE if oben else GOLD, rr, 7, 2)
+                if g > 0:
+                    leuchten(ziel, rr.center, r * 1.8, ORANGE if oben else GOLD2, 0.5 * g)
+                continue
             if self.modus == "barde":
                 weiss = s in WEISSE_TASTEN
                 rr = pygame.Rect(0, 0, bw * 0.96, r * 1.1)
@@ -860,7 +903,10 @@ class Bahn:
             farbe = c
             if insp_aktiv:
                 farbe = misch(c, (255, 180, 60), 0.5)
-            sp = self._gem(farbe, r, insp)
+            if self.form == "3x2":
+                sp = self._plektrum(n.spur >= 3, r * 0.9, insp, bool(insp_aktiv))
+            else:
+                sp = self._gem(farbe, r, insp)
             if insp:
                 leuchten(ziel, (self.cx + m, yy), r * 1.6, GOLD2, 0.45)
             ziel.blit(sp, (self.cx + m - sp.get_width() / 2, yy - sp.get_height() / 2))

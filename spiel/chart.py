@@ -14,6 +14,20 @@ STUFEN_NAME = {"leicht": "Leicht", "mittel": "Mittel", "schwer": "Schwer", "meis
 # kleinster Abstand zwischen zwei Noten (s) und Spuren im Hero-Modus
 ABSTAND = {"leicht": 0.42, "mittel": 0.22, "schwer": 0.12, "meister": 0.0}
 SPUREN = {"leicht": 3, "mittel": 4, "schwer": 5, "meister": 5}
+# Bauformen der Controller (Hero-Modus)
+FORMEN = {
+    "reihe5": {"name": "5 Tasten in einer Reihe", "kurz": "5 Tasten", "tasten": 5},
+    "reihe6": {"name": "6 Tasten in einer Reihe", "kurz": "6 Tasten", "tasten": 6},
+    "3x2": {"name": "6 Tasten: 3 oben, 3 unten", "kurz": "3 + 3 Tasten", "tasten": 6},
+}
+
+
+def spuren_anzahl(form, stufe):
+    """Wie viele Spuren der Hero-Modus bei dieser Bauform und Stufe nutzt."""
+    if form == "3x2":
+        return 3 if stufe == "leicht" else 6          # Leicht: nur die untere Reihe
+    t = FORMEN.get(form, FORMEN["reihe5"])["tasten"]
+    return min(t, {"leicht": 3, "mittel": 4, "schwer": 5, "meister": 6}[stufe])
 FENSTER = {"leicht": 0.125, "mittel": 0.105, "schwer": 0.095, "meister": 0.085}   # Trefferfenster ± s
 # deutsche Notennamen (H statt B, B statt Bb)
 NAMEN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "H"]
@@ -112,7 +126,7 @@ def _hero_spuren(noten, anzahl):
     return spuren
 
 
-def bauen(chart, teil="lead", modus="hero", stufe="mittel"):
+def bauen(chart, teil="lead", modus="hero", stufe="mittel", anzahl=None):
     """→ (noten, spur_namen)"""
     roh = [tuple(x) for x in chart.get(teil, [])]
     schlag = chart.get("schlag", 0.5)
@@ -123,7 +137,7 @@ def bauen(chart, teil="lead", modus="hero", stufe="mittel"):
         namen = list(NAMEN_B if b_vorz else NAMEN)
         noten = [Note(t, d, p % 12, p) for t, d, p in roh]
     else:
-        anzahl = SPUREN[stufe]
+        anzahl = anzahl or SPUREN[stufe]
         sp = _hero_spuren(roh, anzahl)
         noten = [Note(t, d, s, p) for (t, d, p), s in zip(roh, sp)]
         namen = None

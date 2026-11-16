@@ -60,9 +60,11 @@ def warten_auf(app, klasse, sek=120, bot=None):
 class Roboter:
     """Spielt die Noten eines Spielers über ein MIDI-Gerät – trifft etwa 92 %."""
 
-    def __init__(self, sp, geraet, trefferquote=0.92):
+    def __init__(self, sp, geraet, trefferquote=0.92, noten=None, anschlag=False):
         self.sp = sp
         self.geraet = geraet
+        self.noten = noten              # Spur → MIDI-Note (angelernter Controller)
+        self.anschlag = anschlag        # Gamepad-Gitarre: Bund halten + anschlagen
         self.quote = trefferquote
         self.erledigt = set()
 
@@ -82,7 +84,15 @@ class Roboter:
             if random.random() > self.quote:
                 continue
             mono = n.t - z[1] + z[2] + random.gauss(0, 0.015)
-            if self.sp.modus == "hero":
+            if self.anschlag:
+                q = app.eingaben.q
+                q.append(("taste", self.geraet, str(n.spur), mono - 0.05, 1))
+                q.append(("taste", self.geraet, "runter", mono, 1))
+                q.append(("taste", self.geraet, str(n.spur), mono + 0.06, 0))
+                continue
+            if self.noten:
+                note = self.noten[n.spur]
+            elif self.sp.modus == "hero":
                 note = [60, 62, 64, 65, 67][n.spur]
             else:
                 note = 60 + n.spur
@@ -116,6 +126,8 @@ def main():
     # Solo
     taste(app, "return")
     warten_auf(app, bh.Spielerwahl)
+    app.eingaben.q.append(("an", "midi:Keytar:1", 60, time.monotonic(), 100))   # „drück eine Taste“
+    laufen(app, 0.3)
     taste(app, "up")
     taste(app, "right")              # Stufe ändern
     taste(app, "left")
@@ -173,7 +185,7 @@ def main():
     laufen(app, 0.3)
     app.e["spieler"][1]["modus"] = "hero"
     app.szene.baue_menue()
-    app.szene.m.wahl = 2
+    app.szene.m.wahl = [k for k, _, _ in app.szene.m.e].index("modus1")
     taste(app, "right")              # Spieler 2: Barde
     laufen(app, 0.3)
     foto(app, "11-duell-optionen")
@@ -197,6 +209,71 @@ def main():
     if b.modus != "barde":
         fehler.append("Spieler 2 sollte im Barden-Modus spielen")
     print(f"Duell: P1 {a.punkte} ({a.quote():.0%}) · P2 {b.punkte} ({b.quote():.0%})")
+    taste(app, "return")
+    # Gitarren-Controller mit 3 oben + 3 unten (MIDI) einrichten und spielen
+    app.wechsel(bh.Titel(app))
+    app.szene.m.wahl = 0
+    taste(app, "return")
+    warten_auf(app, bh.Spielerwahl)
+    gitarre = "midi:Gitarre:1"
+    app.eingaben.q.append(("an", gitarre, 40, time.monotonic(), 100))
+    laufen(app, 0.3)
+    app.szene.m.wahl = 0                     # Controller
+    taste(app, "return")
+    warten_auf(app, bh.Anlernen)
+    while app.szene.m.key != "3x2":
+        taste(app, "down")
+    laufen(app, 0.3)
+    foto(app, "16-anlernen-form")
+    taste(app, "return")
+    for k in range(6):
+        if k == 2:
+            foto(app, "17-anlernen-tasten")
+        app.eingaben.q.append(("an", gitarre, 40 + k, time.monotonic(), 100))
+        laufen(app, 0.2)
+    warten_auf(app, bh.Spielerwahl)
+    laufen(app, 0.4)
+    foto(app, "18-spielerwahl-3x2")
+    if app.form_von(gitarre) != "3x2":
+        fehler.append("3+3-Controller wurde nicht gespeichert")
+    app.e["spieler"][0].update(modus="hero", stufe="schwer")
+    app.szene.baue_menue()
+    app.szene.m.wahl = len(app.szene.m.e) - 1
+    taste(app, "return")
+    warten_auf(app, bh.Liedwahl)
+    while app.lieder[app.szene.wahl]["id"] != "drache":
+        taste(app, "down")
+    taste(app, "return")
+    warten_auf(app, bh.Spiel)
+    sz = app.szene
+    sz.c["ende"] = 34
+    sp = sz.spieler[0]
+    rob = Roboter(sp, gitarre, 0.95, noten={k: 40 + k for k in range(6)})
+    laufen(app, 26, rob)
+    foto(app, "19-spiel-3x2")
+    warten_auf(app, bh.Ergebnis, 40, rob)
+    print(f"3+3: {sp.punkte} Punkte ({sp.quote():.0%}), Spuren {sorted(set(n.spur for n in sp.noten))}")
+    if sp.form != "3x2" or sp.quote() < 0.8:
+        fehler.append(f"3+3-Spiel: Form {sp.form}, Quote {sp.quote():.0%}")
+    taste(app, "return")
+    # Gamepad-Gitarre mit Anschlag-Leiste (5 Bünde)
+    app.e["belegung"]["pad0"] = {"0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "_form": "reihe5", "_anschlag": ["hoch", "runter"]}
+    lied = [x for x in app.lieder if x["id"] == "lagerfeuer"][0]
+    app.wechsel(bh.Spiel(app, "solo", [bh.Spieler(1, "hero", "mittel", form="reihe5", haupt="pad0")], lied))
+    sz = app.szene
+    sz.c["ende"] = 22
+    sp = sz.spieler[0]
+    rob = Roboter(sp, "pad0", 0.95, anschlag=True)
+    laufen(app, 16, rob)
+    # nur Bünde ohne Anschlag dürfen nichts zählen
+    vorher = sp.getroffen
+    app.eingaben.q.append(("taste", "pad0", "2", time.monotonic(), 1))
+    laufen(app, 0.2, rob)
+    warten_auf(app, bh.Ergebnis, 40, rob)
+    print(f"Anschlag-Gitarre: {sp.punkte} Punkte ({sp.quote():.0%})")
+    if sp.quote() < 0.8:
+        fehler.append(f"Anschlag-Gitarre traf nur {sp.quote():.0%}")
+    _ = vorher
     taste(app, "return")
     # Pegel & Einstellungen
     app.wechsel(bh.Titel(app))
