@@ -61,16 +61,7 @@ class Geraete:
         self._letzte = {}
         self.lauf = False
         self._lock = threading.Lock()
-        # DJ-Controller bei „DJ + Instrumente“: DDJ-400 BROWSE/LOAD · DDJ-200 SHIFT + Jog / SHIFT + Kopfhörer
-        self.ddj_namen = set()
-        self.ddj_q = collections.deque(maxlen=256)
-        self.ddj_aktionen = collections.deque(maxlen=64)
-        self.ddj_roh = collections.deque(maxlen=2048)      # DDJ → Mixxx (bei „DJ + Instrumente“ durchreichen)
-        self.ddj_aus = collections.deque(maxlen=2048)      # Mixxx → DDJ (LEDs)
-        self.ddj_out = None
-        self._ddj_ziel = None
-        self._ddj_shift = [False, False]
-        self._ddj_jog = 0
+        self.ddj_namen = set()        # DJ-Controller: seine Tasten sind keine gespielten Töne
 
     # ------------------------------------------------------------------
     def start(self):
@@ -80,36 +71,21 @@ class Geraete:
             import jack
             self.jc = jack.Client("zynsimple_midi", no_start_server=True)
             self.jc.set_process_callback(self._process)
-            self.ddj_out = self.jc.midi_outports.register("ddj_out")
             self.jc.activate()
             self.lauf = True
             threading.Thread(target=self._pflege, daemon=True).start()
-            threading.Thread(target=self._ddj_durchreichen, daemon=True).start()
             threading.Thread(target=self._auswerten, daemon=True).start()
         except Exception as e:
             log.warning(f"ZynSimple: MIDI mithören geht nicht ({e})")
 
     def _process(self, frames):
         # Echtzeit: nur kopieren, nichts auswerten
-        o = self.ddj_out
-        if o is not None:
-            o.clear_buffer()
-            while self.ddj_aus:
-                try:
-                    o.write_midi_event(0, self.ddj_aus.popleft())
-                except Exception:
-                    break
         for name, p in list(self.ports.items()):
             ddj = name in self.ddj_namen
             for _, data in p.incoming_midi_events():
-                if ddj:
-                    self.ddj_roh.append(bytes(data))
-                if len(data) < 3:
+                if len(data) < 3 or ddj:
                     continue
-                if ddj:
-                    if 0x80 <= data[0] < 0xA0 or 0xB0 <= data[0] < 0xC0:
-                        self.ddj_q.append(bytes(data[:3]))
-                elif 0x80 <= data[0] < 0xA0:
+                if 0x80 <= data[0] < 0xA0:
                     self.q.append((name, bytes(data[:3])))
 
     def _pflege(self):
@@ -135,72 +111,12 @@ class Geraete:
                         if pname not in [c.name for c in self.jc.get_all_connections(port)]:
                             self.jc.connect(pname, port)
                 self._multi_pflegen()
-                self._ddj_ausgang(za)
             except Exception as e:
                 log.debug(f"ZynSimple: MIDI-Geräte: {e}")
             time.sleep(3)
 
-    def _ddj_ausgang(self, za):
-        """Eigenen Ausgang mit dem DDJ verbinden (LEDs von Mixxx)."""
-        if self.ddj_out is None:
-            return
-        for p in list(getattr(za, "devices_out", []) or []):
-            if p is not None and RX_DDJ.search(_text(p)):
-                if p.name not in [c.name for c in self.jc.get_all_connections(self.ddj_out)]:
-                    try:
-                        self.jc.connect(self.ddj_out, p.name)
-                        log.info(f"ZynSimple: DJ-Controller-LEDs über {p.name}")
-                    except Exception:
-                        pass
-                return
-
-    def _ddj_durchreichen(self):
-        """DDJ → Mixxx: alles, was der DDJ sendet, über den eigenen Anschluss an Mixxx (nur bei „DJ + Instrumente“)."""
-        while self.lauf:
-            hy = getattr(self.b, "hybrid", None)
-            bereit = hy is not None and hy.ddj_bereit()
-            if not self.ddj_roh:
-                time.sleep(0.001 if bereit else 0.05)
-                continue
-            while self.ddj_roh:
-                msg = self.ddj_roh.popleft()
-                if bereit:
-                    hy.ddj_senden(msg)
-
-    def _ddj(self, st, d1, d2):
-        """DDJ-400/FLX4: BROWSE drehen + LOAD (Kanal 7). DDJ-200 (Mixxx-Belegung ab Werk): SHIFT = Note 0x3F, Jog = CC 0x21 (64 = Stillstand),
-        SHIFT + Kopfhörer = Note 0x68 – jeweils Kanal 1 (Deck A) und 2 (Deck B)."""
-        typ, k = st & 0xF0, st & 0x0F
-        an = typ == 0x90 and d2 > 0
-        if k == 6:
-            # DDJ-400 / DDJ-FLX4: eigener BROWSE-Drehknopf (CC 0x40, 1 = vor, 127 = zurück) und LOAD-Tasten
-            if typ == 0xB0 and d1 in (0x40, 0x64):
-                schritte = d2 if d2 < 64 else d2 - 128
-                for _ in range(min(5, abs(schritte))):
-                    self.ddj_aktionen.append(("runter" if schritte > 0 else "hoch", 0))
-            elif an and d1 in (0x46, 0x47):
-                self.ddj_aktionen.append(("laden", 1 if d1 == 0x46 else 2))
-            return
-        if k > 1:
-            return
-        if typ in (0x80, 0x90) and d1 == 0x3F:
-            self._ddj_shift[k] = an
-            self._ddj_jog = 0
-        elif typ == 0xB0 and d1 == 0x21 and any(self._ddj_shift):
-            self._ddj_jog += d2 - 64
-            if abs(self._ddj_jog) > 9:
-                self.ddj_aktionen.append(("runter" if self._ddj_jog > 0 else "hoch", 0))
-                self._ddj_jog = 0
-        elif typ == 0x90 and d1 == 0x68 and an:
-            self.ddj_aktionen.append(("laden", k + 1))
-
     def _auswerten(self):
         while self.lauf:
-            while self.ddj_q:
-                try:
-                    self._ddj(*self.ddj_q.popleft())
-                except Exception as e:
-                    log.debug(f"ZynSimple: DDJ: {e}")
             if not self.q:
                 time.sleep(0.01)
                 continue

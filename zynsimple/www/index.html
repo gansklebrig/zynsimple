@@ -327,8 +327,7 @@
     <button data-mode="hintergrund">⇄ Zusammen<small>Zynthian + Imres</small></button>
     <button data-mode="zynthian">◼ Nur Zynthian<small>Imres aus</small></button>
   </div>
-  <div id="dj-modes" style="display:none"><button data-dj="dj">🎧 DJ-Pult<small>Mixxx im Vollbild · DDJ</small></button>
-    <button data-dj="hybrid" id="hy-mode" style="margin-top:8px">♫ DJ + Instrumente<small>Mixxx als Kanal im Mischer · Spuren laufen weiter</small></button></div>
+  <div id="dj-modes" style="display:none"><button data-dj="dj">🎧 DJ-Pult<small>Mixxx im Vollbild · DDJ</small></button></div>
   <div id="imres-msg"></div>
   <iframe id="fern" title="Imres Fernbedienung"></iframe>
 </section>
@@ -342,15 +341,8 @@
 <section id="extras">
   <div class="card" id="dj-card" style="display:none">
     <h2>🎧 DJ-Pult</h2>
-    <p>Mixxx im Vollbild, gesteuert mit dem DDJ (200, 400, FLX4) und den Zynthian-Reglern. Zurück: Mixxx beenden oder am Zynthian <b>BACK</b> 3 s halten → System-Menü (Zynthian, Barden Beats, Updates, Neustart, Ausschalten).</p>
+    <p>Mixxx im Vollbild, gesteuert mit dem DDJ (200, 400, FLX4) und den Zynthian-Reglern. Am Zynthian: <b>CTRL 1,5 s halten</b> = hin und zurück. <b>BACK</b> 3 s halten = System-Menü.</p>
     <div class="line"><button class="btn" id="dj-go">DJ-Pult starten</button><a class="btn sec" href="/import">⇩ Musik vom Stick / von der SD-Karte übernehmen</a></div>
-    <h2 style="margin-top:14px">♫ DJ + Instrumente</h2>
-    <p>Mixxx läuft <b>neben</b> dem Zynthian: die Musik kommt als Kanal <b>„DJ-Pult“</b> in den Mischer (Fader, Mute, Effekte, Szenen),
-      Handpan, Mikro und Looper laufen wie immer daneben. Der DDJ steuert nur Mixxx. Am Zynthian-Display: ⋯ → <b>Mixxx zeigen</b>,
-      Taste MENU = zurück; Regler und Tasten wirken weiter, ohne die Ansicht zu wechseln. Kopfhörer-Vorhören gibt es hier nicht – dafür ist das reine DJ-Pult da.</p>
-    <p id="hy-info"></p>
-    <div class="line"><button class="btn" id="hy-go">Starten</button><button class="btn sec" id="hy-show" style="display:none">Mixxx am Display zeigen</button>
-      <a class="btn sec" href="/bibliothek">🔎 Musik suchen &amp; laden</a></div>
     <h2 style="margin-top:14px">🎤 Bühne</h2>
     <p id="bu-info"></p>
     <div class="line"><button class="btn sec" id="bu-merk">Auftritts-Stand merken</button><button class="btn sec" id="bu-lade">Zurückholen</button></div>
@@ -819,13 +811,6 @@
       document.getElementById('st-m26').style.display = d.eingerichtet && !d.mixxx26 && !b26.laeuft ? '' : 'none';
       document.getElementById('st-ein').style.display = d.eingerichtet && !st.bereit && !(st.install && st.install.laeuft) ? '' : 'none';
       const tg = document.getElementById('st-toggle'); tg.style.display = st.bereit ? '' : 'none'; tg.textContent = st.an ? 'Stems pausieren' : 'Stems weiter';
-      const hy = d.hybrid || {};
-      hyAn = !!hy.an;
-      document.getElementById('hy-go').textContent = hy.an ? 'Beenden' : (hy.phase === 'start' ? 'Startet …' : 'Starten');
-      document.getElementById('hy-show').style.display = hy.an ? '' : 'none';
-      document.getElementById('hy-mode').style.display = d.mixxx && hy.moeglich !== false ? '' : 'none';
-      document.getElementById('hy-info').textContent = hy.an ? ('läuft' + (hy.tempo ? ' · ' + hy.tempo + ' BPM' : '') + ' · ' + (d.takt || ''))
-        : (hy.fehler ? 'zuletzt: ' + hy.fehler : (d.mixxx ? '' : 'Erst einmal das DJ-Pult starten – dabei wird Mixxx installiert.'));
       const sm = d.strom || {};
       document.getElementById('bu-info').innerHTML = (sm.jetzt ? '<b style="color:var(--mute)">⚡ Strom zu schwach – Netzteil/Akku prüfen!</b><br>' : '')
         + 'Takt: ' + (d.takt || '–') + '<br>Auftritts-Stand: ' + (d.auftritt ? 'gemerkt ' + d.auftritt : 'noch keiner – vor dem Auftritt „merken“');
@@ -840,17 +825,6 @@
     } catch (e) { toast('Ging nicht: ' + e.message, 6000); }
   }
   document.getElementById('dj-go').onclick = djStart;
-  let hyAn = false;
-  async function hyStart() {
-    try {
-      const r = await api('/api/dj', { aktion: hyAn ? 'hybrid-aus' : 'hybrid-an' });
-      if (r.error) throw new Error(r.error);
-      toast(r.message || 'OK', 6000);
-    } catch (e) { toast('Ging nicht: ' + e.message, 6000); }
-    setTimeout(djCheck, 2500);
-  }
-  document.getElementById('hy-go').onclick = hyStart;
-  document.getElementById('hy-show').onclick = () => djAkt('hybrid-zeigen', null, 'Mixxx ist am Zynthian vorne – MENU holt den Mischer zurück');
   const dgAkt = async (body) => {
     toast('Einen Moment …', 3000);
     const r = await api('/api/dj', body).catch(e => ({ error: e.message }));
@@ -904,7 +878,6 @@
     } catch (err) { toast('Ging nicht: ' + err.message, 6000); }
   };
   document.querySelector('#dj-modes button[data-dj="dj"]').onclick = djStart;
-  document.getElementById('hy-mode').onclick = hyStart;
   djCheck();
 
   // ---- Effekt-Regler (Blatt von unten) ----

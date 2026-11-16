@@ -178,7 +178,7 @@ class zynsimple_screen(zynthian_gui_base):
     # ------------------------------------------------------------------
     # Bedienung mit den Zynthian-Tasten: Drehregler/Pfeile wählen, SEL löst aus, BACK zurück
     # ------------------------------------------------------------------
-    FOKUS_MODES = ("more", "settings", "track", "newtrack", "autogain", "tuner", "looper", "stick", "lernen", "tasten", "bib")
+    FOKUS_MODES = ("more", "settings", "track", "newtrack", "autogain", "tuner", "looper", "stick", "lernen", "tasten")
 
     def _fokus_ziele(self):
         roh = [(h[0], h[1], h[2], h[3], h[4], None) for h in getattr(self, "more_hits", [])] if self.mode == "more" \
@@ -211,15 +211,7 @@ class zynsimple_screen(zynthian_gui_base):
     def _blaettern(self, schritt):
         """Listen mit Seiten (Titel laden, Stick, Tasten): eine Seite weiter/zurück. True, wenn geblättert."""
         try:
-            if self.mode == "bib":
-                b = self.bib
-                n = self._bib_pro()
-                neu = b["start"] + schritt * n
-                if 0 <= neu < (b["daten"] or {}).get("treffer", 0):
-                    b["start"] = neu
-                    self._bib_holen()
-                    return True
-            elif self.mode == "stick":
+            if self.mode == "stick":
                 st = self.stick
                 if st.get("daten") and (st["seite"] + schritt >= 0):
                     alt = st["seite"]
@@ -247,21 +239,9 @@ class zynsimple_screen(zynthian_gui_base):
             if not 0 <= i < len(z) and self._blaettern(1 if i >= len(z) else -1):
                 z = self._fokus_ziele()
                 self.fokus_i = 0 if i >= 0 else len(z) - 1
-                if self.mode == "bib" and schritt > 0:
-                    self.fokus_i = self._bib_erste_zeile()
             else:
                 self.fokus_i = i % len(z)
         self._fokus_neu()
-
-    def _bib_erste_zeile(self):
-        z = self._fokus_ziele()
-        zeilen = self.bib.get("zeilen") or []
-        if zeilen:
-            ya = zeilen[0][0]
-            for k, r in enumerate(z):
-                if r[1] >= ya - 2:
-                    return k
-        return 0
 
     def fokus_richtung(self, richtung):
         z = self._fokus_ziele()
@@ -287,7 +267,7 @@ class zynsimple_screen(zynthian_gui_base):
         if bi is not None:
             self.fokus_i = bi
         elif dy and self._blaettern(dy):              # unten/oben am Rand: nächste/vorige Seite
-            self.fokus_i = self._bib_erste_zeile() if self.mode == "bib" and dy > 0 else 0
+            self.fokus_i = 0
         self._fokus_neu()
 
     def fokus_ausloesen(self):
@@ -394,8 +374,6 @@ class zynsimple_screen(zynthian_gui_base):
             self.draw_lernen()
         elif self.mode == "tasten":
             self.draw_tasten()
-        elif self.mode == "bib":
-            self.draw_bib()
         elif self.mode in ("autogain", "tuner", "looper"):
             self.draw_tool()
 
@@ -515,8 +493,6 @@ class zynsimple_screen(zynthian_gui_base):
                     self.tick_settings()
             elif self.mode == "lernen":
                 self.tick_lernen()
-            elif self.mode == "bib":
-                self.tick_bib()
             elif self.mode == "stick":
                 if self.stick.get("neu"):
                     self.stick["neu"] = False
@@ -532,8 +508,6 @@ class zynsimple_screen(zynthian_gui_base):
                 self.strips = self.data["strips"]
                 self.draw_idle()
                 delay = 50
-            if self.mode not in ("splash", "wechsel"):
-                self._ddj_tick()                      # DJ-Controller: BROWSE / LOAD
         except Exception as e:
             log.exception(f"ZynSimple Bildschirm: {e}")
         self.timer = self.canvas.after(delay, self.tick)
@@ -1064,339 +1038,6 @@ class zynsimple_screen(zynthian_gui_base):
     BIB_REITER = [("neu", "Neu dazu"), ("fav", "★ Favoriten"), ("az", "A – Z")]
     BIB_BUCHSTABEN = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + ["#"]
 
-    def open_bib(self):
-        # Die DJ-Ansicht öffnet immer – läuft Mixxx (noch) nicht, steht in den Deck-Karten, warum
-        self.bib = {"reiter": "neu", "buchstabe": None, "start": 0, "daten": None, "fehler": None, "laedt": None}
-        self.mode = "bib"
-        self.fokus_i = 0
-        self._bib_holen()
-        self.draw_bib()
-
-    def _bib_deckhoehe(self):
-        W, H = self._geom()
-        return max(62, int(H * 0.14))
-
-    def _bib_pro(self):
-        W, H = self._geom()
-        oben = 56 + self._bib_deckhoehe() + 8 + 48
-        return max(3, int((H - oben - 66 - (40 if self.bib["reiter"] == "az" else 0)) // max(44, int(H / 10.5))))
-
-    def _bib_decks(self, W, y0, dh):
-        """Deck A und B: was geladen ist, läuft es, Tempo, Restzeit – antippen = Start/Stopp."""
-        cv = self.canvas
-        hy = getattr(self.bridge, "hybrid", None)
-        if hy is None or not hy.laeuft():
-            # Mixxx läuft nicht: großer Hinweis statt leerer Decks
-            self.rrect(14, y0, W - 14, y0 + dh, 12, fill=P["card"], outline=P["gold_dim"], width=2)
-            if hy is not None and hy.phase == "start":
-                t1, t2 = "⏳ Mixxx startet …", "dauert etwa 30 Sekunden – die Titel unten kannst du schon ansehen"
-            elif hy is not None and hy.fehler:
-                t1, t2 = "DJ läuft nicht", self._clip_text(str(hy.fehler), W - 60, self.f_tiny)
-            elif not self.settings.get("dj_hybrid", False):
-                t1, t2 = "DJ ist ausgeschaltet", "Einstellungen → Bühne → „DJ im Mischpult“"
-            else:
-                t1, t2 = "⏳ DJ startet gleich …", "Mixxx wird im Hintergrund gestartet"
-            cv.create_text(W / 2, y0 + dh * 0.36, text=t1, font=self.f_mid, fill=P["gold"])
-            cv.create_text(W / 2, y0 + dh * 0.72, text=t2, font=self.f_tiny, fill=P["tx2"])
-            return
-        try:
-            decks = hy.decks()
-        except Exception:
-            decks = [{}, {}]
-        bw = (W - 28 - 8) / 2
-        for k, z in enumerate(decks):
-            x0 = 14 + k * (bw + 8)
-            x1 = x0 + bw
-            farbe = P["gold"] if k == 0 else P["emerald"]
-            an = bool(z.get("laeuft"))
-            self.rrect(x0, y0, x1, y0 + dh, 12, fill="#2a2014" if an else P["card"], outline=farbe if an else P["line"],
-                       width=2 if an else 1)
-            cv.create_text(x0 + 24, y0 + dh / 2, text="A" if k == 0 else "B", font=self.f_huge, fill=farbe)
-            tx = x0 + 50
-            if z.get("geladen"):
-                cv.create_text(tx, y0 + dh * 0.3, anchor="w", font=self.f_small, fill=P["champ"],
-                               text=self._clip_text(z.get("titel", ""), bw - 175, self.f_small))
-                cv.create_text(tx, y0 + dh * 0.6, anchor="w", font=self.f_tiny, fill=P["tx2"],
-                               text=self._clip_text(z.get("kuenstler", ""), bw - 175, self.f_tiny))
-                r = int(z.get("rest", 0))
-                cv.create_text(x1 - 12, y0 + dh * 0.3, anchor="e", font=self.f_mid, fill=farbe,
-                               text=("▶ " if an else "❚❚ ") + f"−{r // 60}:{r % 60:02d}")
-                # Tempo und Tonart groß – grün, wenn die Tonart zur Band passt
-                ton = z.get("tonart") or ""
-                passt = (z.get("key_id") or 0) in self._passende_keys()
-                cv.create_text(x1 - 12, y0 + dh * 0.62, anchor="e", font=self.f_small,
-                               fill=P["emerald"] if passt else P["champ"], text=ton or "–")
-                cv.create_text(x1 - 12 - max(52, W * 0.07), y0 + dh * 0.62, anchor="e", font=self.f_small,
-                               fill=farbe, text=f"{z['bpm']:.1f} BPM" if z.get("bpm") else "– BPM")
-                py = y0 + dh - 9
-                cv.create_rectangle(tx, py, x1 - 12, py + 4, fill=P["line"], outline="")
-                cv.create_rectangle(tx, py, tx + (x1 - 12 - tx) * min(1, max(0, z.get("pos", 0))), py + 4,
-                                    fill=farbe, outline="")
-            else:
-                cv.create_text(tx, y0 + dh / 2, anchor="w", font=self.f_small, fill=P["tx2"],
-                               text=f"leer · F{k + 1} oder LOAD am DDJ lädt den gewählten Titel")
-            self.trk_hits.append((x0, y0, x1, y0 + dh, "b_play", k + 1))
-
-    def _bib_decks_zeichnen(self, W, dh):
-        """Nur die Deck-Karten (neu) zeichnen – die Liste darunter bleibt stehen (kein Flackern)."""
-        cv = self.canvas
-        cv.delete("bibdeck")
-        self.trk_hits = [h for h in self.trk_hits if h[4] != "b_play"]
-        alle = cv.find_all()
-        n0 = alle[-1] if alle else 0
-        self._bib_decks(W, 56, dh)
-        for i in cv.find_all():
-            if i > n0:
-                cv.addtag_withtag("bibdeck", i)
-        cv.tag_raise("fokusrahmen")
-
-    def _bib_holen(self):
-        b = self.bib
-        try:
-            from . import dj
-            r = b["reiter"]
-            b["daten"] = dj.bibliothek_modul().suche(
-                favoriten=r == "fav", limit=self._bib_pro(), start=b["start"],
-                sortierung={"neu": "neu", "fav": "sterne", "az": "az"}[r], buchstabe=b["buchstabe"] if r == "az" else None)
-            b["fehler"] = None
-        except Exception as e:
-            b["daten"], b["fehler"] = None, str(e)
-
-    def draw_bib(self):
-        cv = self.canvas
-        cv.delete("all")
-        self.trk_hits = []
-        W, H = self._geom()
-        b = self.bib
-        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
-        cv.create_text(20, 28, anchor="w", text="♫ DJ", font=self.f_big, fill=P["gold"])
-        self._tbtn(W - 190, 8, W - 12, 50, "Mischer · MIXER", "b_zu", font=self.f_small)
-        dh = self._bib_deckhoehe()
-        self._bib_decks_zeichnen(W, dh)
-        ty = 56 + dh + 8
-        tw = (W - 40 - 16) / 3
-        for i, (k, t) in enumerate(self.BIB_REITER):
-            an = b["reiter"] == k
-            self._tbtn(20 + i * (tw + 8), ty, 20 + i * (tw + 8) + tw, ty + 40, t, "b_reiter", k,
-                       fill="#2a2014" if an else None, outline=P["gold"] if an else None,
-                       fg=P["gold"] if an else None, font=self.f_small)
-        y0 = ty + 48
-        if b["reiter"] == "az":
-            bw = (W - 28) / len(self.BIB_BUCHSTABEN)
-            for i, ch in enumerate(self.BIB_BUCHSTABEN):
-                an = b["buchstabe"] == ch
-                self._tbtn(14 + i * bw + 1, y0, 14 + (i + 1) * bw - 1, y0 + 34, ch, "b_buchst", ch,
-                           fill=P["gold"] if an else None, fg=P["black"] if an else None, font=self.f_tiny)
-            y0 += 42
-        d = b["daten"]
-        y1 = H - 66
-        if b["fehler"] or not d:
-            cv.create_text(W / 2, (y0 + y1) / 2, text=b["fehler"] or "…", font=self.f_mid, fill=P["rose"],
-                           width=W - 80, justify="center")
-        elif not d["titel"]:
-            cv.create_text(W / 2, (y0 + y1) / 2, width=W - 80, justify="center", font=self.f_mid, fill=P["tx2"],
-                           text={"fav": "Noch keine Favoriten – im DJ-Pult gibt ALT + ▲ dem laufenden Titel einen Stern",
-                                 }.get(b["reiter"], "Keine Titel – Musik übernehmen (⋯ → ⇩ Musik übernehmen); "
-                                                    "Mixxx liest neue Titel beim nächsten Start ein"))
-        else:
-            rh = (y1 - y0) / self._bib_pro()
-            bw = max(64, W * 0.085)
-            b["zeilen"] = []
-            for k, t in enumerate(d["titel"]):
-                ya, yb = y0 + k * rh + 2, y0 + (k + 1) * rh - 2
-                b["zeilen"].append((ya, yb, t["id"]))
-                hier = b["laedt"] and b["laedt"][0] == t["id"]
-                gew = b.get("ddj") == k
-                self.rrect(14, ya, W - 14, yb, 12, fill="#2a2014" if hier or gew else P["card"],
-                           outline=P["gold"] if hier or gew else P["line"], width=2 if gew else 1)
-                spw = max(110, W * 0.15)                   # Spalte Tempo / Tonart
-                tx_w = W - 50 - 2 * bw - 20 - spw
-                cv.create_text(28, ya + (yb - ya) * 0.34, anchor="w", font=self.f_small, fill=P["champ"],
-                               text=self._clip_text(t["title"], tx_w, self.f_small))
-                info = " · ".join(x for x in (t["artist"], "★" * t["sterne"]) if x)
-                sx = W - 22 - 2 * (bw + 8) - 8
-                cv.create_text(sx, ya + (yb - ya) * 0.34, anchor="e", font=self.f_small, fill=P["gold"],
-                               text=f"{t['bpm']:.1f} BPM" if t["bpm"] else "– BPM")
-                passt = t.get("key_id") in self._passende_keys()
-                cv.create_text(sx, ya + (yb - ya) * 0.72, anchor="e", font=self.f_tiny,
-                               fill=P["emerald"] if passt else P["tx2"],
-                               text=(t["tonart"] + (" · passt" if passt else "")) if t["tonart"] else "Tonart –")
-                cv.create_text(28, ya + (yb - ya) * 0.72, anchor="w", font=self.f_tiny, fill=P["tx2"],
-                               text=self._clip_text(info, tx_w, self.f_tiny))
-                for j, deck in enumerate((1, 2)):
-                    x1 = W - 22 - (1 - j) * (bw + 8)
-                    lauf = hier and b["laedt"][1] == deck
-                    self._tbtn(x1 - bw, ya + 4, x1, yb - 4, "…" if lauf else ("A" if deck == 1 else "B"), "b_laden",
-                               (t["id"], deck), fill=P["gold"] if lauf else None,
-                               fg=P["black"] if lauf else (P["gold"] if deck == 1 else P["emerald"]), font=self.f_mid)
-        by0, by1 = H - 58, H - 10
-        if d and d["treffer"] > self._bib_pro():
-            seiten = math.ceil(d["treffer"] / self._bib_pro())
-            seite = b["start"] // self._bib_pro()
-            self._tbtn(14, by0, 70, by1, "▲", "b_seite", -1, font=self.f_small)
-            cv.create_text(110, (by0 + by1) / 2, text=f"{seite + 1}/{seiten}", font=self.f_tiny, fill=P["tx2"])
-            self._tbtn(150, by0, 206, by1, "▼", "b_seite", 1, font=self.f_small)
-        cv.create_text(W - 16, (by0 + by1) / 2, anchor="e", font=self.f_tiny, fill=P["tx2"],
-                       text=(f"{d['gesamt']} Titel · " if d else "") + "wählen: Regler oder BROWSE am DDJ · laden: F1/F2 oder LOAD am DDJ")
-        self._fokus_zeichnen()                     # Auswahl bleibt sichtbar, auch wenn die Decks neu gezeichnet werden
-
-    def bib_press(self, ev):
-        h = next((hh for hh in reversed(self.trk_hits) if hh[0] <= ev.x <= hh[2] and hh[1] <= ev.y <= hh[3]), None)
-        if not h:
-            return
-        art, extra = h[4], h[5]
-        b = self.bib
-        if art == "b_zu":
-            self.mode = "mix"
-            self.sig = None
-            return
-        if art == "b_play":
-            try:
-                self.bridge.hybrid.play(extra)
-            except Exception as e:
-                self._flash(str(e))
-            return
-        if art == "b_mixxx":
-            threading.Thread(target=self.bridge.hybrid.zeigen, daemon=True).start()
-            return
-        if art == "b_reiter":
-            b.update(reiter=extra, start=0, buchstabe=None)
-            self.fokus_i = 0
-        elif art == "b_buchst":
-            b.update(buchstabe=None if b["buchstabe"] == extra else extra, start=0)
-        elif art == "b_seite":
-            n = self._bib_pro()
-            b["start"] = max(0, min(b["start"] + extra * n, max(0, (b["daten"] or {}).get("treffer", 0) - 1) // n * n))
-        elif art == "b_laden":
-            return self.bib_press_laden(*extra)
-        b["ddj"] = None
-        self._bib_holen()
-        self.draw_bib()
-
-    def _bib_taste(self, role):
-        """Titel laden mit den F-Tasten: F1 = Deck A, F2 = Deck B (ausgewählte Zeile) · F3/F4 = Reiter wechseln."""
-        b = self.bib
-        if role in ("F3", "F4"):
-            ks = [k for k, _ in self.BIB_REITER]
-            b.update(reiter=ks[(ks.index(b["reiter"]) + (1 if role == "F4" else -1)) % len(ks)], start=0, buchstabe=None,
-                     ddj=None)
-            self.fokus_i = 0
-            self._bib_holen()
-            return self.draw_bib()
-        zeilen = b.get("zeilen") or []
-        if not zeilen:
-            return
-        tid = zeilen[0][2]
-        if getattr(self, "fokus_aktiv", False):
-            z = self._fokus_ziele()
-            if z:
-                x0, y0, x1, y1 = z[min(self.fokus_i, len(z) - 1)]
-                cy = (y0 + y1) / 2
-                tid = next((r[2] for r in zeilen if r[0] <= cy <= r[1]), tid)
-        self.bib_press_laden(tid, 1 if role == "F1" else 2)
-
-    def bib_press_laden(self, tid, deck):
-        b = self.bib
-        if b["laedt"]:
-            return
-        b["laedt"] = (tid, deck)
-
-        def lauf():
-            try:
-                hy = self.bridge.hybrid
-                if not hy.laeuft():
-                    raise RuntimeError("Mixxx läuft noch nicht – oben steht, warum")
-                txt = hy.laden(tid, deck)
-            except Exception as e:
-                txt = f"Laden ging nicht: {e}"
-            b["laedt"] = None
-            b["meldung"] = txt
-        threading.Thread(target=lauf, daemon=True).start()
-        self.draw_bib()
-
-    def _passende_keys(self):
-        """Mixxx-Tonarten (1–12 Dur, 13–24 Moll ab C), die zur eingestellten Tonart der Band passen."""
-        wert = self.settings.get("tonart")
-        if getattr(self, "_pk_cache", (None,))[0] != wert:
-            try:
-                from .helfer import passende_tonarten
-                ks = {ton + 1 if art == "dur" else ton + 13 for ton, art in passende_tonarten(wert)}
-            except Exception:
-                ks = set()
-            self._pk_cache = (wert, ks)
-        return self._pk_cache[1]
-
-    def _ddj_tick(self):
-        """DJ-Controller bei „DJ + Instrumente“: BROWSE (DDJ-200: SHIFT + Jog) wählt, LOAD (SHIFT + Kopfhörer) lädt.
-        (Mixxx ist unsichtbar – seine eigene Liste würde hier niemand sehen.)"""
-        g = getattr(self.bridge, "geraete", None)
-        if g is None or not g.ddj_aktionen:
-            return
-        akt = list(g.ddj_aktionen)
-        g.ddj_aktionen.clear()
-        hy = getattr(self.bridge, "hybrid", None)
-        if hy is None or not hy.laeuft():
-            return
-        self._touch()
-        if self.mode == "idle":
-            self.stop_idle()
-        if self.mode not in ("mix", "bib"):
-            self._flash("DJ-Controller: Titel wählen geht im Mischer und unter ♫ Decks & Titel")
-            return
-        self._mixxx_weg()
-        if self.mode != "bib":
-            self.open_bib()
-            if self.mode != "bib":
-                return
-            self.bib["ddj"] = None
-            if any(a[0] == "laden" for a in akt):
-                self._flash("Erst Titel wählen: BROWSE am DDJ drehen (DDJ-200: SHIFT + Jog) · dann LOAD")
-                return
-        b = self.bib
-        for art, deck in akt:
-            if art == "laden":
-                if b.get("ddj") is None and not getattr(self, "fokus_aktiv", False):
-                    self._flash("Erst Titel wählen: BROWSE am DDJ drehen (DDJ-200: SHIFT + Jog)")
-                    continue
-                self._bib_taste("F1" if deck == 1 else "F2")
-                continue
-            n = len((b.get("daten") or {}).get("titel") or [])
-            if not n:
-                continue
-            i = b.get("ddj")
-            i = 0 if i is None else i + (1 if art == "runter" else -1)
-            if i >= n:
-                i = 0 if self._blaettern(1) else n - 1
-            elif i < 0:
-                i = len((b.get("daten") or {}).get("titel") or []) - 1 if self._blaettern(-1) else 0
-            b["ddj"] = i
-        if b.get("ddj") is not None:
-            self.draw_bib()
-            zeilen = b.get("zeilen") or []
-            if zeilen:
-                ya, yb, _ = zeilen[min(b["ddj"], len(zeilen) - 1)]
-                z = self._fokus_ziele()
-                drin = [k for k, r in enumerate(z) if ya <= (r[1] + r[3]) / 2 <= yb]
-                if drin:
-                    self.fokus_aktiv = True
-                    self.fokus_i = min(drin, key=lambda k: z[k][0])
-            self._fokus_neu()
-
-    def tick_bib(self):
-        b = self.bib
-        if b.get("meldung"):
-            self._flash(b.pop("meldung"))
-            return self.draw_bib()
-        try:
-            sig = repr([(z.get("geladen"), z.get("laeuft"), z.get("titel"), int(z.get("rest", 0)))
-                        for z in self.bridge.hybrid.decks()])
-        except Exception:
-            sig = None
-        if sig != b.get("deck_sig"):
-            b["deck_sig"] = sig
-            W, H = self._geom()
-            self._bib_decks_zeichnen(W, self._bib_deckhoehe())     # nur die Decks, nicht die ganze Seite
-
     def open_help(self, willkommen=False):
         self.mode = "help"
         self.help_page = 0
@@ -1748,7 +1389,6 @@ class zynsimple_screen(zynthian_gui_base):
         # rechts: Effekte, Sperre, Mehr
         mw = max(54, int(W * 0.08))
         ew = int(mw * 1.35)
-        hy_ = getattr(self.bridge, "hybrid", None)
         if getattr(self, "dj_installed", False):
             # Der Weg zum DJ-Pult – groß und golden (auch: CTRL 1,5 s halten). „Effekte“ liegt dann unter ⋯.
             scharf = getattr(self, "_dj_scharf", 0) > time.monotonic()
@@ -1804,18 +1444,7 @@ class zynsimple_screen(zynthian_gui_base):
         # Preset- oder Gain-Zeile
         row_h = max(28, int(h * 0.085))
         aw = max(26, int(w * 0.22))
-        hy_ = getattr(self.bridge, "hybrid", None)
-        if s["name"] == "DJ-Pult" and hy_ is not None:
-            # Der DJ-Teil im Mischpult: direkter Weg zur Musik (auch mit der MIXER-Taste)
-            if hy_.laeuft():
-                self._button(cx0, cy, cx1 - cx0, row_h, "♫ DJ · MIXER", True, "bib", cid, None, fill=P["gold"],
-                             fg=P["black"], font=self.f_small)
-            else:
-                self._button(cx0, cy, cx1 - cx0, row_h, "DJ startet …" if hy_.phase == "start" else "♫ DJ",
-                             True, "bib", cid, None, fill=P["card2"], fg=P["gold"], font=self.f_small)
-            if first_vis:
-                self._anchor(cx0, cy, cx1, cy + row_h, "Musik in Deck A oder B laden")
-        elif s["preset"]:
+        if s["preset"]:
             self._button(cx0, cy, aw, row_h, "‹", True, "preset", cid, -1, fill=P["bg"], fg=P["gold"], font=self.f_big)
             self._button(cx1 - aw, cy, aw, row_h, "›", True, "preset", cid, 1, fill=P["bg"], fg=P["gold"], font=self.f_big)
             cv.create_text(x + w / 2, cy + row_h / 2, font=self.f_small, fill=P["champ"],
@@ -2102,8 +1731,6 @@ class zynsimple_screen(zynthian_gui_base):
             return self.lern_press(ev)
         if self.mode == "tasten":
             return self.tasten_press(ev)
-        if self.mode == "bib":
-            return self.bib_press(ev)
         if self.mode == "help":
             if self.help_page == 0:
                 self.help_page = 1
@@ -2168,9 +1795,6 @@ class zynsimple_screen(zynthian_gui_base):
                 b.action(cid, "gain", 0)
             elif art == "chanedit":
                 self.open_track(cid)
-                return
-            elif art == "bib":
-                self.open_bib()
                 return
             elif art == "newtrack":
                 self.open_newtrack()
@@ -2447,9 +2071,6 @@ class zynsimple_screen(zynthian_gui_base):
                 stick_ = None
             if stick_:
                 items.insert(0, ("djimport", "⇩ Musik übernehmen", f"„{stick_}“: Alben/Titel auswählen"))
-            hy = getattr(self.bridge, "hybrid", None)
-            if hy is not None and hy.laeuft():
-                items.insert(0, ("bib", "♫ DJ: Decks & Titel", "auch mit der MIXER-Taste"))
         if self.imres_installed:
             items.insert(0, ("imres", "♫ Barden Beats", "Bühne & Klangwelten im Vollbild"))
         cols = 4 if len(items) > 6 else 3
@@ -2457,7 +2078,7 @@ class zynsimple_screen(zynthian_gui_base):
         gw, gh = (W - 40) / cols, (H - 70) / rows
         for k, (art, title, sub) in enumerate(items):
             cx, cy = 20 + (k % cols) * gw, 52 + (k // cols) * gh
-            gold = art in ("imres", "dj", "hybrid", "hybrid_zeigen", "djimport", "bib") or (art == "settings" and upd)
+            gold = art in ("imres", "djpult", "djimport") or (art == "settings" and upd)
             self.rrect(cx + 5, cy + 5, cx + gw - 5, cy + gh - 5, 14, fill=P["card2"] if not gold else "#2a2014",
                        outline=P["gold"] if gold else P["line"], width=2 if gold else 1)
             cv.create_text(cx + gw / 2, cy + gh * 0.42, text=title, font=self.f_mid, fill=P["champ"],
@@ -2506,21 +2127,6 @@ class zynsimple_screen(zynthian_gui_base):
                     start_dj(self.zyngui)
                 elif art == "djimport":
                     return self.open_stick()
-                elif art == "bib":
-                    return self.open_bib()
-                elif art in ("hybrid", "hybrid_zeigen", "hybrid_aus"):
-                    hy = self.bridge.hybrid
-                    try:
-                        if art == "hybrid":
-                            hy.starten()
-                            self._flash("DJ + Instrumente startet – Mixxx spielt gleich im Kanal „DJ-Pult“ · "
-                                        "MENU = zurück zum Mischer")
-                        elif art == "hybrid_zeigen":
-                            threading.Thread(target=hy.zeigen, daemon=True).start()
-                        else:
-                            self._flash(hy.stoppen())
-                    except Exception as e:
-                        self._flash(str(e))
                 elif art == "fxview":
                     return self.open_fxview()
                 elif art == "djpult":
@@ -3618,12 +3224,8 @@ class zynsimple_screen(zynthian_gui_base):
             return ("Jetzt speichern", "Mischer, Effekte und Spuren sofort sichern",
                     "✓ Gesichert" if armed else "Speichern", True, False)
         if art == "s_dj":
-            # DJ läuft im Mischpult mit; nur zum ersten Einrichten (installiert Mixxx) braucht es das eigene DJ-Pult
-            hy = getattr(self.bridge, "hybrid", None)
-            if hy is not None and hy.status()["moeglich"]:
-                return ("", "", None, False, False)
-            return ("DJ einrichten", "installiert Mixxx einmalig (einige Minuten) · danach: MIXER-Taste = DJ", "Einrichten",
-                    getattr(self, "dj_installed", False), False)
+            return ("DJ-Pult", "Mixxx im Vollbild mit dem DDJ · auch: CTRL 1,5 s halten · beim ersten Mal wird Mixxx "
+                    "installiert (einige Minuten)", "Starten", getattr(self, "dj_installed", False), False)
         if art == "s_imres":
             return ("Barden Beats", "Bühne & Klangwelten im Vollbild · zurück: BACK 3 s → System-Menü", "Starten",
                     getattr(self, "imres_installed", False), False)
@@ -3705,18 +3307,6 @@ class zynsimple_screen(zynthian_gui_base):
             url = (a.get("url") or a.get("name") or "http://zynthian.local:8090") + "/bibliothek"
             return ("Musik am Handy suchen", f"{url} · Titel antippen → A/B = ins Deck laden · ★ Favoriten",
                     None, getattr(self, "dj_installed", False), False)
-        if art == "s_hybrid":
-            hy = getattr(self.bridge, "hybrid", None)
-            if hy is None or not getattr(self, "dj_installed", False):
-                return ("", "", None, False, False)
-            st_ = hy.status()
-            if not st_["moeglich"]:
-                return ("DJ + Instrumente", "erst einmal das DJ-Pult starten (installiert Mixxx)", None, True, False)
-            if st_["an"]:
-                return ("DJ + Instrumente läuft", "Mixxx spielt im Kanal „DJ-Pult“ · ⋯ → Mixxx zeigen",
-                        "Beenden", True, False)
-            return ("DJ + Instrumente", "Mixxx und alle Spuren gleichzeitig · Musik als Kanal im Mischer"
-                    + (f" · zuletzt: {st_['fehler']}" if st_.get("fehler") else ""), "Starten", True, False)
         if art == "s_gig_merken":
             from . import helfer
             armed = self.set_armed.get("gig", 0) > now
@@ -3977,12 +3567,6 @@ class zynsimple_screen(zynthian_gui_base):
                                 "BeatStep Pro ist da: Bass auf Kanal 1, Melodie auf Kanal 2" +
                                 (", Drums auf Kanal 10" if drums else ""))
                 return
-            elif art == "s_hybrid":
-                hy = self.bridge.hybrid
-                if hy.laeuft():
-                    self._flash(hy.stoppen())
-                else:
-                    self._flash(hy.starten() + " · MENU = zurück zum Mischer")
             elif art == "s_gig_merken":
                 from . import helfer
                 self._flash(helfer.auftritt_merken(self.bridge))
@@ -4428,17 +4012,6 @@ class zynsimple_screen(zynthian_gui_base):
     # Drehgeber
     # ------------------------------------------------------------------
 
-    def _mixxx_weg(self):
-        """Hybrid: Mixxx vorne → nur MENU holt den Mischer zurück (Regler und Tasten wechseln nie die Ansicht)."""
-        hy = getattr(self.bridge, "hybrid", None)
-        if hy is not None and hy.vorne:
-            hy.vorne = False
-            threading.Thread(target=hy.verstecken, daemon=True).start()   # xdotool nie im Tk-Thread
-            self._touch()
-            self.sig = None
-            return True
-        return False
-
     def zynpot_cb(self, i, dval):
         # Drücken + Drehen: das Loslassen danach darf nichts auslösen (kein Ansichtswechsel, kein Klick)
         try:
@@ -4593,34 +4166,6 @@ class zynsimple_screen(zynthian_gui_base):
             if t == "P":
                 self.fokus_richtung(role)
             return True
-        if self.mode == "bib" and role in ("F1", "F2", "F3", "F4"):
-            if t == "S":
-                self._bib_taste(role)
-            return True
-        if self.mode == "bib" and role in ("PLAY", "SEL"):
-            if t == "S":
-                try:
-                    alt = bool(self.zyngui.get_alt_mode())
-                except Exception:
-                    alt = False
-                if role == "PLAY":                        # PLAY = Deck A ▶/❚❚ · ALT + PLAY = Deck B
-                    deck = 2 if alt else 1
-                    try:
-                        z = self.bridge.hybrid.decks()[deck - 1]
-                        if not z.get("geladen"):
-                            self._flash(f"Deck {'AB'[deck - 1]} ist leer – erst einen Titel laden (F{deck})")
-                        else:
-                            self.bridge.hybrid.play(deck)
-                    except Exception as e:
-                        self._flash(str(e))
-                else:                                     # SEL = gewählten Titel ins freie Deck
-                    try:
-                        d = self.bridge.hybrid.decks()
-                        frei = 1 if not d[0].get("geladen") or (d[1].get("geladen") and not d[0].get("laeuft")) else 2
-                    except Exception:
-                        frei = 1
-                    self._bib_taste("F1" if frei == 1 else "F2")
-            return True
         if self.mode == "help" and t == "P":
             self.on_press(type("E", (), {"x": 0, "y": 0})())
             return True
@@ -4688,10 +4233,6 @@ class zynsimple_screen(zynthian_gui_base):
                     t0, was = self.pad_t.pop(i, (time.monotonic(), False))
                     if was or time.monotonic() - t0 > 0.35:
                         self.x.set_freeze(chain, False)
-            elif role == "PLAY" and alt:                  # ALT + PLAY: ♫ Titel laden (DJ + Instrumente)
-                if t == "S":
-                    self.open_bib()
-                    return True
             elif role == "PLAY" and chain is not None:    # ↯ Echo-Wurf: solange gedrückt
                 b.action(chain.chain_id, "throw", t == "P")
             elif role == "TAP":                           # Tap-Tempo auf der METRONOM-Taste
@@ -4738,17 +4279,14 @@ class zynsimple_screen(zynthian_gui_base):
             return True
         self._touch()
         if re.search(r"(^|\s)MENU(\s|$)", txt):
-            hy_ = getattr(self.bridge, "hybrid", None)
-            if self.mode == "more" and not (hy_ is not None and hy_.vorne):
+            if self.mode == "more":
                 self.mode = "mix"
                 self.sig = None
             else:
-                self._mixxx_weg()                         # MENU: Mixxx (falls vorne) weg, ⋯ auf
                 self.mode = "more"
                 self.fokus_i = 0
                 self.draw_more()
             return True
-        hy = getattr(self.bridge, "hybrid", None)
         if re.search(r"SCREEN_AUDIO_MIXER|MIXER", txt):
             # MIXER: zurück zum Mischer (von überall) · im Mischer: Mischer ⇄ Effekte
             if self.mode == "mix":
@@ -4759,8 +4297,6 @@ class zynsimple_screen(zynthian_gui_base):
             return True
         if re.search(r"CHAIN_CONTROL|CONTROL", txt):
             # CTRL: Mischer ⇄ alle Effekte (auf einen Blick)
-            if hy is not None and hy.vorne:
-                self._mixxx_weg()
             if self.mode == "mix":
                 self.open_fxview()
             else:
@@ -4796,20 +4332,6 @@ class zynsimple_screen(zynthian_gui_base):
         self._ctrl_lang_erledigt = False
 
     ANSICHT_HINWEIS = "CTRL 1,5 s halten = DJ-Pult · MIXER = Mischer ⇄ Effekte · MENU = ⋯"
-
-    def _dj_da(self):
-        hy = getattr(self.bridge, "hybrid", None)
-        return hy is not None and hy.laeuft()
-
-    def _dj_hinweis(self):
-        hy = getattr(self.bridge, "hybrid", None)
-        if hy is None or not getattr(self, "dj_installed", False):
-            return "DJ ist noch nicht eingerichtet · ⋯ → Einstellungen → DJ-Pult"
-        if hy.phase == "start":
-            return "DJ startet gerade – einen Moment …"
-        if not self.settings.get("dj_hybrid", False):
-            return "DJ ist ausgeschaltet · Einstellungen → DJ-Pult → „DJ im Mischpult“"
-        return "DJ startet gleich" + (f" (zuletzt: {hy.fehler})" if hy.fehler else "")
 
     def cuia_v5_zynpot_switch(self, params):
         """Drehknopf drücken (V5). In ZynSimple nur Funktionen der aktuellen Seite – nie eine andere Ansicht
@@ -4941,9 +4463,6 @@ class zynsimple_screen(zynthian_gui_base):
             self._stick_hoch()
         elif self.mode == "lernen":
             self.lern_ab()
-        elif self.mode == "bib":
-            self.mode = "mix"
-            self.sig = None
         elif self.mode == "tasten":
             if self.tst.get("wahl"):
                 self.tst["wahl"] = None
@@ -5046,5 +4565,5 @@ def _mit_fokus(name):
     setattr(zynsimple_screen, name, neu)
 
 
-for _n in ("draw_more", "draw_track", "draw_newtrack", "draw_tool", "draw_settings", "draw_stick", "draw_lernen", "draw_tasten", "draw_bib"):
+for _n in ("draw_more", "draw_track", "draw_newtrack", "draw_tool", "draw_settings", "draw_stick", "draw_lernen", "draw_tasten"):
     _mit_fokus(_n)

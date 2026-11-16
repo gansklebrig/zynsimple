@@ -148,10 +148,6 @@ def apply_live(bridge, key):
     """Was sofort wirken kann, sofort wirken lassen."""
     s = bridge.settings
     try:
-        if key == "dj_hybrid" and not s.get("dj_hybrid", False):
-            hy = getattr(bridge, "hybrid", None)
-            if hy is not None and hy.laeuft():
-                hy.stoppen()                         # DJ-Teil aus → Mixxx beenden (startet sonst von selbst)
         if key == "autosave" and bridge.extras:
             bridge.extras.autosave_info["enabled"] = bool(s.get("autosave"))
         if key in ("boot_gans", "boot_animation"):

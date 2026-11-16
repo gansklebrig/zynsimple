@@ -44,8 +44,6 @@ ZynV5.ziel = [0, 0];                    // Effekt 1/2: 0 = Deck A, 1 = Deck B, 2
 ZynV5.verbindungen = [];
 ZynV5.extMsb = 0;
 ZynV5.extBpm = 0;
-ZynV5.deckAlt = [null, {}, {}];         // zuletzt gesendeter Deck-Zustand (nur Änderungen schicken)
-ZynV5.deckTakt = 0;
 
 // ---------------------------------------------------------------------------------------------
 // Grundlagen
@@ -135,7 +133,6 @@ ZynV5.init = function(id, debugging) {
         }
     }
     ZynV5.timer = engine.beginTimer(100, ZynV5.tempoSenden);
-    ZynV5.deckTimer = engine.beginTimer(100, ZynV5.deckSenden);
     if (ZynV5.cfg.autoRec) {
         engine.beginTimer(5000, function() {
             if (!ZynV5.hole("[Recording]", "status")) { ZynV5.setze("[Recording]", "toggle_recording", 1); }
@@ -434,33 +431,6 @@ ZynV5.befehl = function(channel, control, value, status, group) {
             ZynV5.setze("[Channel" + deck + "]", "LoadSelectedTrack", 1);
             ZynV5.zeige("Vom Handy → Deck " + (deck === 1 ? "A" : "B"));
         }, true);
-    }
-};
-
-// ---------------------------------------------------------------------------------------------
-// Deck-Zustand für ZynSimple (DJ + Instrumente): Kanal 2 = Deck A, Kanal 3 = Deck B
-// CC 20 geladen · 21 läuft · 22/23 Länge in s · 24/25 Tempo × 10 · 26/27 Position (0–16383) · 28 Tonart (Mixxx 1–24)
-// ---------------------------------------------------------------------------------------------
-ZynV5.deckSenden = function() {
-    ZynV5.deckTakt = (ZynV5.deckTakt + 1) % 5;
-    for (var d = 1; d <= 2; d++) {
-        var g = "[Channel" + d + "]", st = 0xB0 + d, alt = ZynV5.deckAlt[d];
-        var neu = {
-            geladen: ZynV5.hole(g, "track_loaded") ? 1 : 0,
-            laeuft: ZynV5.hole(g, "play") ? 1 : 0,
-            dauer: Math.max(0, Math.min(16383, Math.round(ZynV5.hole(g, "duration") || 0))),
-            bpm: Math.max(0, Math.min(16383, Math.round((ZynV5.hole(g, "bpm") || 0) * 10))),
-            pos: Math.max(0, Math.min(16383, Math.round((ZynV5.hole(g, "playposition") || 0) * 16383))),
-            key: Math.max(0, Math.min(24, Math.round(ZynV5.hole(g, "key") || 0)))
-        };
-        if (neu.geladen !== alt.geladen) { midi.sendShortMsg(st, 20, neu.geladen); }
-        if (neu.laeuft !== alt.laeuft) { midi.sendShortMsg(st, 21, neu.laeuft); }
-        if (neu.dauer !== alt.dauer) { midi.sendShortMsg(st, 22, neu.dauer >> 7); midi.sendShortMsg(st, 23, neu.dauer & 0x7F); }
-        if (neu.bpm !== alt.bpm) { midi.sendShortMsg(st, 24, neu.bpm >> 7); midi.sendShortMsg(st, 25, neu.bpm & 0x7F); }
-        if (neu.key !== alt.key) { midi.sendShortMsg(st, 28, neu.key); }
-        if (ZynV5.deckTakt === 0 && neu.pos !== alt.pos) { midi.sendShortMsg(st, 26, neu.pos >> 7); midi.sendShortMsg(st, 27, neu.pos & 0x7F); }
-        else { neu.pos = alt.pos; }
-        ZynV5.deckAlt[d] = neu;
     }
 };
 

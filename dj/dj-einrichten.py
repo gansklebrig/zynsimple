@@ -9,7 +9,6 @@ ZynSimple DJ-Pult: richtet Mixxx vor jedem Start passend ein, damit niemand in d
   - Kiste „Passt zur Handpan“: Tracks in harmonisch passenden Tonarten
   - Kiste „★ Favoriten“: alle Tracks ab vier Sternen (Sterne: ALT + ▲ ▼ am Zynthian)
   - Aufnahmen: auf den USB-Stick (Ordner DJ-Sets), sonst in den DJ-Ordner
-  - Hybrid-Modus (ZS_HYBRID=1): Ton über JACK in einen Kanal des Zynthian-Mischers statt direkt auf die Soundkarte
   - Ansicht: eigene kompakte Ansicht „ZynSimple Glut“ (ohne Blau), Rückfall auf LateNight
 
 Alles, was der Nutzer in Mixxx selbst ändert, bleibt – außer den hier verwalteten Schlüsseln.
@@ -60,7 +59,6 @@ def einstellungen():
     return s
 
 
-HYBRID = os.environ.get("ZS_HYBRID") == "1"
 MIXXX_BIN = os.environ.get("ZS_MIXXX", "mixxx")
 MIXXX_SHARE = ["/opt/mixxx-2.6/share/mixxx"] if MIXXX_BIN.startswith("/opt/mixxx-2.6") else []
 
@@ -130,27 +128,8 @@ def ton_einrichten(s):
     return True, kh
 
 
-def soundconfig_hybrid(ver):
-    """Hybrid: Mixxx spielt über JACK nur den Haupt-Mix – ZynSimple legt ihn auf den Kanal „DJ-Pult“ im Zynthian-Mischer.
-    Die DJ-Einstellung wird beiseitegelegt und beim nächsten reinen DJ-Start zurückgeholt."""
-    pfad = os.path.join(MIXXX, "soundconfig.xml")
-    merker = os.path.join(MIXXX, ".soundconfig.zynsimple")
-    if os.path.exists(pfad) and not os.path.exists(pfad + ".dj"):
-        shutil.copy2(pfad, pfad + ".dj")
-        if os.path.exists(merker):
-            shutil.copy2(merker, merker + ".dj")
-    # Keine eigene Datei schreiben: ohne soundconfig.xml nimmt Mixxx von selbst JACK (wenn es läuft) und das erste
-    # Ausgabegerät mit dem richtigen Namen und der richtigen Abtastrate. Wohin der Ton dann wirklich geht, legt
-    # ZynSimple fest (Mixxx → Kanal „DJ-Pult“). Ein selbst geschriebener Gerätename passte nicht überall.
-    try:
-        os.remove(pfad)
-    except OSError:
-        pass
-    log("Hybrid: Mixxx wählt JACK selbst → ZynSimple legt den Ton auf den Kanal „DJ-Pult“")
-
-
 def soundconfig_zurueck():
-    """Nach dem Hybrid-Modus: die DJ-Ton-Einstellung wiederherstellen."""
+    """Rest früherer Versionen („DJ + Instrumente“): die DJ-Ton-Einstellung wiederherstellen."""
     pfad = os.path.join(MIXXX, "soundconfig.xml")
     merker = os.path.join(MIXXX, ".soundconfig.zynsimple")
     if os.path.exists(pfad + ".dj"):
@@ -264,15 +243,6 @@ def schluessel(name):
 
 RX_DDJ = re.compile(r"DDJ-?(FLX\d+|[A-Z]{0,3}\d+|[A-Z]{2,3}\d?)", re.I)
 
-DDJ_HYBRID_JS = """
-
-// ---- ZynSimple „DJ + Instrumente“ ----
-// Mixxx ist hier unsichtbar: Titel wählen und laden übernimmt ZynSimple mit seiner Liste „Decks & Titel“
-// am Zynthian-Bildschirm. Mixxx selbst blättert und lädt hier nicht.
-if (typeof DDJ200 !== "undefined") { DDJ200.LoadSelectedTrack = function() {}; DDJ200.browseTracks = function() {}; }
-"""
-
-
 def ddj_modell(name):
     """„DDJ-400 MIDI 1“ → „400“, „DDJ-FLX4“ → „FLX4“, „DDJ-200“ → „200“."""
     m = RX_DDJ.search(name or "")
@@ -288,36 +258,6 @@ def ddj_mapping(modell):
         if kand:
             return kand[0]
     return None
-
-
-def ddj_hybrid(orig, ziel):
-    """Kopie der DDJ-Belegung für den Hybrid-Modus: Blättern/Laden macht ZynSimple, nicht Mixxx."""
-    try:
-        with open(orig, encoding="utf-8") as f:
-            xml = f.read()
-        modell = ddj_modell(os.path.basename(orig)) or "X"
-        # Blättern und Laden aus der Belegung nehmen (DDJ-400/FLX4: eigene BROWSE-/LOAD-Tasten)
-        xml = re.sub(r"<control>(?:(?!</control>).)*?<key>(?:LoadSelectedTrack|MoveVertical|MoveFocusForward|"
-                     r"MoveFocusBackward|MoveUp|MoveDown|ScrollVertical)</key>(?:(?!</control>).)*?</control>",
-                     "", xml, flags=re.S)
-        xml = re.sub(r"<name>([^<]*)</name>", r"<name>\1 (ZynSimple Hybrid)</name>", xml, count=1)
-        for m in re.finditer(r'filename="([^"]+\.js)"', xml):
-            js_orig = os.path.join(os.path.dirname(orig), m.group(1))
-            if not os.path.exists(js_orig):
-                continue
-            with open(js_orig, encoding="utf-8") as f:
-                js = f.read()
-            js_neu = m.group(1).replace(".js", "-ZynSimple-Hybrid.js")
-            with open(os.path.join(ziel, js_neu), "w", encoding="utf-8") as f:
-                f.write(js + DDJ_HYBRID_JS)
-            xml = xml.replace(m.group(0), f'filename="{js_neu}"', 1)
-        neu = os.path.join(ziel, f"Pioneer-DDJ-{modell}-ZynSimple-Hybrid.midi.xml")
-        with open(neu, "w", encoding="utf-8") as f:
-            f.write(xml)
-        return neu
-    except Exception as e:
-        log("DDJ Hybrid-Belegung:", e)
-        return None
 
 
 def angeschlossene_ddj():
@@ -348,18 +288,10 @@ def controller(data, ver):
         if x:
             mappings[mo] = x
     log("DDJ-Modelle:", ", ".join(sorted(modelle)), "→", ", ".join(os.path.basename(v) for v in mappings.values()) or "keine Belegung")
-    angesteckt = sorted(m for m in angeschlossene_ddj() if m in mappings)
-    hybrid_ddj = None
-    if HYBRID and angesteckt:
-        hybrid_ddj = ddj_hybrid(mappings[angesteckt[0]], ziel) or mappings[angesteckt[0]]
     zyn = os.path.join(ziel, "Zynthian-V5-ZynSimple.midi.xml")
-    # „DJ + Instrumente“: der DDJ kommt über einen eigenen Anschluss (ZynSimple reicht ihn durch)
-    vm_ddj = os.environ.get("ZS_VIRMIDI_DDJ", "") if HYBRID else ""
     namen = midi_namen()
     for mo in mappings:
         namen |= {f"DDJ-{mo}", f"DDJ-{mo} MIDI 1"}          # auch wenn der DDJ gerade nicht steckt
-    if HYBRID and os.environ.get("ZS_SEQ") == "1":
-        namen |= {"ZynSimple Mixxx", "ZynSimple DDJ"}
     # alte Zuordnungen (frühere Versionen: VirMIDI, „ZynSimple DDJ-200“ …) erst einmal aus – unten wird neu belegt
     for sek in ("[Controller]",):
         for k in list(data.get(sek, {})):
@@ -368,19 +300,8 @@ def controller(data, ver):
     for name in namen:
         datei = None
         mo = ddj_modell(name) if not re.search(r"ZynSimple", name, re.I) else None
-        if re.search(r"ZynSimple DDJ", name, re.I):          # DDJ, durchgereicht von ZynSimple
-            datei = hybrid_ddj if HYBRID else None
-        elif re.search(r"ZynSimple Mixxx", name, re.I):      # Zynthian-Tasten / Laden / Deck-Anzeige
-            datei = zyn if HYBRID else None
-        elif mo and HYBRID:
-            # hier hält JACK den echten DDJ fest – Mixxx bekommt ihn über den eigenen Anschluss
-            for k in {schluessel(name), schluessel(name + " MIDI 1")}:
-                data.setdefault("[Controller]", {})[k] = "0"
-            continue
-        elif mo:
+        if mo:
             datei = mappings.get(mo)
-        elif vm_ddj and hybrid_ddj and re.search(r"(VirMIDI|Virtual Raw MIDI)\s*" + re.escape(vm_ddj) + r"\b", name, re.I):
-            datei = hybrid_ddj
         elif re.search(r"VirMIDI|Virtual Raw MIDI", name, re.I):
             datei = zyn
         if not datei:
@@ -550,8 +471,7 @@ def config_js(s):
         f.write("// Von ZynSimple erzeugt – Einstellungen kommen aus dem Zynthian (Einstellungen → DJ-Pult)\n")
         f.write("var ZynV5Config = " + json.dumps({
             "autoRec": bool(s.get("dj_auto_rec")),
-            # im Hybrid-Modus braucht ZynSimple das Tempo immer (Mixxx führt → Zynthian-Tempo folgt)
-            "clock": s.get("takt") == "senden" or HYBRID,
+            "clock": s.get("takt") == "senden",
             "folgen": s.get("takt") == "folgen",
             "handpanFx": bool(s.get("dj_handpan_fx", True)),
         }) + ";\n")
@@ -580,12 +500,9 @@ def main():
     os.makedirs(MUSIK, exist_ok=True)
     s = einstellungen()
     ver = mixxx_version()
-    if HYBRID:
-        soundconfig_hybrid(ver)
-    else:
-        ok, kh = ton_einrichten(s)
-        if ok:
-            soundconfig(s, kh, ver)
+    ok, kh = ton_einrichten(s)
+    if ok:
+        soundconfig(s, kh, ver)
     pfad = os.path.join(MIXXX, "mixxx.cfg")
     data, order = cfg_lesen(pfad)
     ordner = [MUSIK] + usb_musik()

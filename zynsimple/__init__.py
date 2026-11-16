@@ -51,7 +51,6 @@ DEFAULTS = {
     "keytar_kanal": None,
     "dj_handpan_fx": True,
     "dj_stems": True,
-    "dj_hybrid": False,
     "dj_analyse": True,
 }
 
@@ -102,12 +101,6 @@ def setup(zyngui):
         _hook_exit(zyngui, bridge.extras)
     except Exception as e:
         log.exception(f"ZynSimple: Extras fehlgeschlagen: {e}")
-    try:
-        from .hybrid import Hybrid
-        bridge.hybrid = Hybrid(bridge, settings)
-    except Exception as e:
-        bridge.hybrid = None
-        log.warning(f"ZynSimple: DJ + Instrumente nicht verfügbar ({e})")
     try:
         from .geraete import Geraete
         bridge.geraete = Geraete(bridge, settings)
@@ -169,27 +162,6 @@ def _buehne(zyngui, bridge, settings):
                 takt.anwenden(settings)          # auch, wenn die TR-8S erst später eingesteckt wird
         except Exception as e:
             log.debug(f"ZynSimple: Takt: {e}")
-        if getattr(bridge, "hybrid", None) is not None and zustand["n"] % 3 == 1:
-            bridge.hybrid.kanal_pruefen()
-        hy = getattr(bridge, "hybrid", None)
-        # Eine Oberfläche für alles: der DJ-Teil (Mixxx im Kanal „DJ-Pult“) läuft immer mit – unsichtbar im Hintergrund
-        try:
-            if hy is not None and settings.get("dj_hybrid", False) and not hy.laeuft() and hy.phase is None \
-                    and hy.status()["moeglich"] and time.monotonic() >= zustand.get("dj_naechster", 0):
-                from . import dj as dj_
-                import subprocess as sp_
-                reines_dj = sp_.call(["systemctl", "is-active", "-q", "zynsimple-dj"]) == 0
-                if dj_.eingerichtet() and not reines_dj:
-                    zustand["dj_naechster"] = time.monotonic() + (300 if hy.fehler else 60)
-                    log.info("ZynSimple: DJ-Teil startet im Hintergrund")
-                    hy.starten()
-        except Exception as e:
-            log.debug(f"ZynSimple: DJ-Teil starten: {e}")
-        if hy is not None and hy.fehler and hy.fehler != zustand.get("hy_fehler"):
-            zustand["hy_fehler"] = hy.fehler
-            scr = zyngui.screens.get(SCREEN_NAME)
-            if scr is not None:
-                scr._warn("DJ + Instrumente: " + hy.fehler)
         try:
             from . import dj
             stick = dj.musik_stick() if dj.eingerichtet() else None
@@ -235,7 +207,6 @@ def _buehne(zyngui, bridge, settings):
             except Exception as e:
                 log.warning(f"ZynSimple: Barden Beats beim Start: {e}")
         top.after(9000, bb_los)
-    # „dj“ / „hybrid“ (frühere Versionen): der DJ-Teil läuft jetzt ohnehin immer im Mischpult mit
 
 
 def system_menue(zyngui):
@@ -309,8 +280,6 @@ def _hook_power(zyngui):
                                 scr.mode = "mix"
                                 scr.sig = None
                             zyngui.show_screen_reset(SCREEN_NAME)
-                            if scr is not None and "SCREEN_AUDIO_MIXER" in akt and scr._dj_da():
-                                scr.open_bib()                  # MIXER: weiter zur DJ-Ansicht
                             return True
                 except Exception as e:
                     log.debug(f"ZynSimple: BACK lang: {e}")
@@ -369,13 +338,6 @@ def _start_aktion(zyngui):
                 adm.update_software()
         elif aktion == "menue":
             system_menue(zyngui)
-        elif aktion == "hybrid":
-            hy = getattr(getattr(zyngui, "_zs_bridge", None), "hybrid", None)
-            if hy is not None:
-                try:
-                    _info(zyngui, hy.starten())
-                except Exception as e:
-                    _info(zyngui, str(e))
     try:
         from zyngui import zynthian_gui_config
         zynthian_gui_config.top.after(6000, los)
@@ -566,11 +528,7 @@ def start_import(zyngui, *a, auswahl=None, **k):
             time.sleep(0.4)
             st = dj.import_stand()
             if st["phase"] == "fertig":
-                hy = getattr(getattr(zyngui, "_zs_bridge", None), "hybrid", None)
                 extra = ""
-                if hy is not None and hy.laeuft():
-                    hy.nach_import()
-                    extra = " Mixxx liest die neuen Titel ein, sobald gerade nichts läuft (ca. 20 s)."
                 fs.fertig(st["text"] + " · der Stick kann raus")
                 show("Musik übernommen", "Antippen zum Schließen." + extra, done=True)
                 return
