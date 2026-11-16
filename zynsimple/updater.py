@@ -24,7 +24,40 @@ def _ver(s):
 
 
 def _repo(settings):
-    return (settings or {}).get("update_repo") or DEFAULT_REPO, (settings or {}).get("update_branch") or "main"
+    """Kanal „stabil“ (Standard) = nur geprüfte Versionen (Zweig „stabil“, wird erst nach grünem Test nachgezogen).
+    Kanal „test“ = immer das Neueste (Zweig „main“). Ein ausdrücklich anderer update_branch gewinnt."""
+    s = settings or {}
+    ub = s.get("update_branch")
+    if ub and ub != "main":
+        zweig = ub
+    else:
+        zweig = "main" if s.get("update_kanal", "stabil") == "test" else "stabil"
+    return s.get("update_repo") or DEFAULT_REPO, zweig
+
+
+VORHER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".vorher")
+
+
+def vorher_version():
+    """Version der beim letzten Update gesicherten Installation (oder None)."""
+    try:
+        with open(os.path.join(VORHER, "VERSION"), encoding="utf-8") as f:
+            return f.read().strip() or None
+    except OSError:
+        return None
+
+
+def zurueck():
+    """Die vorherige Version wieder einspielen (sie liegt seit dem letzten Update in .vorher)."""
+    import shutil
+    import tempfile
+    from .web import install_aus_ordner
+    if not os.path.isfile(os.path.join(VORHER, "install.sh")):
+        raise RuntimeError("Es gibt keine gesicherte vorherige Version")
+    tmp = tempfile.mkdtemp(prefix="zynsimple-zurueck-")
+    src = os.path.join(tmp, "zynsimple-vorher")
+    shutil.copytree(VORHER, src)
+    return install_aus_ordner(src, tmp, vorher_version() or "?")
 
 
 def check(settings=None, timeout=8):
@@ -33,8 +66,16 @@ def check(settings=None, timeout=8):
     status["current"] = VERSION
     try:
         url = f"https://raw.githubusercontent.com/{repo}/{branch}/VERSION?t={int(time.time())}"
-        with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=timeout) as r:
-            latest = r.read(64).decode("utf-8", "replace").strip()
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=timeout) as r:
+                latest = r.read(64).decode("utf-8", "replace").strip()
+        except urllib.error.HTTPError as e:
+            if e.code != 404 or branch == "main":
+                raise
+            # Zweig „stabil“ gibt es (noch) nicht → main
+            url = f"https://raw.githubusercontent.com/{repo}/main/VERSION?t={int(time.time())}"
+            with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=timeout) as r:
+                latest = r.read(64).decode("utf-8", "replace").strip()
         status.update(latest=latest, available=_ver(latest) > _ver(VERSION), checked=time.time(), error=None)
     except urllib.error.HTTPError as e:
         status.update(checked=time.time(), error=f"GitHub antwortet mit Fehler {e.code}")
@@ -52,6 +93,12 @@ def install(settings=None, timeout=60):
     from . import fortschritt as fs
     from .web import install_update
     repo, branch = _repo(settings)
+    if branch != "main":
+        try:                                   # gibt es den Zweig? sonst main
+            urllib.request.urlopen(urllib.request.Request(
+                f"https://raw.githubusercontent.com/{repo}/{branch}/VERSION", headers=UA), timeout=10).close()
+        except Exception:
+            branch = "main"
     url = f"https://codeload.github.com/{repo}/zip/refs/heads/{branch}"
     if not fs.STAND.get("aktiv"):
         fs.start("ZynSimple-Update", UPDATE_SCHRITTE)

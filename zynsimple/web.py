@@ -414,7 +414,15 @@ def install_update(data):
         fs.teil(detail=f"Version {neu} ausgepackt")
     except OSError:
         neu = "?"
+    return install_aus_ordner(src, tmp, neu)
 
+
+def install_aus_ordner(src, tmp, neu):
+    """install.sh aus einem ausgepackten Ordner starten (Update oder „vorherige Version“)."""
+    from . import fortschritt as fs
+    from .updater import UPDATE_SCHRITTE
+    if not fs.STAND.get("aktiv"):
+        fs.start("ZynSimple-Update", UPDATE_SCHRITTE)
     script = os.path.join(src, "install.sh")
     logf = os.path.join(tempfile.gettempdir(), "zynsimple-update.log")
     # Außerhalb des Zynthian-Dienstes starten, damit der Neustart das Update nicht abbricht

@@ -14,7 +14,7 @@ log = logging.getLogger("zynsimple")
 # (Schlüssel, Titel, Art, Auswahl, Hinweis)
 #  Art: "bool" = an/aus · "choice" = Liste von (Wert, Text)
 SPEC = [
-    ("replace_home", "Startbildschirm", "choice", [(True, "Mischpult (Instrumente & DJ)"), (False, "Zynthian-Mischer")],
+    ("replace_home", "Startbildschirm", "choice", [(True, "Mischpult"), (False, "Zynthian-Mischer")],
      "was nach dem Einschalten und bei „nach Hause“ erscheint"),
     ("splash", "Start-Logo", "bool", None, "die Gans beim Hochfahren zeigen"),
     ("idle_seconds", "Bühnenbild nach", "choice", [(0, "nie"), (20, "20 s"), (45, "45 s"), (90, "1½ min"), (180, "3 min")],
@@ -50,6 +50,8 @@ SPEC = [
      "womit der Zynthian startet – praktisch für den Auftritt"),
     ("dj_handpan_fx", "Handpan im DJ-Mix", "bool", None, "Zynthian-Eingänge 1+2 laufen mit in den Mix"),
     ("update_check", "Updates selbst suchen", "bool", None, "beim Start und alle 6 Stunden · braucht Internet"),
+    ("update_kanal", "Update-Kanal", "choice", [("stabil", "Stabil"), ("test", "Test")],
+     "Stabil = nur geprüfte Versionen · Test = immer das Neueste (kann Fehler haben)"),
 ]
 
 

@@ -38,6 +38,18 @@ echo "SCHRITT 2/6 Kopiere die neuen Dateien"
 # 2) Dateien kopieren (Einstellungen bleiben erhalten)
 mkdir -p "$DEST"
 if [ "$SRC" != "$DEST" ]; then
+    # die bisherige Version aufheben – „Vorherige Version wiederherstellen“ (Einstellungen → System)
+    if [ -d "$DEST/zynsimple" ] && [ "$SRC" != "$DEST/.vorher" ]; then
+        rm -rf "$DEST/.vorher.neu" && mkdir -p "$DEST/.vorher.neu"
+        cp -r "$DEST/zynsimple" "$DEST/.vorher.neu/"
+        [ -d "$DEST/dj" ] && cp -r "$DEST/dj" "$DEST/.vorher.neu/"
+        for f in zynsimple_boot.py install.sh uninstall.sh ANLEITUNG.md VERSION; do
+            [ -f "$DEST/$f" ] && cp "$DEST/$f" "$DEST/.vorher.neu/"
+        done
+        [ -f "$DEST/.vorher.neu/VERSION" ] || sed -n 's/^VERSION = "\(.*\)"/\1/p' "$DEST/zynsimple/__init__.py" > "$DEST/.vorher.neu/VERSION"
+        find "$DEST/.vorher.neu" -name "__pycache__" -type d -prune -exec rm -rf {} + 2>/dev/null || true
+        rm -rf "$DEST/.vorher" && mv "$DEST/.vorher.neu" "$DEST/.vorher"
+    fi
     rm -rf "$DEST/zynsimple"
     cp -r "$SRC/zynsimple" "$DEST/"
     rm -rf "$DEST/dj"
@@ -45,6 +57,7 @@ if [ "$SRC" != "$DEST" ]; then
     cp "$SRC/zynsimple_boot.py" "$DEST/"
     cp "$SRC/install.sh" "$SRC/uninstall.sh" "$DEST/" 2>/dev/null || true
     cp "$SRC/ANLEITUNG.md" "$DEST/" 2>/dev/null || true
+    cp "$SRC/VERSION" "$DEST/" 2>/dev/null || true
 fi
 if [ ! -f "$DEST/zynsimple.json" ]; then
     cat > "$DEST/zynsimple.json" <<'JSON'

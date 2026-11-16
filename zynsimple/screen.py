@@ -124,7 +124,7 @@ class zynsimple_screen(zynthian_gui_base):
         self.tuner = None
         self.autogain = None
         self.set_armed = {}
-        self.set_page = "anzeige"
+        self.set_page = "buehne"
         self.set_pick = None
 
         family = getattr(cfg, "font_family", None) or "Audiowide"
@@ -3260,21 +3260,22 @@ class zynsimple_screen(zynthian_gui_base):
 
     # Aufbau der Einstellungen: Reiter → Zeilen. ("set", Schlüssel, Symbol) oder ("act", Aktion, Symbol)
     SET_PAGES = [
-        ("anzeige", "Anzeige", [("set", "replace_home", "⌂"), ("set", "splash", "✦"), ("set", "idle_seconds", "◐"),
-                                ("set", "strip_min_width", "▥"), ("act", "s_theme", "◑"), ("set", "led_recolor", "●"),
-                                ("set", "boot_gans", "🪿"), ("set", "boot_animation", "✺")]),
-        ("bedienung", "Bedienung", [("set", "autosave", "↺"), ("act", "s_save", "✓"), ("set", "master_limiter", "▣"),
-                                    ("set", "tonart", "♯"), ("set", "xy_spring", "✥"), ("set", "synth_midi_chan", "♪"),
-                                    ("act", "s_tasten", "⌨")]),
-        ("dj", "DJ-Pult", [("act", "s_dj", "♪"), ("set", "dj_auto_rec", "●"), ("act", "s_djhandy", "⌕"),
-                           ("set", "dj_handpan_fx", "◎"), ("set", "dj_analyse", "♯"), ("act", "s_djimport", "⇩"), ("act", "s_djordner", "▤"),
-                           ("act", "s_mixxx26", "◆"), ("act", "s_stems", "≋")]),
-        ("buehne", "Bühne", [("act", "s_djimport", "⇩"), ("set", "takt", "⏱"), ("set", "start_modus", "⏻"),
-                             ("act", "s_gig_merken", "✓"), ("act", "s_gig_laden", "↺"), ("act", "s_strom", "⚡")]),
-        ("geraete", "Geräte", [("act", "s_keytar", "🎸"), ("set", "ton_anzeige", "♪"), ("act", "s_bsp", "🎛"),
-                               ("set", "bsp_drums", "🥁")]),
-        ("system", "System", [("act", "s_imres", "♫"), ("act", "s_handy", "▤"), ("set", "update_check", "⟳"),
-                              ("act", "s_sichern", "⇩"), ("act", "s_zurueck", "⇧"), ("act", "s_admin", "⚙")]),
+        ("buehne", "Spielen", [("set", "tonart", "♯"), ("set", "takt", "⏱"), ("set", "start_modus", "⏻"),
+                               ("act", "s_gig_merken", "✓"), ("act", "s_gig_laden", "↺"), ("act", "s_tasten", "⌨")]),
+        ("geraete", "Geräte", [("set", "geraet_melden", "🎹"), ("act", "s_keytar", "🎸"), ("act", "s_bsp", "🎛"),
+                               ("set", "bsp_drums", "🥁"), ("set", "ton_anzeige", "♪")]),
+        ("dj", "DJ-Pult", [("act", "s_dj", "♪"), ("act", "s_djimport", "⇩"), ("set", "dj_analyse", "♯"),
+                           ("set", "dj_auto_rec", "●"), ("act", "s_djhandy", "⌕")]),
+        ("anzeige", "Anzeige", [("set", "idle_seconds", "◐"), ("act", "s_theme", "◑"), ("set", "splash", "✦"),
+                                ("set", "boot_gans", "🪿")]),
+        ("system", "System", [("set", "update_kanal", "⟳"), ("act", "s_vorher", "↶"), ("act", "s_sichern", "⇩"),
+                              ("act", "s_zurueck", "⇧"), ("act", "s_handy", "▤"), ("act", "s_strom", "⚡")]),
+        ("mehr", "Erweitert", [("set", "autosave", "↺"), ("act", "s_save", "✓"), ("set", "master_limiter", "▣"),
+                               ("set", "xy_spring", "✥"), ("set", "synth_midi_chan", "♪"), ("set", "strip_min_width", "▥"),
+                               ("set", "led_recolor", "●"), ("set", "boot_animation", "✺"), ("set", "update_check", "⟳"),
+                               ("set", "dj_handpan_fx", "◎"), ("act", "s_djordner", "▤"), ("act", "s_mixxx26", "◆"),
+                               ("act", "s_stems", "≋"), ("set", "replace_home", "⌂"), ("act", "s_imres", "♫"),
+                               ("act", "s_admin", "⚙")]),
     ]
 
     def _set_action(self, art, now):
@@ -3365,6 +3366,14 @@ class zynsimple_screen(zynthian_gui_base):
                         "Neu anlernen", True, False)
             return ("Keytar anlernen", "MIDI-Kabel an den DIN-Eingang · eine Taste drücken – Kanal wird erkannt",
                     "Anlernen", True, False)
+        if art == "s_vorher":
+            from . import updater
+            v = updater.vorher_version()
+            armed = self.set_armed.get("vorher", 0) > now
+            if not v:
+                return ("Vorherige Version", "gibt es erst nach dem nächsten Update", None, True, False)
+            return ("Vorherige Version wiederherstellen", f"zurück zu Version {v} – falls ein Update etwas verschlechtert hat",
+                    "Sicher? Nochmal" if armed else f"Zurück zu {v}", True, False)
         if art == "s_bsp":
             g = getattr(self.bridge, "geraete", None)
             da = g.bsp_da() if g is not None else None
@@ -3439,9 +3448,9 @@ class zynsimple_screen(zynthian_gui_base):
         except Exception:
             us = {}
         now = time.monotonic()
-        page = getattr(self, "set_page", None) or "anzeige"
+        page = getattr(self, "set_page", None) or "buehne"
         if page not in [p[0] for p in self.SET_PAGES]:
-            page = self.set_page = "anzeige"
+            page = self.set_page = "buehne"
 
         # Kopf: Titel + Fertig
         hh = max(40, int(H * 0.09))
@@ -3603,6 +3612,16 @@ class zynsimple_screen(zynthian_gui_base):
                 from . import start_update
                 start_update(self.zyngui)
                 return
+            elif art == "s_vorher":
+                if self.set_armed.get("vorher", 0) > time.monotonic():
+                    self.set_armed.pop("vorher", None)
+                    from . import updater
+                    try:
+                        self._flash(updater.zurueck())
+                    except Exception as e:
+                        self._flash(str(e))
+                else:
+                    self.set_armed["vorher"] = time.monotonic() + 3
             elif art == "s_admin":
                 self.mode = "mix"
                 self.zyngui.show_screen("admin")

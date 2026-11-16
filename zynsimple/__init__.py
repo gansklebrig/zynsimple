@@ -35,6 +35,7 @@ DEFAULTS = {
     "synth_midi_chan": 0,
     "update_repo": "gansklebrig/zynsimple",
     "update_branch": "main",
+    "update_kanal": "stabil",
     "help_seen": False,
     "tonart": "",
     "master_limiter": False,
