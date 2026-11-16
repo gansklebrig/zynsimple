@@ -73,6 +73,15 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.14 – Kopfhörer am DDJ, lesbarere Titelliste
+
+- **Vorhören mit Kopfhörer am DDJ-400 / DDJ-FLX4:** Kopfhörer vorne in die PHONES-Buchse des DDJ stecken,
+  CUE am Deck drücken. Der Mix kommt weiter aus dem Zynthian – und zusätzlich aus den MASTER-Buchsen des DDJ.
+  Geht die DDJ-Soundkarte nicht auf, spielt das DJ-Pult wie bisher nur über den Zynthian.
+- **Titelliste leichter lesbar:** deutlich wechselnde Zeilenfarben, mehr Abstand, keine Gitterlinien, fette
+  Spaltenköpfe – die Schrift bleibt gleich groß.
+- **„⤢ groß“ / „⤡ klein“ sitzt jetzt links** neben der Suche – vorher lag bei großer Liste der ☰-Menü-Knopf darüber.
+
 ## Neu in Version 6.13 – ♪-Knopf kommt jetzt von ZynSimple
 
 - Der Knopf oben rechts im Mischpult (halten oder doppelt tippen) gehört jetzt zu ZynSimple und startet

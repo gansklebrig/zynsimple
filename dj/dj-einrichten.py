@@ -152,12 +152,31 @@ def karten():
     return out
 
 
+def wiedergabe_kanaele(nr):
+    """Wie viele Ausgangskanäle die USB-Soundkarte hat (DDJ-400/FLX4: 4 = Master 1/2 + Kopfhörer 3/4)."""
+    try:
+        with open(f"/proc/asound/card{nr}/stream0", encoding="utf-8", errors="replace") as f:
+            text = f.read()
+        teil = text.split("Capture:")[0]
+        werte = [int(x) for x in re.findall(r"Channels:\s*(\d+)", teil)]
+        if werte:
+            return max(werte)
+    except OSError:
+        pass
+    return 2
+
+
 def ton_einrichten(s):
     k = karten()
     haupt = next((c for c in k if c[4] and c[3] != "USB-Audio" and not re.search(r"hdmi|vc4|headphones|loopback", c[1] + c[2], re.I)), None)
     if haupt is None:
         haupt = next((c for c in k if c[4]), None)
-    kh = next((c for c in k if c[4] and c[3] == "USB-Audio" and c is not haupt and not OHNE_KH.search(c[1] + " " + c[2])), None)
+    # Kopfhörer: am liebsten die Buchse am DJ-Controller (DDJ-400/FLX4 haben eine Soundkarte eingebaut),
+    # sonst eine andere USB-Soundkarte
+    ddj = next((c for c in k if c[4] and c is not haupt and re.search(r"DDJ", c[1] + " " + c[2], re.I)
+                and wiedergabe_kanaele(c[0]) >= 4), None)
+    kh = ddj or next((c for c in k if c[4] and c[3] == "USB-Audio" and c is not haupt
+                      and not OHNE_KH.search(c[1] + " " + c[2])), None)
     if haupt is None:
         log("keine Soundkarte gefunden")
         return False, None
@@ -167,7 +186,25 @@ def ton_einrichten(s):
         f'pcm.zs_haupt {{ type hw; card "{haupt[1]}"; device 0 }}',
         f'ctl.!default {{ type hw; card "{haupt[1]}" }}',
     ]
-    if kh:
+    if kh and kh is ddj:
+        # DJ-Controller: Kanal 1/2 = seine MASTER-Buchsen (bekommen den Mix auch), 3/4 = PHONES vorne
+        zeilen += [
+            f'pcm.zs_kh {{ type hw; card "{kh[1]}"; device 0; channels 4 }}',
+            # über plug: der DDJ kann andere Formate/Raten als die Zynthian-Soundkarte
+            'pcm.zs_haupt_p { type plug; slave.pcm "zs_haupt" }',
+            'pcm.zs_kh_p { type plug; slave { pcm "zs_kh"; channels 4 } }',
+            "pcm.zs_multi {",
+            "  type multi",
+            '  slaves.a.pcm "zs_haupt_p"', "  slaves.a.channels 2",
+            '  slaves.b.pcm "zs_kh_p"', "  slaves.b.channels 4",
+            "  bindings.0 { slave a; channel 0 }", "  bindings.1 { slave a; channel 1 }",
+            "  bindings.2 { slave b; channel 2 }", "  bindings.3 { slave b; channel 3 }",
+            "  bindings.4 { slave b; channel 0 }", "  bindings.5 { slave b; channel 1 }",
+            "}",
+            'pcm.zs_aus { type plug; slave.pcm "zs_multi"; slave.channels 6; '
+            "ttable.0.0 1; ttable.1.1 1; ttable.2.2 1; ttable.3.3 1; ttable.0.4 1; ttable.1.5 1 }",
+        ]
+    elif kh:
         zeilen += [
             f'pcm.zs_kh {{ type hw; card "{kh[1]}"; device 0 }}',
             "pcm.zs_multi {",
@@ -184,7 +221,26 @@ def ton_einrichten(s):
     zeilen += ['pcm.!default { type asym; playback.pcm "zs_aus"; capture.pcm "plug:zs_haupt" }']
     with open(os.path.join(DATEN, ".asoundrc"), "w", encoding="utf-8") as f:
         f.write("\n".join(zeilen) + "\n")
+    if kh and not ton_probe(4):
+        # Zusammenschalten klappt mit dieser Karte nicht → lieber ohne Kopfhörer als ganz ohne Ton
+        log(f"Kopfhörer über {kh[2]} lässt sich nicht öffnen – DJ-Pult spielt nur über den Zynthian-Ausgang")
+        with open(os.path.join(DATEN, ".asoundrc"), "w", encoding="utf-8") as f:
+            f.write("\n".join(zeilen[:3] + ['pcm.zs_aus { type plug; slave.pcm "zs_haupt" }',
+                                           'pcm.!default { type asym; playback.pcm "zs_aus"; capture.pcm "plug:zs_haupt" }']) + "\n")
+        return True, None
     return True, kh
+
+
+def ton_probe(kanaele):
+    """Kurz Stille über „default“ abspielen – geht das Gerät überhaupt auf?"""
+    try:
+        r = subprocess.run(["aplay", "-q", "-D", "default", "-c", str(kanaele), "-r", "48000", "-f", "S16_LE",
+                            "-d", "1", "/dev/zero"], env=dict(os.environ, HOME=DATEN), capture_output=True, timeout=8)
+        return r.returncode == 0
+    except FileNotFoundError:
+        return True                 # kein aplay → nicht prüfbar, einfach versuchen
+    except Exception:
+        return False
 
 
 def soundconfig_zurueck():
@@ -572,7 +628,8 @@ def main():
     for k in ("ShowITunesLibrary", "ShowRekordboxLibrary", "ShowSeratoLibrary", "ShowTraktorLibrary",
               "ShowRhythmboxLibrary", "ShowBansheeLibrary"):
         lib[k] = "0"
-    lib.setdefault("RowHeight", "30")
+    if lib.get("RowHeight") in (None, "", "30"):
+        lib["RowHeight"] = "34"         # etwas mehr Luft zwischen den Zeilen – gleiche Schriftgröße
     # Mixxx 2.5+/2.6: nie mehr fragen „Darf Mixxx die Menüleiste ausblenden?“ – ausgeblendet, ohne Rückfrage
     data.setdefault("[Config]", {})["hide_menubar"] = "1"
     data["[Config]"]["show_menubar_hint"] = "0"

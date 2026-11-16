@@ -24,14 +24,17 @@ WLibrarySidebar, QTreeView {
   selection-background-color: #5a4524; selection-color: #ffd98a; outline: none;
 }
 WLibrarySidebar::item:selected, QTreeView::item:selected { background: #5a4524; color: #ffd98a; }
+/* Titelliste: gleiche Schriftgröße, aber deutlich wechselnde Zeilen, mehr Luft, keine Gitterlinien */
 WTrackTableView, QTableView {
   font-size: 14px;
-  background: #16120f; alternate-background-color: #1f1915; color: #f3e9d8; gridline-color: #2e261f;
+  background: #110e0c; alternate-background-color: #241d17; color: #fff4e2; gridline-color: #110e0c;
   selection-background-color: #7a5a26; selection-color: #ffffff; border: none; outline: none;
 }
-QTableView::item:selected { background: #7a5a26; color: #ffffff; }
+WTrackTableView::item, QTableView::item { padding: 0px 8px; border: none; }
+QTableView::item:selected { background: #7a5a26; color: #ffffff; border-left: 4px solid #e8b04a; }
 QHeaderView, QHeaderView::section {
-  background: #1f1915; color: #e8b04a; border: none; border-right: 1px solid #2e261f; padding: 2px 4px;
+  background: #1f1915; color: #e8b04a; font-weight: bold; border: none;
+  border-right: 1px solid #2e261f; border-bottom: 2px solid #5a4524; padding: 3px 8px;
 }
 QScrollBar:vertical, QScrollBar:horizontal { background: #100e0d; border: none; width: 18px; height: 18px; }
 QScrollBar::handle { background: #5a4524; border-radius: 6px; min-height: 30px; min-width: 30px; }

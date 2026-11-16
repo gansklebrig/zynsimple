@@ -413,9 +413,7 @@
       <Layout>horizontal</Layout>
       <SizePolicy>me,min</SizePolicy>
       <Children>
-        <SearchBox>
-          <SizePolicy>me,min</SizePolicy>
-        </SearchBox>
+        <!-- groß/klein links: rechts oben liegt der ☰-Menü-Knopf darüber, sobald die Liste groß ist -->
         <PushButton>
           <ObjectName>GrossKnopf</ObjectName>
           <Size>90f,26f</Size>
@@ -424,6 +422,20 @@
           <State><Number>1</Number><Text>⤡ klein</Text></State>
           <Connection><ConfigKey>[Skin],show_maximized_library</ConfigKey></Connection>
         </PushButton>
+        <SearchBox>
+          <SizePolicy>me,min</SizePolicy>
+        </SearchBox>
+        <WidgetGroup>
+          <ObjectName>KnopfPlatz</ObjectName>
+          <SizePolicy>f,min</SizePolicy>
+          <Size>100f,26f</Size>
+          <Layout>horizontal</Layout>
+          <Children/>
+          <Connection>
+            <ConfigKey>[Skin],show_maximized_library</ConfigKey>
+            <BindProperty>visible</BindProperty>
+          </Connection>
+        </WidgetGroup>
       </Children>
     </WidgetGroup>
     <WidgetGroup>
