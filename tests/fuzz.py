@@ -383,4 +383,7 @@ for k, (tb, verl) in FEHLER.items():
     print(k)
     print(tb[-1800:])
     print("Verlauf:", verl)
-sys.exit(1 if FEHLER or SACKGASSE else 0)
+sys.stdout.flush()
+# os._exit statt sys.exit: Hintergrund-Threads der Attrappe (Stick, Stimmgerät …) können beim normalen
+# Aufräumen von Python abstürzen – das ist kein Fehler des Programms, würde den Test aber rot machen.
+os._exit(1 if FEHLER or SACKGASSE else 0)
