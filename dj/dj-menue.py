@@ -7,7 +7,7 @@ ZynSimple DJ-Pult: Start-Menü – übersichtlich und selbsterklärend, liegt ü
 Oben steht, was gerade los ist (USB-Stick, Anzahl Titel, Mixxx-Version), darunter große Kacheln:
 Bedienung auch mit den Zynthian-Tasten: Drehregler/Pfeile wählen, SEL oder Regler drücken löst aus, BACK geht zurück.
   Musik:     Auflegen · USB-Stick neu einlesen · Musik übernehmen
-  Wechseln:  Zum Zynthian · Barden Beats · So geht's
+  Wechseln:  Zum Mischpult · So geht's
   System:    Updates · Neu starten · Ausschalten
 Farben: Gold, Glut, Rot, Grün – kein Blau.
 """
@@ -283,7 +283,6 @@ class Menue:
                        ("einlesen", "⟳  USB-Stick neu einlesen", "nach dem Einstecken – Mixxx startet kurz neu", GRUEN, False),
                        ("importieren", "⇩  Musik auf den Zynthian", "„MUSIK gekauft“ ganz · Auswahl am Handy: …:8090/import", None, False)]),
             ("WECHSELN", [("zynthian", "◼  Zum Mischpult", "Instrumente · auch: CTRL 1,5 s halten", None, False),
-                          ("imres", "♫  Barden Beats", "Bühne & Klangwelten", None, False) if os.path.exists(IMRES) else None,
                           ("hilfe", "?  So geht's", "Tasten erklärt · Tasten belegen", GOLD, False)]),
             ("SYSTEM", [("updates", "⬇  Updates", "ZynSimple · Zynthian · Barden Beats", None, False),
                         ("neustart", "↻  Neu starten", "speichert vorher", None, False),

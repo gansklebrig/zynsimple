@@ -73,7 +73,7 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
-## Neu in Version 6.11 – Aufgeräumt, Stabil/Test, Rückgängig
+## Neu in Version 6.12 – Aufgeräumt, Stabil/Test, Rückgängig, ♪ = DJ-Pult
 
 - **Mischpult und DJ-Pult sind getrennt – und aufgeräumt.** Der alte Versuch „DJ im Mischpult“ ist komplett raus
   (rund 1.800 Zeilen weniger). Ins DJ-Pult: **CTRL 1,5 s halten** – dort wieder 1,5 s = zurück.
@@ -81,7 +81,10 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
   SEL = ja, BACK = nein (BeatStep Pro: gleich passende Spuren). Abschaltbar: Einstellungen → Geräte.
 - **Szene aus Versehen überschrieben?** Nach dem Speichern 10 Sekunden lang **„↶ Rückgängig“**.
 - **Tasten überall gleich:** BACK = zurück (3 s = System), STOP = Panik, CTRL halten = Mischpult ⇄ DJ-Pult,
-  **MENU halten = Barden Beats** (jetzt auch im Mischpult). Alle Tasten: **?** oben in der LIVE-Spalte → antippen.
+  MENU = Menü. Alle Tasten: **?** oben in der LIVE-Spalte → antippen.
+- **♪ oben rechts im Mischpult** (halten oder doppelt tippen) führt jetzt **zum DJ-Pult**.
+- **Barden Beats** gibt es nur noch über **Einstellungen → System → Barden Beats**. In Barden Beats selbst
+  stehen im System-Menü nur noch: Zum Mischpult · Zum DJ-Pult · ZynSimple aktualisieren · Barden Beats aktualisieren.
 - **Einstellungen neu sortiert:** Spielen · Geräte · DJ-Pult · Anzeige · System · Erweitert. Selten Gebrauchtes
   steckt in „Erweitert“.
 - **Update-Kanal:** Einstellungen → System. **Stabil** bekommt nur Versionen, die vorher automatisch getestet

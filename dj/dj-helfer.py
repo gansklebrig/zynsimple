@@ -10,10 +10,10 @@ ZynSimple DJ-Pult: macht im DJ-Modus aus den Tasten und Reglern des Zynthian V5 
   Handy-Bibliothek     → Befehle über /tmp/zynsimple-dj-befehl.sock an Mixxx
   Strom zu schwach     → Hinweis in der Leiste (Unterspannung des Pi)
 
-  BACK 3 s halten    → DJ-Menü (Updates, Neustart, Ausschalten, Zynthian, Barden Beats)
+  BACK 3 s halten    → DJ-Menü (Updates, Neustart, Ausschalten, Mischpult)
   MENU kurz          → DJ-Menü auf/zu
   Im Menü: Drehregler oder Pfeile = auswählen · SEL oder Regler drücken = los · BACK = zurück/schließen
-  MENU 1,5 s halten  → weiter zu Barden Beats (wenn installiert)
+  CTRL 1,5 s halten  → zurück ins Mischpult (fragt nach, wenn Musik läuft)
 
 Läuft nur, solange die DJ-Sitzung läuft (wird von dj-sitzung.sh gestartet).
 """
@@ -42,7 +42,8 @@ LED_NR = {"MENU": 0, "MIXER": 1, "CTRL": 2, "ZS3": 3, "F1": 4, "PAD": 5, "TEMPO"
 NUMMER = {v: k for k, v in TASTEN.items()}
 # LED-Farbcodes, die das Mixxx-Mapping schickt (ohne Blau)
 FARBE = {0: (0, 0, 0), 1: (26, 12, 2), 2: (200, 130, 15), 3: (210, 20, 25), 4: (30, 170, 60), 5: (235, 210, 60)}
-HALTEN = {"BACK": (3.0, "menue"), "MENU": (1.5, "imres"), "CTRL": (1.5, "zynthian")}   # CTRL halten = zurück ins Mischpult
+HALTEN = {"BACK": (3.0, "menue"), "CTRL": (1.5, "zynthian")}   # CTRL halten = zurück ins Mischpult
+SELBST = set(HALTEN) | {"MENU"}     # diese Tasten wertet der Helfer selbst aus (gehen nicht an Mixxx)
 HIER = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HIER)
 import tastenbelegung as tb  # noqa: E402   eigene Tastenbelegung (Einstellungen → Bedienung → Tasten belegen)
@@ -310,8 +311,7 @@ class Leds:
         except Exception as e:
             log("LEDs nicht verfügbar:", e)
         self.stand["BACK"] = 2
-        if os.path.exists(IMRES):
-            self.stand["MENU"] = 4
+        self.stand["MENU"] = 4
         self.stand["STOP"] = 3
         self.zeigen()
 
@@ -522,9 +522,9 @@ def main():
                     if name in NAV and menue_offen():
                         an_menue(NAV[name])
                         gesperrt.add(idx)
-                    elif name not in HALTEN and not menue_offen():
+                    elif name not in SELBST and not menue_offen():
                         v.send(0x90, nr, 127)
-                    elif name not in HALTEN:
+                    elif name not in SELBST:
                         gesperrt.add(idx)
             elif d > 0:
                 t0_ = seit.pop(idx, None)
@@ -532,7 +532,7 @@ def main():
                 erledigt.discard(idx)
                 if idx in gesperrt:
                     gesperrt.discard(idx)
-                elif name not in HALTEN:
+                elif name not in SELBST:
                     v.send(0x80, nr, 0)
                 elif kurz and name == "BACK":
                     an_menue("BACK")                    # BACK kurz: im Menü zurück / Menü schließen

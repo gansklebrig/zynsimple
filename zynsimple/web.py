@@ -38,6 +38,8 @@ def make_handler(bridge, pin):
         def _authorized(self):
             if not pin:
                 return True
+            if self.client_address and self.client_address[0] in ("127.0.0.1", "::1"):
+                return True                               # vom Gerät selbst (z. B. der ♪-Knopf oben rechts)
             return self.headers.get("X-Zynsimple-Pin", "") == str(pin)
 
         def do_GET(self):

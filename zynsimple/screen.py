@@ -63,7 +63,8 @@ class zynsimple_screen(zynthian_gui_base):
         ("BACK", "überall: eine Ebene zurück · 3 s halten = System-Menü (Update, Neustart, Aus)"),
         ("STOP", "überall: Panik – Hall, Echos, Filter und hängende Töne aus"),
         ("CTRL halten", "1,5 s: Mischpult ⇄ DJ-Pult (läuft Musik, fragt das DJ-Pult vorher nach)"),
-        ("MENU", "kurz: Menü (⋯) · 1,5 s halten: Barden Beats"),
+        ("MENU", "Menü: Mischpult ⋯ · im DJ-Pult das DJ-Menü"),
+        ("♪ oben rechts", "Mischpult: halten oder doppelt tippen = DJ-Pult"),
         ("SEL", "das Gewählte auslösen · Mischer: kurz stumm, doppelt Solo"),
         ("◀  ▶  ▲  ▼", "wählen · Mischer: ◀ ▶ Kanal, ▲ ▼ Tiefe · DJ: ▲ ▼ Titel"),
         # Mischpult
@@ -1174,7 +1175,7 @@ class zynsimple_screen(zynthian_gui_base):
             self.rrect((W - tw) / 2, y0, (W + tw) / 2, y0 + 150, 14, fill=P["card"], outline=P["gold"], width=2)
             cv.create_text(W / 2, y0 + 24, text=titel, font=self.f_big, fill=P["gold"])
             for k, (taste, was) in enumerate((("CTRL ⏱", "1,5 s halten: DJ-Pult ⇄ Mischpult"),
-                                              ("MENU", "⋯ Menü · 1,5 s halten: Barden Beats"),
+                                              ("MENU", "⋯ Menü · Barden Beats: Einstellungen → System"),
                                               ("BACK · STOP", "überall: zurück · Panik"))):
                 yy = y0 + 56 + k * 24
                 cv.create_text((W - tw) / 2 + 24, yy, anchor="w", text=taste, font=self.f_small, fill=P["gold2"])
@@ -2164,8 +2165,6 @@ class zynsimple_screen(zynthian_gui_base):
                 stick_ = None
             if stick_:
                 items.insert(0, ("djimport", "⇩ Musik übernehmen", f"„{stick_}“: Alben/Titel auswählen"))
-        if self.imres_installed:
-            items.insert(0, ("imres", "♫ Barden Beats", "Bühne & Klangwelten im Vollbild"))
         cols = 4 if len(items) > 6 else 3
         rows = math.ceil(len(items) / cols)
         gw, gh = (W - 40) / cols, (H - 70) / rows
@@ -3357,13 +3356,13 @@ class zynsimple_screen(zynthian_gui_base):
                            ("set", "dj_auto_rec", "●"), ("act", "s_djhandy", "⌕")]),
         ("anzeige", "Anzeige", [("set", "idle_seconds", "◐"), ("act", "s_theme", "◑"), ("set", "splash", "✦"),
                                 ("set", "boot_gans", "🪿")]),
-        ("system", "System", [("set", "update_kanal", "⟳"), ("act", "s_vorher", "↶"), ("act", "s_sichern", "⇩"),
+        ("system", "System", [("act", "s_imres", "♫"), ("set", "update_kanal", "⟳"), ("act", "s_vorher", "↶"), ("act", "s_sichern", "⇩"),
                               ("act", "s_zurueck", "⇧"), ("act", "s_handy", "▤"), ("act", "s_strom", "⚡")]),
         ("mehr", "Erweitert", [("set", "autosave", "↺"), ("act", "s_save", "✓"), ("set", "master_limiter", "▣"),
                                ("set", "xy_spring", "✥"), ("set", "synth_midi_chan", "♪"), ("set", "strip_min_width", "▥"),
                                ("set", "led_recolor", "●"), ("set", "boot_animation", "✺"), ("set", "update_check", "⟳"),
                                ("set", "dj_handpan_fx", "◎"), ("act", "s_djordner", "▤"), ("act", "s_mixxx26", "◆"),
-                               ("act", "s_stems", "≋"), ("set", "replace_home", "⌂"), ("act", "s_imres", "♫"),
+                               ("act", "s_stems", "≋"), ("set", "replace_home", "⌂"),
                                ("act", "s_admin", "⚙")]),
     ]
 
@@ -4452,17 +4451,6 @@ class zynsimple_screen(zynthian_gui_base):
             if war_lang or t == "L":
                 return True
             t = "S"
-        elif re.search(r"(^|\s)MENU(\s|$)", txt):
-            # MENU 1,5 s halten = Barden Beats (wie im DJ-Pult); kurz = ⋯
-            if t == "P":
-                self._ctrl_abbrechen()
-                self._ctrl_timer = self.canvas.after(1500, self._menu_lang)
-                return True
-            war_lang = getattr(self, "_ctrl_lang_erledigt", False)
-            self._ctrl_abbrechen()
-            if war_lang or t == "L":
-                return True
-            t = "S"
         if t != "S":
             return True
         self._touch()
@@ -4509,21 +4497,6 @@ class zynsimple_screen(zynthian_gui_base):
             self.sig = None
             self._flash(f"DJ-Pult: {e}")
 
-    def _menu_lang(self):
-        self._ctrl_timer = None
-        self._ctrl_lang_erledigt = True
-        if not getattr(self, "imres_installed", False):
-            self._flash("Barden Beats ist nicht installiert")
-            return
-        self._wechsel_schirm("♫ Barden Beats startet …", "einen Moment …")
-        try:
-            from . import imres
-            threading.Thread(target=imres.system, args=("imres",), daemon=True).start()
-        except Exception as e:
-            self.mode = "mix"
-            self.sig = None
-            self._flash(f"Barden Beats: {e}")
-
     def _ctrl_abbrechen(self):
         tm = getattr(self, "_ctrl_timer", None)
         if tm:
@@ -4534,7 +4507,7 @@ class zynsimple_screen(zynthian_gui_base):
         self._ctrl_timer = None
         self._ctrl_lang_erledigt = False
 
-    ANSICHT_HINWEIS = "CTRL 1,5 s halten = DJ-Pult · MIXER = Mischer ⇄ Effekte · MENU = ⋯ (1,5 s: Barden Beats)"
+    ANSICHT_HINWEIS = "CTRL 1,5 s halten = DJ-Pult · MIXER = Mischer ⇄ Effekte · MENU = ⋯"
 
     def cuia_v5_zynpot_switch(self, params):
         """Drehknopf drücken (V5). In ZynSimple nur Funktionen der aktuellen Seite – nie eine andere Ansicht

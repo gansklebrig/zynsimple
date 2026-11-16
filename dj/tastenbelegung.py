@@ -52,7 +52,7 @@ FUNKTIONEN = {
         "TEMPO": ("Tempo tippen", "", ""),
     },
     "dj": {
-        "MENU": ("☰ DJ-Menü", "", "zu Barden Beats"),
+        "MENU": ("☰ DJ-Menü", "", ""),
         "MIXER": ("Ebene wechseln", "", ""),
         "CTRL": ("Vorhören A → B → aus", "", "zurück ins Mischpult (1,5 s)"),
         "ZS3": ("große Bibliothek", "", ""),
