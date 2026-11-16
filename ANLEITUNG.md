@@ -73,6 +73,26 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.11 – Aufgeräumt, Stabil/Test, Rückgängig
+
+- **Mischpult und DJ-Pult sind getrennt – und aufgeräumt.** Der alte Versuch „DJ im Mischpult“ ist komplett raus
+  (rund 1.800 Zeilen weniger). Ins DJ-Pult: **CTRL 1,5 s halten** – dort wieder 1,5 s = zurück.
+- **Neues Instrument eingesteckt?** Steckt man ein USB-Instrument an, fragt das Mischpult: „＋ Spur anlegen?“
+  SEL = ja, BACK = nein (BeatStep Pro: gleich passende Spuren). Abschaltbar: Einstellungen → Geräte.
+- **Szene aus Versehen überschrieben?** Nach dem Speichern 10 Sekunden lang **„↶ Rückgängig“**.
+- **Tasten überall gleich:** BACK = zurück (3 s = System), STOP = Panik, CTRL halten = Mischpult ⇄ DJ-Pult,
+  **MENU halten = Barden Beats** (jetzt auch im Mischpult). Alle Tasten: **?** oben in der LIVE-Spalte → antippen.
+- **Einstellungen neu sortiert:** Spielen · Geräte · DJ-Pult · Anzeige · System · Erweitert. Selten Gebrauchtes
+  steckt in „Erweitert“.
+- **Update-Kanal:** Einstellungen → System. **Stabil** bekommt nur Versionen, die vorher automatisch getestet
+  wurden. **Test** bekommt alles sofort.
+- **Vorherige Version:** Einstellungen → System → „Zurück zu …“ (doppelt tippen), falls ein Update Ärger macht.
+- **Flüssiger:** Mute, Solo und Effekt an/aus zeichnen nur noch den einen Kanal neu.
+- **DJ-Pult startet schneller:** Die Musik wird nur noch neu eingelesen, wenn wirklich etwas dazugekommen ist.
+  Die Mixxx-Version wird gemerkt statt jedes Mal abgefragt.
+- **Automatischer Test:** Vor jedem Update drückt ein Test tausende Male zufällig auf Tasten und Knöpfe.
+  Erst wenn nichts abstürzt und keine Sackgasse entsteht, geht die Version an „Stabil“.
+
 ## Neu in Version 6.10 – Nachfrage im DJ-Pult
 
 - Läuft gerade Musik, fragt das DJ-Pult nach, bevor **MENU 1,5 s halten** (Barden Beats) oder

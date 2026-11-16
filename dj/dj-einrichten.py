@@ -64,14 +64,73 @@ MIXXX_SHARE = ["/opt/mixxx-2.6/share/mixxx"] if MIXXX_BIN.startswith("/opt/mixxx
 
 
 def mixxx_version():
+    """Mixxx-Version – „mixxx --version“ dauert auf dem Pi Sekunden, darum gemerkt, solange Mixxx gleich bleibt."""
+    merk = os.path.join(DATEN, ".mixxx-version")
+    try:
+        import shutil
+        pfad = MIXXX_BIN if os.path.isabs(MIXXX_BIN) else (shutil.which(MIXXX_BIN) or MIXXX_BIN)
+        schluessel = f"{pfad}|{os.stat(pfad).st_mtime:.0f}"
+    except Exception:
+        schluessel = None
+    try:
+        with open(merk) as f:
+            k, v = f.read().strip().rsplit("=", 1)
+        if schluessel and k == schluessel:
+            a, b = v.split(".")
+            return int(a), int(b)
+    except Exception:
+        pass
     try:
         out = subprocess.run([MIXXX_BIN, "--version"], capture_output=True, text=True, timeout=20).stdout
         m = re.search(r"(\d+)\.(\d+)", out)
         if m:
-            return int(m.group(1)), int(m.group(2))
+            ver = int(m.group(1)), int(m.group(2))
+            if schluessel:
+                try:
+                    with open(merk, "w") as f:
+                        f.write(f"{schluessel}={ver[0]}.{ver[1]}")
+                except Exception:
+                    pass
+            return ver
     except Exception:
         pass
     return 2, 4
+
+
+def musik_stand(ordner):
+    """Fingerabdruck der Musikordner (neueste Änderung eines Unterordners + Anzahl) – ändert sich,
+    sobald Musik dazukommt oder verschwindet (Stick-Import, WLAN-Ordner, Stick eingesteckt)."""
+    teile = []
+    for o in ordner:
+        neu, n = 0.0, 0
+        try:
+            for wurzel, dirs, dateien in os.walk(o):
+                try:
+                    neu = max(neu, os.stat(wurzel).st_mtime)
+                except OSError:
+                    pass
+                n += len(dateien)
+        except Exception:
+            pass
+        teile.append(f"{o}:{neu:.0f}:{n}")
+    return "|".join(teile)
+
+
+def neu_einlesen_noetig(ordner):
+    """Bibliothek nur neu einlesen, wenn sich an der Musik etwas geändert hat – spart beim Start Zeit."""
+    merk = os.path.join(DATEN, ".musik-stand")
+    jetzt = musik_stand(ordner)
+    try:
+        with open(merk) as f:
+            alt = f.read()
+    except Exception:
+        alt = None
+    try:
+        with open(merk, "w") as f:
+            f.write(jetzt)
+    except Exception:
+        return True
+    return alt != jetzt or not os.path.exists(os.path.join(MIXXX, "mixxxdb.sqlite"))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -508,7 +567,7 @@ def main():
     ordner = [MUSIK] + usb_musik()
     data.setdefault("[Playlist]", {})["Directory"] = ordner[-1]
     lib = data.setdefault("[Library]", {})
-    lib["RescanOnStartup"] = "1"
+    lib["RescanOnStartup"] = "1" if (neu_einlesen_noetig(ordner) or os.environ.get("ZS_NEU_EINLESEN")) else "0"
     # Seitenleiste aufräumen: nur, was man hier braucht (keine iTunes/Rekordbox/Serato/Traktor …)
     for k in ("ShowITunesLibrary", "ShowRekordboxLibrary", "ShowSeratoLibrary", "ShowTraktorLibrary",
               "ShowRhythmboxLibrary", "ShowBansheeLibrary"):

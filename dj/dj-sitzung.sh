@@ -110,7 +110,7 @@ while [ $VERSUCH -lt 8 ]; do
     phase start
     [ -n "$TKPY" ] && "$TKPY" "$HIER/dj-splash.py" &
     phase einrichten
-    /usr/bin/python3 "$HIER/dj-einrichten.py"
+    ZS_NEU_EINLESEN=1 /usr/bin/python3 "$HIER/dj-einrichten.py"
     phase mixxx
     continue
   fi
