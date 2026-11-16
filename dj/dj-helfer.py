@@ -280,6 +280,56 @@ def befehle_empfangen(v):
             log("Befehl:", e)
 
 
+def _xdo(*args, timeout=3):
+    try:
+        r = subprocess.run(["xdotool"] + list(args), capture_output=True, text=True, timeout=timeout,
+                           env=dict(os.environ, DISPLAY=os.environ.get("DISPLAY", ":0")))
+        return r.returncode, r.stdout.strip()
+    except Exception:
+        return 1, ""
+
+
+def fokus_waechter():
+    """Ohne Fenstermanager folgt die Tastatur-/Bibliotheks-Eingabe dem Mauszeiger. Liegt er nach einem Tipp
+    auf dem ☰-Knopf, der Leiste oder dem Menü, verliert Mixxx den Fokus – dann scrollt der BROWSE-Knopf am DDJ
+    nicht mehr durch die Titel. Darum: Fokus immer zurück auf Mixxx (Dialoge von Mixxx selbst bleiben unberührt)."""
+    if subprocess.call(["which", "xdotool"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
+        log("xdotool fehlt – Fokus-Wächter aus")
+        return
+    haupt = {"wid": None}
+    while True:
+        time.sleep(1.0)
+        try:
+            pids = subprocess.run(["pgrep", "-x", "mixxx"], capture_output=True, text=True, timeout=2).stdout.split()
+            if not pids:
+                haupt["wid"] = None
+                continue
+            rc, fpid = _xdo("getwindowfocus", "getwindowpid")
+            if rc == 0 and fpid in pids:
+                continue                          # Mixxx (oder ein Mixxx-Dialog) hat den Fokus – gut so
+            rc, fw = _xdo("getwindowfocus")
+            if rc == 0 and fw and fw == haupt["wid"]:
+                continue
+            wid = haupt["wid"]
+            if wid is None or _xdo("getwindowname", wid)[0] != 0:
+                beste, flaeche = None, 0
+                kandidaten = set(_xdo("search", "--onlyvisible", "--class", "mixxx")[1].split())
+                for pid in pids:
+                    kandidaten.update(_xdo("search", "--onlyvisible", "--pid", pid)[1].split())
+                if True:
+                    for w in kandidaten:
+                        g = _xdo("getwindowgeometry", w)[1]
+                        m = re.search(r"Geometry:\s*(\d+)x(\d+)", g)
+                        if m and int(m.group(1)) * int(m.group(2)) > flaeche:
+                            beste, flaeche = w, int(m.group(1)) * int(m.group(2))
+                haupt["wid"] = wid = beste
+            if wid:
+                _xdo("windowfocus", wid)
+        except Exception as e:
+            log("Fokus-Wächter:", e)
+            time.sleep(5)
+
+
 def strom_waechter():
     """Unterspannung (zu schwaches Netzteil, leerer Akku) melden und Daten auf die Karte schreiben."""
     gemeldet = 0.0
@@ -475,6 +525,7 @@ def main():
     threading.Thread(target=mixxx_lesen, args=(v, clock, leds), daemon=True).start()
     threading.Thread(target=befehle_empfangen, args=(v,), daemon=True).start()
     threading.Thread(target=strom_waechter, daemon=True).start()
+    threading.Thread(target=fokus_waechter, daemon=True).start()
     try:
         lib = ctypes.cdll.LoadLibrary(LIB)
     except OSError as e:

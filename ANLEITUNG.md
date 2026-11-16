@@ -73,6 +73,12 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.15 – BROWSE-Knopf bleibt bei der Titelliste
+
+- **Der BROWSE-Knopf am DDJ scrollt wieder zuverlässig.** Ohne Fenstermanager ging die Eingabe an das Fenster
+  unter dem Finger – nach einem Tipp auf ☰ oder die Leiste bekam Mixxx nichts mehr. Jetzt holt das DJ-Pult
+  den Fokus jede Sekunde zu Mixxx zurück.
+
 ## Neu in Version 6.14 – Kopfhörer am DDJ, lesbarere Titelliste
 
 - **Vorhören mit Kopfhörer am DDJ-400 / DDJ-FLX4:** Kopfhörer vorne in die PHONES-Buchse des DDJ stecken,
