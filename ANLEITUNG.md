@@ -73,6 +73,36 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.16 – Bard Hero: Rhythmusspiel mit der Keytar
+
+Die dritte App neben Mischpult und DJ-Pult: **Bard Hero**, ein Guitar-Hero-artiges Spiel. Du spielst die Melodie
+eines Liedes, die Band spielt den Rest. Greifst du daneben, verstummt die Melodie, bis du wieder triffst.
+
+- **Starten:** ⋯ → „🎸 Bard Hero“, oder Einstellungen → System → Bard Hero, oder BACK 3 s → System-Menü.
+  Beim allerersten Start werden einmalig die Spiel-Bausteine installiert (braucht Internet, einige Minuten) und die
+  Lieder vorbereitet (ein paar Minuten, nur einmal; man kann schon spielen, sobald das erste Lied fertig ist).
+- **13 eigene Lieder** in ganz verschiedenen Stimmungen: Lagerfeuer am Isarufer (gemütlich), Zur Krummen Gans
+  (Tavernen-Polka), Funkenflug (Funk/Disco), Glut des Drachen (epischer Power Metal), Neonnebel (Synthwave),
+  Die Hexe vom Moor (Folk-Jig im 6/8-Takt), Galopp der Goblins (Ska-Punk), Mondwalzer (Walzer),
+  Sturm über Thalgard (Speed Metal), Handpan-Traum (Ambient Techno in D-Kurd), Ritt des Kraken (Surf-Rock),
+  Laut und Ehrlich (Pop-Punk) und Die Feuerinsel (Tribal-Finale). Jedes Lied hat einen eigenen bewegten Hintergrund.
+- **Spielarten:** *Hero* – 5 Tasten (Keytar C D E F G, jede Oktave), *Barde* – die echten Töne auf einer Klaviatur.
+  Stufen Leicht, Mittel, Schwer, Meister.
+- **Zu zweit:** *Duell* (beide die Melodie, wer hat mehr Punkte?) und *Duett* (Spieler 1 Melodie, Spieler 2 Bass).
+  Jeder drückt am Anfang eine Taste auf seinem Gerät: Keytar, BeatStep, ein anderes MIDI-Gerät, die Zynthian-Tasten
+  (F1–F4 + PLAY), eine Tastatur (1–5) oder ein Gamepad. Andere Tasten: Einstellungen → Tasten anlernen.
+- **Inspiration:** goldene Notenfolgen fehlerfrei spielen füllt die Leiste; voll zündet sie selbst (oder per C+G
+  gleichzeitig, Pedal oder Modulationsrad) – doppelte Punkte und Feuer.
+- **Ton & Mikrofon:** Mikro an Zynthian-Eingang 1 oder 2 – Pegel, Hall und „Musik leiser beim Sprechen“ für
+  Kommentatoren. Alle Pegel mit Anzeige, im Spiel jederzeit über die Pause erreichbar.
+- **Beamer:** HDMI-Beamer anstecken – das Bild kommt automatisch auf Display und Beamer
+  (Einstellungen → Bild: automatisch · Zynthian-Display · Beamer · beide).
+- **Grafik:** Ruhig · Mittel · Prächtig – wenn das Bild ruckelt, eine Stufe runter. Verzögerung (z. B. am Beamer)
+  misst „Verzögerung messen …“ selbst.
+- **Menüs mit der Keytar:** C ▲ · D ▼ · E ◀ · F ▶ · G ✓ · A zurück. Am Zynthian: Pfeile, SEL, BACK, Drehregler.
+  Zurück zum Mischpult: Titel → „Zum Mischpult“ oder BACK 3 s halten.
+- Kein Blau – auch nicht im Spiel.
+
 ## Neu in Version 6.15 – BROWSE-Knopf bleibt bei der Titelliste
 
 - **Der BROWSE-Knopf am DDJ scrollt wieder zuverlässig.** Ohne Fenstermanager ging die Eingabe an das Fenster

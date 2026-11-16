@@ -1,0 +1,124 @@
+#!/bin/bash
+# Bard Hero – Rhythmusspiel für den Zynthian (Vollbild statt der Zynthian-Oberfläche, JACK läuft weiter).
+#
+#   bard-hero start          Spiel starten (beim ersten Mal werden die nötigen Pakete installiert)
+#   bard-hero zynthian       zurück zur Zynthian-Oberfläche
+#   bard-hero aus|neustart   ausschalten / neu starten
+#   bard-hero installieren   Pakete einmalig installieren (pygame, numpy, JACK-Anbindung, FluidSynth, Soundfont)
+#   bard-hero bereit         Rückgabe 0, wenn alles da ist
+#   bard-hero rendern        Lieder im Hintergrund vorbereiten (sonst beim ersten Spielstart)
+#   bard-hero einrichten     Dienst und Befehl nach einem ZynSimple-Update auffrischen
+#   bard-hero status|pruefen
+#
+# Wird von install.sh nach /usr/local/bin kopiert.
+
+DEST="${ZS_DIR:-/zynthian/zynthian-my-data/zynsimple}"
+SRC="$DEST/spiel"
+DATEN="${BH_DATEN:-/zynthian/zynthian-my-data/bardhero}"
+ZIEL=/run/bardhero.ziel
+LOG=/tmp/bardhero-install.log
+PY=/usr/bin/python3
+
+aktiv() { systemctl is-active -q zynsimple-spiel.service; }
+bereit() { "$PY" -c "import pygame, numpy, jack" >/dev/null 2>&1 && command -v fluidsynth >/dev/null 2>&1; }
+
+case "$1" in
+  start|spiel)
+    if ! bereit; then
+      "$0" installieren || { echo "Bard Hero braucht einmalig Internet für die Installation."; exit 1; }
+    fi
+    rm -f "$ZIEL"
+    mkdir -p "$DATEN"
+    # Barden Beats im Hintergrund und das DJ-Pult beenden sich über Conflicts= im Dienst
+    systemctl stop imres-hintergrund 2>/dev/null
+    systemctl start jack2.service 2>/dev/null
+    systemctl start zynsimple-spiel.service
+    ;;
+  zynthian)
+    echo zynthian > "$ZIEL"
+    systemctl stop zynsimple-spiel.service
+    systemctl start jack2.service 2>/dev/null
+    systemctl start zynthian.service
+    ;;
+  aus)
+    echo aus > "$ZIEL"
+    systemctl stop zynsimple-spiel.service
+    sync
+    systemctl poweroff
+    ;;
+  neustart)
+    echo aus > "$ZIEL"
+    systemctl stop zynsimple-spiel.service
+    sync
+    systemctl reboot
+    ;;
+  nach-ende)
+    # Spiel beendet oder abgestürzt → zurück zum Zynthian (außer es wurde ausgeschaltet oder ein anderer Modus übernimmt)
+    if [ -z "$BH_LOSGELOEST" ] && command -v systemd-run >/dev/null 2>&1; then
+      exec systemd-run --quiet --no-block --collect --unit="bardhero-ende-$$" --setenv=BH_LOSGELOEST=1 "$0" nach-ende
+    fi
+    sleep 2
+    Z=$(cat "$ZIEL" 2>/dev/null); rm -f "$ZIEL"
+    case "$Z" in aus) exit 0 ;; esac
+    for D in zynthian imres-buehne zynsimple-dj zynsimple-spiel; do
+      case "$(systemctl is-active "$D" 2>/dev/null)" in active|activating|reloading) exit 0 ;; esac
+    done
+    systemctl start --no-block jack2.service 2>/dev/null
+    systemctl start --no-block zynthian.service
+    ;;
+  bereit)
+    bereit
+    ;;
+  installieren)
+    if bereit; then echo "Bard Hero ist schon bereit."; exit 0; fi
+    exec 9>/run/bardhero-install.lock; flock -n 9 || { echo "Die Installation läuft schon."; exit 1; }
+    {
+      echo "Start: $(date +%H:%M:%S)"
+      export DEBIAN_FRONTEND=noninteractive
+      PAKETE="python3-pygame python3-numpy python3-jack-client"
+      command -v fluidsynth >/dev/null || PAKETE="$PAKETE fluidsynth"
+      SF=$("$PY" "$SRC/rendern.py" --soundfont 2>/dev/null)
+      [ -n "$SF" ] && [ "$SF" != "keiner" ] || PAKETE="$PAKETE fluid-soundfont-gm"
+      AO="-o APT::Status-Fd=1 -o Dpkg::Use-Pty=0"
+      echo "PHASE paketliste"
+      if ! apt-get install -y -q --no-install-recommends --print-uris $PAKETE >/dev/null 2>&1; then
+        apt-get update $AO
+      fi
+      echo "PHASE laden"
+      LANG=C apt-get install -y --no-install-recommends $AO $PAKETE \
+        || { echo "PHASE paketliste"; apt-get update $AO; echo "PHASE laden"; LANG=C apt-get install -y --no-install-recommends $AO $PAKETE; }
+      echo "PHASE einrichten"
+      # ältere Systeme ohne python3-jack-client im Paketarchiv
+      "$PY" -c "import jack" 2>/dev/null || pip3 install --break-system-packages JACK-Client 2>&1 | tail -2
+    } > "$LOG" 2>&1
+    bereit && { echo "FERTIG" >> "$LOG"; echo "Bard Hero ist bereit."; exit 0; }
+    echo "FEHLER" >> "$LOG"; tail -5 "$LOG"; exit 1
+    ;;
+  rendern)
+    bereit || exit 1
+    RATE=$(jack_samplerate 2>/dev/null || echo 48000)
+    exec nice -n 15 env BH_DATEN="$DATEN" "$PY" "$SRC/rendern.py" --rate "$RATE"
+    ;;
+  einrichten)
+    chmod +x "$SRC/bard-hero" "$SRC/spiel-sitzung.sh" 2>/dev/null
+    rm -f /usr/local/bin/bard-hero; install -m 755 "$SRC/bard-hero" /usr/local/bin/bard-hero
+    cp "$SRC/zynsimple-spiel.service" /etc/systemd/system/zynsimple-spiel.service
+    mkdir -p "$DATEN"
+    systemctl daemon-reload
+    echo "Bard Hero eingerichtet$(bereit && echo "" || echo " (Pakete werden beim ersten Start installiert)")."
+    ;;
+  status)
+    echo "bereit=$(bereit && echo 1 || echo 0) aktiv=$(aktiv && echo 1 || echo 0)"
+    ;;
+  pruefen)
+    echo "== Pakete =="; "$PY" -c "import pygame, numpy, jack; print('pygame', pygame.version.ver, '· numpy', numpy.__version__, '· jack', jack.__version__)" 2>&1 | tail -1
+    echo "fluidsynth: $(command -v fluidsynth)"; echo "Soundfont: $("$PY" "$SRC/rendern.py" --soundfont 2>&1)"
+    echo "== Dienste =="; for D in zynsimple-spiel zynthian jack2 zynsimple-dj imres-buehne; do echo "$D: $(systemctl is-active $D)"; done
+    echo "== Lieder =="; ls "$DATEN/lieder" 2>/dev/null | tr '\n' ' '; echo; du -sh "$DATEN" 2>/dev/null
+    echo "== Bildschirme =="; DISPLAY=:0 xrandr 2>/dev/null | grep " connected"
+    echo "== MIDI =="; amidi -l 2>&1; jack_lsp -t 2>/dev/null | grep -B1 midi | head -20
+    echo "== Log =="; journalctl -u zynsimple-spiel -n 50 --no-pager 2>&1 | tail -50
+    ;;
+  *)
+    echo "Benutzung: bard-hero start|zynthian|aus|neustart|installieren|bereit|rendern|einrichten|status|pruefen"; exit 1 ;;
+esac

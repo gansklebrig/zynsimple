@@ -10,6 +10,7 @@ Einfache Mischer-Ansicht für den **Zynthian** (V5, ZynthianOS Oram & Vangelis) 
 - DJ-Pult: Mixxx im Vollbild mit dem DDJ-200 und den Zynthian-Reglern, TR-8S im Takt, Musik per WLAN („MUSIK gekauft“)
 - DJ + Instrumente: Mixxx als Kanal im Mischer, Instrumente und Looper laufen daneben; gemeinsamer Takt (auch mit der TR-8S als Taktgeber)
 - Looper im Takt (1/2/4 Takte, mehrere Loops), Auftritts-Stand, Startmodus, Strom-Warnung, Musik am Handy suchen und laden
+- Bard Hero: Rhythmusspiel mit der Keytar – 13 eigene Lieder, zu zweit, Mikrofon, Beamer
 - Updates mit einem Tipp – direkt von hier
 
 ## Installieren (per SSH auf dem Zynthian, mit Internet)

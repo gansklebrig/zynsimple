@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "6.15"
+VERSION = "6.16"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -223,6 +223,15 @@ def _buehne(zyngui, bridge, settings):
             except Exception as e:
                 log.warning(f"ZynSimple: Barden Beats beim Start: {e}")
         top.after(9000, bb_los)
+    elif modus == "bardhero":
+        def bh_los():
+            try:
+                from . import spiel
+                if spiel.eingerichtet():
+                    start_spiel(zyngui)
+            except Exception as e:
+                log.warning(f"ZynSimple: Bard Hero beim Start: {e}")
+        top.after(9000, bh_los)
 
 
 def system_menue(zyngui):
@@ -254,6 +263,13 @@ def system_menue(zyngui):
             items.append({"icon": "audio.png", "title": "Barden Beats aktualisieren", "action": bb_update})
             items.append({"icon": "special_chain.png", "title": "Barden Beats",
                           "action": lambda *a, **k: threading.Thread(target=imres.system, args=("imres",), daemon=True).start()})
+    except Exception:
+        pass
+    try:
+        from . import spiel
+        if spiel.eingerichtet():
+            items.append({"icon": "midi_input.png", "title": "Bard Hero",
+                          "action": lambda *a, **k: start_spiel(zyngui)})
     except Exception:
         pass
     items.append({"icon": "mixer.png", "title": "Mischpult",
@@ -416,6 +432,13 @@ def _add_menu_entry(zyngui):
                     })
             except Exception:
                 pass
+            try:
+                from . import spiel
+                if spiel.eingerichtet():
+                    entries.append({"title": "Bard\nHero", "icon": "midi_input.png",
+                                    "action": lambda *a, **k: start_spiel(zyngui)})
+            except Exception:
+                pass
 
             def settings_page(*a, **k):
                 zyngui.show_screen_reset(SCREEN_NAME)
@@ -508,6 +531,40 @@ def start_dj(zyngui, *a, **k):
 
     if scr is not None:
         # im Tk-Hauptthread umschalten (der Aufruf kann auch vom Handy-Webserver kommen)
+        try:
+            from zyngui import zynthian_gui_config
+            zynthian_gui_config.top.after(0, lambda: zyngui.show_screen_reset(SCREEN_NAME))
+        except Exception:
+            pass
+    import threading
+    threading.Thread(target=run, daemon=True).start()
+
+
+def start_spiel(zyngui, *a, **k):
+    """Bard Hero starten – beim ersten Mal werden die Pakete installiert (mit Anzeige)."""
+    scr = zyngui.screens.get(SCREEN_NAME)
+
+    def show(text, sub="", done=False, error=False):
+        if scr is not None:
+            scr.show_update(text, sub, done, error)
+        else:
+            _info(zyngui, f"{text} {sub}")
+
+    def run():
+        from . import spiel
+        if not spiel.eingerichtet():
+            show("Bard Hero fehlt", "ZynSimple einmal neu installieren. Antippen zum Schließen.", error=True)
+            return
+        if not spiel.bereit():
+            show("Bard Hero wird eingerichtet …", "einmalig · braucht Internet · einige Minuten")
+            ok, msg = spiel.installieren()
+            if not ok:
+                show("Bard Hero fehlt noch", f"{msg} Antippen zum Schließen.", error=True)
+                return
+        show("Bard Hero startet …", "Zurück: im Spiel „Zum Mischpult“ oder BACK 3 s halten")
+        spiel.system("start")
+
+    if scr is not None:
         try:
             from zyngui import zynthian_gui_config
             zynthian_gui_config.top.after(0, lambda: zyngui.show_screen_reset(SCREEN_NAME))

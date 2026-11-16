@@ -117,6 +117,11 @@ class zynsimple_screen(zynthian_gui_base):
             self.dj_installed = dj.eingerichtet()
         except Exception:
             self.dj_installed = False
+        try:
+            from . import spiel
+            self.spiel_installed = spiel.eingerichtet()
+        except Exception:
+            self.spiel_installed = False
         self.help_anchors = []
         self.help_page = 0
         self.warn = None
@@ -2156,6 +2161,8 @@ class zynsimple_screen(zynthian_gui_base):
                  ("idle", "Bühnenbild", "Animation jetzt zeigen"),
                  ("settings", f"Update {upd} bereit" if upd else "Einstellungen", "Update, Start-Logo, Bühnenbild …"),
                  ("close", "Zurück", "")]
+        if getattr(self, "spiel_installed", False):
+            items.insert(0, ("bardhero", "🎸 Bard Hero", "Rhythmusspiel mit der Keytar"))
         if self.dj_installed:
             items.insert(0, ("djpult", "♪ DJ-Pult", "Mixxx im Vollbild mit dem DDJ · auch: CTRL 1,5 s halten"))
             try:
@@ -2170,7 +2177,7 @@ class zynsimple_screen(zynthian_gui_base):
         gw, gh = (W - 40) / cols, (H - 70) / rows
         for k, (art, title, sub) in enumerate(items):
             cx, cy = 20 + (k % cols) * gw, 52 + (k // cols) * gh
-            gold = art in ("imres", "djpult", "djimport") or (art == "settings" and upd)
+            gold = art in ("imres", "djpult", "djimport", "bardhero") or (art == "settings" and upd)
             self.rrect(cx + 5, cy + 5, cx + gw - 5, cy + gh - 5, 14, fill=P["card2"] if not gold else "#2a2014",
                        outline=P["gold"] if gold else P["line"], width=2 if gold else 1)
             cv.create_text(cx + gw / 2, cy + gh * 0.42, text=title, font=self.f_mid, fill=P["champ"],
@@ -2288,6 +2295,9 @@ class zynsimple_screen(zynthian_gui_base):
                     return self.open_fxview()
                 elif art == "djpult":
                     return self._ctrl_lang()
+                elif art == "bardhero":
+                    from . import start_spiel
+                    return start_spiel(self.zyngui)
                 elif art == "newtrack":
                     self.open_newtrack()
                 elif art == "idle":
@@ -3356,7 +3366,7 @@ class zynsimple_screen(zynthian_gui_base):
                            ("set", "dj_auto_rec", "●"), ("act", "s_djhandy", "⌕")]),
         ("anzeige", "Anzeige", [("set", "idle_seconds", "◐"), ("act", "s_theme", "◑"), ("set", "splash", "✦"),
                                 ("set", "boot_gans", "🪿")]),
-        ("system", "System", [("act", "s_imres", "♫"), ("set", "update_kanal", "⟳"), ("act", "s_vorher", "↶"), ("act", "s_sichern", "⇩"),
+        ("system", "System", [("act", "s_imres", "♫"), ("act", "s_bardhero", "🎸"), ("set", "update_kanal", "⟳"), ("act", "s_vorher", "↶"), ("act", "s_sichern", "⇩"),
                               ("act", "s_zurueck", "⇧"), ("act", "s_handy", "▤"), ("act", "s_strom", "⚡")]),
         ("mehr", "Erweitert", [("set", "autosave", "↺"), ("act", "s_save", "✓"), ("set", "master_limiter", "▣"),
                                ("set", "xy_spring", "✥"), ("set", "synth_midi_chan", "♪"), ("set", "strip_min_width", "▥"),
@@ -3384,6 +3394,9 @@ class zynsimple_screen(zynthian_gui_base):
         if art == "s_dj":
             return ("DJ-Pult", "Mixxx im Vollbild mit dem DDJ · auch: CTRL 1,5 s halten · beim ersten Mal wird Mixxx "
                     "installiert (einige Minuten)", "Starten", getattr(self, "dj_installed", False), False)
+        if art == "s_bardhero":
+            return ("Bard Hero", "Rhythmusspiel: Melodie mit der Keytar, die Band spielt den Rest · auch am Beamer · "
+                    "beim ersten Mal wird es eingerichtet", "Starten", getattr(self, "spiel_installed", False), False)
         if art == "s_imres":
             return ("Barden Beats", "Bühne & Klangwelten im Vollbild · zurück: BACK 3 s → System-Menü", "Starten",
                     getattr(self, "imres_installed", False), False)
@@ -3717,6 +3730,10 @@ class zynsimple_screen(zynthian_gui_base):
             elif art == "s_dj":
                 from . import start_dj
                 start_dj(self.zyngui)
+                return
+            elif art == "s_bardhero":
+                from . import start_spiel
+                start_spiel(self.zyngui)
                 return
             elif art == "s_imres":
                 from . import imres

@@ -43,6 +43,7 @@ if [ "$SRC" != "$DEST" ]; then
         rm -rf "$DEST/.vorher.neu" && mkdir -p "$DEST/.vorher.neu"
         cp -r "$DEST/zynsimple" "$DEST/.vorher.neu/"
         [ -d "$DEST/dj" ] && cp -r "$DEST/dj" "$DEST/.vorher.neu/"
+        [ -d "$DEST/spiel" ] && cp -r "$DEST/spiel" "$DEST/.vorher.neu/"
         for f in zynsimple_boot.py install.sh uninstall.sh ANLEITUNG.md VERSION; do
             [ -f "$DEST/$f" ] && cp "$DEST/$f" "$DEST/.vorher.neu/"
         done
@@ -54,6 +55,8 @@ if [ "$SRC" != "$DEST" ]; then
     cp -r "$SRC/zynsimple" "$DEST/"
     rm -rf "$DEST/dj"
     [ -d "$SRC/dj" ] && cp -r "$SRC/dj" "$DEST/"
+    rm -rf "$DEST/spiel"
+    [ -d "$SRC/spiel" ] && cp -r "$SRC/spiel" "$DEST/"
     cp "$SRC/zynsimple_boot.py" "$DEST/"
     cp "$SRC/install.sh" "$SRC/uninstall.sh" "$DEST/" 2>/dev/null || true
     cp "$SRC/ANLEITUNG.md" "$DEST/" 2>/dev/null || true
@@ -78,6 +81,11 @@ echo "SCHRITT 3/6 Richte das DJ-Pult und den WLAN-Ordner ein"
 # 2b) DJ-Pult (Mixxx) einrichten – Mixxx selbst wird erst beim ersten Start installiert
 if [ -f "$DEST/dj/zynsimple-dj" ] && [ -d /run/systemd/system ]; then
     ZS_DIR="$DEST" bash "$DEST/dj/zynsimple-dj" einrichten || echo "DJ-Pult: Einrichtung übersprungen"
+fi
+
+# 2b2) Bard Hero (Rhythmusspiel) – Pakete kommen beim ersten Start
+if [ -f "$DEST/spiel/bard-hero" ] && [ -d /run/systemd/system ]; then
+    ZS_DIR="$DEST" bash "$DEST/spiel/bard-hero" einrichten || echo "Bard Hero: Einrichtung übersprungen"
 fi
 
 # 2c) Bühnen-Sicherheit: Speicherkarte nach Stromausfall beim Start automatisch prüfen und reparieren

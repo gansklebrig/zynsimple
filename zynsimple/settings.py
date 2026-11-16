@@ -46,7 +46,7 @@ SPEC = [
     ("bsp_drums", "BeatStep-Drums im Zynthian", "bool", None,
      "an: die Drum-Spur (Kanal 10) spielt ein Drumkit im Zynthian · aus: Drums macht die TR-8S"),
     ("start_modus", "Nach dem Einschalten", "choice",
-     [("zynthian", "Mischpult"), ("imres", "Barden Beats")],
+     [("zynthian", "Mischpult"), ("imres", "Barden Beats"), ("bardhero", "Bard Hero")],
      "womit der Zynthian startet – praktisch für den Auftritt"),
     ("dj_handpan_fx", "Handpan im DJ-Mix", "bool", None, "Zynthian-Eingänge 1+2 laufen mit in den Mix"),
     ("update_check", "Updates selbst suchen", "bool", None, "beim Start und alle 6 Stunden · braucht Internet"),

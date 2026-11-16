@@ -1,0 +1,17 @@
+[Unit]
+Description=Bard Hero (Rhythmusspiel im Vollbild statt der Zynthian-Oberfläche)
+# Schließt sich aus mit Zynthian-Oberfläche, Barden-Beats-Bühne und DJ-Pult – JACK läuft weiter
+Conflicts=zynthian.service imres-buehne.service imres-hintergrund.service zynsimple-dj.service
+Wants=jack2.service
+After=zynthian.service imres-buehne.service zynsimple-dj.service jack2.service
+
+[Service]
+Environment=HOME=/zynthian/zynthian-my-data/bardhero
+Environment=BH_DATEN=/zynthian/zynthian-my-data/bardhero
+WorkingDirectory=/zynthian/zynthian-my-data/bardhero
+ExecStartPre=/bin/mkdir -p /zynthian/zynthian-my-data/bardhero
+ExecStart=/usr/bin/startx /zynthian/zynthian-my-data/zynsimple/spiel/spiel-sitzung.sh -- -nocursor -s 0
+ExecStopPost=-/usr/local/bin/bard-hero nach-ende
+TimeoutStopSec=10
+LimitRTPRIO=95
+LimitMEMLOCK=infinity

@@ -32,6 +32,14 @@ if [ -f /etc/systemd/system/zynsimple-dj.service ]; then
     echo "DJ-Pult entfernt"
 fi
 
+# Bard Hero entfernen (Rekorde und gerenderte Lieder bleiben in /zynthian/zynthian-my-data/bardhero)
+if [ -f /etc/systemd/system/zynsimple-spiel.service ]; then
+    systemctl stop zynsimple-spiel 2>/dev/null
+    rm -f /etc/systemd/system/zynsimple-spiel.service /usr/local/bin/bard-hero
+    systemctl daemon-reload 2>/dev/null
+    echo "Bard Hero entfernt"
+fi
+
 if [ "$1" == "--alles" ]; then
     rm -rf "$DEST" && echo "Ordner $DEST gelöscht"
 else
