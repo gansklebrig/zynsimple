@@ -110,6 +110,14 @@ if [ -f "$DEST/dj/zynsimple-wache.service" ] && [ -d /run/systemd/system ]; then
         && systemctl restart zynsimple-wache.service >/dev/null 2>&1 && echo "Wache läuft (Protokoll bei Hängern)"
 fi
 
+# 2e) ♪-Knopf oben rechts im Mischpult → DJ-Pult (ersetzt den alten ♫-Knopf von Barden Beats)
+if [ -f "$DEST/dj/zynsimple-knopf.service" ] && [ -d /run/systemd/system ]; then
+    systemctl disable --now imres-knopf.service >/dev/null 2>&1 || true
+    cp "$DEST/dj/zynsimple-knopf.service" /etc/systemd/system/zynsimple-knopf.service 2>/dev/null \
+        && systemctl daemon-reload && systemctl enable zynsimple-knopf.service >/dev/null 2>&1 \
+        && echo "♪-Knopf oben rechts: führt zum DJ-Pult"
+fi
+
 echo "SCHRITT 4/6 Hänge ZynSimple in die Oberfläche ein"
 # 3) Startdatei (.pth) anlegen – wird bei jedem Python-Start gelesen,
 #    hängt sich aber nur in die Zynthian-Oberfläche ein.

@@ -73,6 +73,11 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.13 – ♪-Knopf kommt jetzt von ZynSimple
+
+- Der Knopf oben rechts im Mischpult (halten oder doppelt tippen) gehört jetzt zu ZynSimple und startet
+  **das DJ-Pult** – auch ohne Barden-Beats-Update. Der alte ♫-Knopf von Barden Beats wird abgeschaltet.
+
 ## Neu in Version 6.12 – Aufgeräumt, Stabil/Test, Rückgängig, ♪ = DJ-Pult
 
 - **Mischpult und DJ-Pult sind getrennt – und aufgeräumt.** Der alte Versuch „DJ im Mischpult“ ist komplett raus

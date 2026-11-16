@@ -1,0 +1,14 @@
+[Unit]
+Description=ZynSimple ♪-Knopf oben rechts im Mischpult (1 s halten → DJ-Pult)
+After=zynthian.service
+PartOf=zynthian.service
+
+[Service]
+Environment=DISPLAY=:0 HOME=/root
+ExecStartPre=/bin/sleep 6
+ExecStart=/usr/bin/python3 /zynthian/zynthian-my-data/zynsimple/dj/zs-knopf.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=zynthian.service
