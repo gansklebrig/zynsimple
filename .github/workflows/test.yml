@@ -21,6 +21,7 @@ jobs:
         run: bash tests/statisch.sh
       - name: Tasten-Test (3 × 3000 zufällige Eingaben)
         run: |
+          set -o pipefail
           for s in 1 2 3; do python3 tests/fuzz.py 3000 $s | tail -25 || exit 1; done
 
   stabil:
