@@ -4,6 +4,7 @@ name: Test
 # Erst wenn das grün ist, wird eine Version auf „stabil“ gestellt (siehe ANLEITUNG, Abschnitt Updates).
 on:
   push:
+    branches-ignore: [stabil]
   pull_request:
   workflow_dispatch:
 
@@ -21,3 +22,16 @@ jobs:
       - name: Tasten-Test (3 × 3000 zufällige Eingaben)
         run: |
           for s in 1 2 3; do python3 tests/fuzz.py 3000 $s | tail -25 || exit 1; done
+
+  stabil:
+    # grün auf main → diese Version bekommen jetzt auch alle im Update-Kanal „Stabil“
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: git push origin HEAD:refs/heads/stabil
