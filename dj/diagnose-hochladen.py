@@ -6,7 +6,7 @@ ZynSimple – Diagnose automatisch hochladen.
 Alles Neue im Ordner „MUSIK gekauft/_Diagnose“ (Absturz-Protokolle, Wache-Protokolle vor einem Einfrieren)
 wird in ein privates GitHub-Repository geladen, sobald Internet da ist. Dort kann Claude es direkt lesen.
 
-Einrichtung (einmal, am Handy unter http://zynthian.local:8080 → Bühne → „Diagnose automatisch hochladen“):
+Einrichtung (einmal, am Handy unter http://zynthian.local:8090 → Extras → 🩺 „Diagnose automatisch hochladen“):
   privates Repository (z. B. zynsimple-diagnose) + Fine-grained Token nur für dieses Repository,
   Recht „Contents: Read and write“. Gespeichert in /zynthian/zynthian-my-data/zynsimple/diagnose.json.
 
