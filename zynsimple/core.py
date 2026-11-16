@@ -209,6 +209,7 @@ class Bridge:
             out["morph"] = pf.morphing()
             out["morph_beats"] = pf.x.state.get("morph_beats", 4)
             out["tempo"] = pf.x.tempo()
+            out["szene_undo"] = pf.szene_undo_info()
         if self.tracks:
             try:
                 out["sys"] = self.tracks.sys()
@@ -312,6 +313,8 @@ class Bridge:
             return pf.panic()
         if op == "scene_save":
             return pf.scene_save(int(value))
+        if op == "scene_undo":
+            return {"n": pf.scene_undo()}
         if op == "scene_load":
             return {"seconds": pf.scene_load(int(value))}
         if op == "morph_beats":

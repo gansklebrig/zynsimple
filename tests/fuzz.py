@@ -43,7 +43,6 @@ class Canvas(C):  # noqa: F821
     def focus_set(s): pass
     def winfo_toplevel(s): return s
     def move(s, *a): pass
-    def type(s, i): return "text"
     def find_withtag(s, t): return ()
     def gettags(s, i): return ()
     def cget(s, k): return ""
@@ -189,7 +188,8 @@ class Bridge:
         if random.random() < 0.1:
             st = [strip(0, "Summe", "main")]
         return {"strips": st, "scenes": {"1": 1, "2": 1}, "last_scene": "1", "morph_beats": 4, "tempo": 96,
-                "sys": {"dsp": 23, "cpu": 31, "temp": 52}}
+                "sys": {"dsp": 23, "cpu": 31, "temp": 52},
+                "szene_undo": {"n": "2", "left": 7, "leer": False} if random.random() < 0.3 else None}
 
     def _chain(s, cid): return type("Ch", (), {"chain_id": cid, "title": "x", "audio_slots": [], "midi_chan": 0})()
     def _name(s, c): return "Handpan"
@@ -200,6 +200,8 @@ class Bridge:
         VERLAUF.append(("action", cid, op, v))
         if op == "hf_autogain_info":
             return {"phase": random.choice(["hoeren", "fertig", "fehler"]), "rest": 6.2, "peak": -14, "text": "x"}
+        if op == "scene_undo":
+            return {"n": "2"}
         if op == "hf_looper":
             return LOOP
         if op in ("presets", "browse", "fx_list", "hf_presets"):

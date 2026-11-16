@@ -463,7 +463,8 @@ class zynsimple_screen(zynthian_gui_base):
                     if sig != self.sig:
                         self.sig = sig
                         self._ton_sig = None
-                        self.draw()
+                        if not self._teil_neu():
+                            self.draw()
                     self.update_dynamic()
                     self._ton_anzeige()
             elif self.mode == "edit":
@@ -521,7 +522,73 @@ class zynsimple_screen(zynthian_gui_base):
                       s.get("freeze"), s.get("throw"), [(f["name"], f["on"], f.get("sync")) for f in s["fx"]])
                      for s in self.strips]) + \
             f"|{self.selected}|{W}x{H}|{d.get('scenes')}|{d.get('last_scene')}|{d.get('morph')}|" \
-            f"{d.get('morph_beats')}|{self.locked}|{d.get('undo')}"
+            f"{d.get('morph_beats')}|{self.locked}|{d.get('undo')}|{d.get('szene_undo')}"
+
+    def _sig_teile(self):
+        """Signatur aufgeteilt: was den ganzen Bildschirm betrifft · und je Kanal."""
+        W, H = self._geom()
+        d = self.data
+        pp = max(1, getattr(self, "per_page", 1) or 1)
+        glob = (self.rec_on, tuple(s["id"] for s in self.strips), self.selected, pp, W, H,
+                repr(d.get("scenes")), d.get("last_scene"), repr(d.get("morph")), d.get("morph_beats"),
+                self.locked, repr(d.get("undo")), repr(d.get("szene_undo")), self.mode, self._live_sig())
+        teile = [repr((s["name"], s["mute"], s["solo"], s["preset"] and s["preset"]["name"], s.get("gain"),
+                       s.get("freeze"), s.get("throw"), s.get("kind"),
+                       [(f["name"], f["on"], f.get("sync")) for f in s["fx"]]))
+                 for s in self.strips]
+        return glob, teile
+
+    def _live_sig(self):
+        """Was die LIVE-Spalte rechts vom gewählten Kanal zeigt."""
+        s = self._sel_strip()
+        if not s:
+            return None
+        return repr((s["id"], s["name"], s["kind"], s.get("freeze"), s.get("throw"),
+                     [(f["name"], f["on"]) for f in s["fx"]]))
+
+    def _teil_neu(self):
+        """Nur die Kanäle neu zeichnen, die sich geändert haben (Mute, Solo, Effekt an/aus …).
+        Gibt False zurück, wenn doch alles neu gezeichnet werden muss."""
+        alt = getattr(self, "_gez", None)
+        if not alt or self.mode != "mix":
+            return False
+        try:
+            glob, teile = self._sig_teile()
+            if glob != alt[0] or len(teile) != len(alt[1]):
+                return False
+            cv = self.canvas
+            if cv.type(self._bg_id) != "rectangle":       # inzwischen etwas anderes gezeichnet
+                return False
+            neu = [i for i, (a, b) in enumerate(zip(alt[1], teile)) if a != b]
+            if len(neu) > 2:
+                return False
+            for i in neu:
+                g = self._strip_geo.get(i)
+                if g is None:                              # Kanal auf einer anderen Seite
+                    continue
+                ids, hits, anker = g["ids"], g["hits"], g["anker"]
+                for it in ids:
+                    cv.delete(it)
+                self.hits = [h for h in self.hits if not any(h is x for x in hits)]
+                self.help_anchors = [a for a in self.help_anchors if not any(a is x for x in anker)]
+                self._strip_zeichnen(self.strips[i], i, *g["xywh"])
+            for it in tuple(getattr(self, "warn_items", ())) + tuple(self.tip_items):
+                cv.tag_raise(it)
+            self._gez = (glob, teile)
+            return True
+        except Exception as e:
+            log.debug(f"Teil-Neuzeichnen: {e}")
+            return False
+
+    def _strip_zeichnen(self, s, index, x, y, w, h):
+        """Einen Kanal zeichnen und sich merken, was dazugehört (für _teil_neu)."""
+        cv = self.canvas
+        alle = cv.find_all()
+        letzte = alle[-1] if alle else 0
+        nh, na = len(self.hits), len(self.help_anchors)
+        self._draw_strip(s, index, x, y, w, h)
+        self._strip_geo[index] = {"xywh": (x, y, w, h), "ids": [i for i in cv.find_all() if i > letzte],
+                                  "hits": self.hits[nh:], "anker": self.help_anchors[na:]}
 
     # ------------------------------------------------------------------
     # Hauptansicht
@@ -536,7 +603,9 @@ class zynsimple_screen(zynthian_gui_base):
         self.help_anchors = []
         self.tip_items = []
         W, H = self._geom()
-        cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
+        self._gez = None
+        self._strip_geo = {}
+        self._bg_id = cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
         bar_h = max(40, H // 10)
         live_w = int(max(170, W * 0.24))
         mix_w = W - live_w
@@ -558,7 +627,7 @@ class zynsimple_screen(zynthian_gui_base):
             self._draw_empty(0, 0, mix_w + add_w, strip_h)
         else:
             for k, s in enumerate(visible):
-                self._draw_strip(s, first + k, k * sw + 4, 4, sw - 6, strip_h - 6)
+                self._strip_zeichnen(s, first + k, k * sw + 4, 4, sw - 6, strip_h - 6)
 
         # ＋ Neue Spur
         ax0, ax1 = mix_w + 1, mix_w + add_w - 3
@@ -571,6 +640,15 @@ class zynsimple_screen(zynthian_gui_base):
             self._anchor(ax0, 4, ax1, strip_h - 2, "＋ neue Spur: Handpan, Mikro, Synth, Looper …", "left")
         # Rückgängig nach dem Löschen
         u = self.data.get("undo")
+        su = None if u else self.data.get("szene_undo")
+        if su:
+            bw_, bh_ = min(mix_w - 20, 420), max(44, int(H * 0.1))
+            bx, by = (mix_w - bw_) / 2, strip_h * 0.42
+            self.rrect(bx, by, bx + bw_, by + bh_, 14, fill="#2a2014", outline=P["gold"], width=2)
+            cv.create_text(bx + 16, by + bh_ / 2, anchor="w", font=self.f_small, fill=P["champ"],
+                           text=self._clip_text(f"Szene {su['n']} gespeichert", bw_ * 0.55, self.f_small))
+            self._button(bx + bw_ - 190, by + 6, 182, bh_ - 12, f"↶ Rückgängig {su['left']}", True, "szene_undo",
+                         None, None, fill=P["gold"], fg=P["black"], font=self.f_small)
         if u:
             bw_, bh_ = min(mix_w - 20, 420), max(44, int(H * 0.1))
             bx, by = (mix_w - bw_) / 2, strip_h * 0.42
@@ -594,6 +672,8 @@ class zynsimple_screen(zynthian_gui_base):
         self.warn_items = (wb, wt)
         if self.mode == "help":
             self.draw_help()
+        elif self.mode == "mix" and not leer:
+            self._gez = self._sig_teile()
 
     # ------------------------------------------------------------------
     # Stick-Browser: Inhalt von USB-Stick / SD-Karte, Alben und Titel antippen, gesammelt übernehmen
@@ -1748,7 +1828,7 @@ class zynsimple_screen(zynthian_gui_base):
         if not h:
             return
         art, cid, extra = h[4], h[5], h[6]
-        if self.locked and art not in ("lock", "select", "fader", "scene", "panic", "mute", "help", "rec"):
+        if self.locked and art not in ("lock", "select", "fader", "scene", "szene_undo", "panic", "mute", "help", "rec"):
             self._flash("Auftritts-Modus: nur Fader, Mute, Szenen und Panik – „AUFTRITT“ lang drücken beendet ihn")
             return
         if art in self.DEFER:
@@ -1805,6 +1885,14 @@ class zynsimple_screen(zynthian_gui_base):
                 return
             elif art == "undo":
                 self._run_track(lambda: b.action(None, "track_undo"), "Spur ist zurück")
+                return
+            elif art == "szene_undo":
+                try:
+                    n = b.action(None, "scene_undo")["n"]
+                    self._flash(f"Szene {n} wie vorher")
+                except Exception as e:
+                    self._flash(str(e).strip("'\""))
+                self.sig = None
                 return
             elif art == "browse":
                 self.open_browser(cid)

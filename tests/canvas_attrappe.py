@@ -13,6 +13,10 @@ class C:
             for i in a: s.items.pop(i,None)
     def find_all(s): return tuple(i for i in s.order if i in s.items)
     def addtag_withtag(s,t,i): pass
+    def type(s,i):
+        t=s.items.get(i)
+        if t is None: return None
+        return "text" if isinstance(t,tuple) else ("rectangle" if str(t).startswith("<rect") else "other")
     def tag_raise(s,i):
         if i in s.order: s.order.remove(i); s.order.append(i)
     def _f(s,kw): return kw.get("fill") or "none"

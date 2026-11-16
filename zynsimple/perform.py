@@ -55,6 +55,7 @@ class Perform:
         self.throws = {}                # chain_id -> [(zctrl, alt), ...]
         self._morph = None
         self.last_scene = None
+        self.szene_undo = None   # {"n", "alt", "bis"} – überschriebene Szene, 10 s zurückholbar
         self.taps = []
         self.tap_bpm = None
 
@@ -384,10 +385,33 @@ class Perform:
         return {"chains": chains, "ts": time.time()}
 
     def scene_save(self, n):
+        alt = self.x.state["scenes"].get(str(n))
+        self.szene_undo = {"n": str(n), "alt": alt, "letzte": self.last_scene, "bis": time.time() + 10}
         self.x.state["scenes"][str(n)] = self._capture()
         self._save()
         self.last_scene = str(n)
         log.info(f"ZynSimple: Szene {n} gespeichert")
+
+    def szene_undo_info(self):
+        u = self.szene_undo
+        if not u or time.time() > u["bis"]:
+            self.szene_undo = None
+            return None
+        return {"n": u["n"], "left": int(u["bis"] - time.time()) + 1, "leer": u["alt"] is None}
+
+    def scene_undo(self):
+        """Letztes Speichern einer Szene zurücknehmen (alter Stand oder wieder leer)."""
+        u = self.szene_undo
+        if not u or time.time() > u["bis"]:
+            raise KeyError("Nichts mehr zurückzunehmen")
+        if u["alt"] is None:
+            self.x.state["scenes"].pop(u["n"], None)
+        else:
+            self.x.state["scenes"][u["n"]] = u["alt"]
+        self.last_scene = u["letzte"]
+        self.szene_undo = None
+        self._save()
+        return u["n"]
 
     def scene_list(self):
         return {k: bool(v) for k, v in self.x.state["scenes"].items()}
