@@ -1,0 +1,14 @@
+[Unit]
+Description=ZynSimple: volle Rechenleistung und WLAN ohne Stromsparen (weniger Knackser, WLAN bleibt verbunden)
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# CPU nicht heruntertakten – Effekte mit kurzer Verzögerung knacksen sonst beim Hochtakten
+ExecStart=/bin/sh -c 'for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo performance > "$g" 2>/dev/null; done; true'
+# WLAN-Stromsparen aus: der Pi verliert sonst gern die Verbindung („vergisst“ das WLAN)
+ExecStart=/bin/sh -c 'sleep 15; for w in /sys/class/net/wlan*; do [ -e "$w" ] && iw dev "$(basename "$w")" set power_save off 2>/dev/null; done; true'
+
+[Install]
+WantedBy=multi-user.target

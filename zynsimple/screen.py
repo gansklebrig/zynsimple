@@ -449,6 +449,10 @@ class zynsimple_screen(zynthian_gui_base):
                 if self.strips:
                     self.selected = max(0, min(self.selected, len(self.strips) - 1))
             self.edit_tick2 = getattr(self, "edit_tick2", 0) + 1
+            g_ = getattr(self.bridge, "geraete", None)
+            if g_ is not None and getattr(g_, "hinweis", None):
+                txt_, g_.hinweis = g_.hinweis, None
+                self._flash(txt_)
             if self.edit_tick2 % 15 == 1:
                 try:
                     from . import helfer
@@ -894,12 +898,12 @@ class zynsimple_screen(zynthian_gui_base):
     # ------------------------------------------------------------------
     # Keytar anlernen: Taste drücken → Gerät und Kanal erkannt → Synth wählen
     # ------------------------------------------------------------------
-    def open_lernen(self):
+    def open_lernen(self, was="keytar"):
         g = getattr(self.bridge, "geraete", None)
         if g is None:
             self._flash("MIDI mithören geht hier nicht")
             return
-        self.lern = {"t0": time.monotonic(), "ergebnis": None}
+        self.lern = {"t0": time.monotonic(), "ergebnis": None, "was": was}
         lern = self.lern
 
         def treffer(geraet, kanal):
@@ -915,13 +919,19 @@ class zynsimple_screen(zynthian_gui_base):
         self.trk_hits = []
         W, H = self._geom()
         cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
-        cv.create_text(W / 2, H * 0.2, text="🎸 Keytar anlernen", font=self.f_huge, fill=P["gold"])
+        hp = self.lern.get("was") == "handpan"
+        cv.create_text(W / 2, H * 0.2, text="◎ Handpan anlernen" if hp else "🎸 Keytar anlernen", font=self.f_huge,
+                       fill=P["gold"])
         n = int((time.monotonic() - self.lern["t0"]) * 2) % 4
-        cv.create_text(W / 2, H * 0.42, text="Drück jetzt eine Taste auf der Keytar" + "." * n, font=self.f_big,
-                       fill=P["champ"])
+        cv.create_text(W / 2, H * 0.42, text=("Spiel jetzt einen Ton auf der Handpan" if hp
+                                              else "Drück jetzt eine Taste auf der Keytar") + "." * n,
+                       font=self.f_big, fill=P["champ"])
         cv.create_text(W / 2, H * 0.55, width=W - 80, justify="center", font=self.f_small, fill=P["tx2"],
-                       text="Der Zynthian merkt sich, an welcher Buchse und auf welchem MIDI-Kanal sie sendet. "
-                            "Danach suchst du den Klang aus – und am Display steht immer, welcher Ton gerade spielt.")
+                       text=("Der Zynthian merkt sich Buchse und MIDI-Kanal der Handpan. Danach suchst du einen Klang aus, "
+                             "der mitspielt – und kannst die Töne zusätzlich an den Streichfett weitergeben "
+                             "(Einstellungen → Geräte)." if hp else
+                             "Der Zynthian merkt sich, an welcher Buchse und auf welchem MIDI-Kanal sie sendet. "
+                             "Danach suchst du den Klang aus – und am Display steht immer, welcher Ton gerade spielt."))
         self._tbtn(W / 2 - 120, H * 0.72, W / 2 + 120, H * 0.72 + 56, "Abbrechen", "l_ab", font=self.f_mid)
 
     def tick_lernen(self):
@@ -930,6 +940,15 @@ class zynsimple_screen(zynthian_gui_base):
             return self.draw_lernen()
         geraet, kanal = r
         from . import settings as st
+        if self.lern.get("was") == "handpan":
+            st.save(self.settings, {"handpan_geraet": geraet, "handpan_kanal": kanal})
+            try:
+                self.bridge.geraete.start()
+            except Exception:
+                pass
+            self._flash(f"Handpan erkannt: „{geraet}“, Kanal {kanal + 1} – jetzt den Klang wählen, der mitspielt")
+            self.open_synth_browser(kanal=kanal, titel="Handpan-Synth")
+            return
         st.save(self.settings, {"keytar_geraet": geraet, "keytar_kanal": kanal,
                                 "ton_anzeige": self.settings.get("ton_anzeige") if self.settings.get("ton_anzeige") != "aus"
                                 else "keytar"})
@@ -3359,10 +3378,10 @@ class zynsimple_screen(zynthian_gui_base):
     # Aufbau der Einstellungen: Reiter → Zeilen. ("set", Schlüssel, Symbol) oder ("act", Aktion, Symbol)
     SET_PAGES = [
         ("buehne", "Spielen", [("set", "tonart", "♯"), ("set", "takt", "⏱"), ("set", "start_modus", "⏻"),
-                               ("act", "s_gig_merken", "✓"), ("act", "s_gig_laden", "↺"), ("act", "s_tasten", "⌨")]),
-        ("geraete", "Geräte", [("set", "geraet_melden", "🎹"), ("act", "s_keytar", "🎸"), ("act", "s_bsp", "🎛"),
+                               ("set", "auftritt_auto_rec", "●"), ("act", "s_gig_merken", "✓"), ("act", "s_gig_laden", "↺"), ("act", "s_tasten", "⌨")]),
+        ("geraete", "Geräte", [("set", "geraet_melden", "🎹"), ("act", "s_keytar", "🎸"), ("act", "s_handpan", "◎"), ("act", "s_thru", "⇢"), ("act", "s_bsp", "🎛"),
                                ("set", "bsp_drums", "🥁"), ("set", "ton_anzeige", "♪")]),
-        ("dj", "DJ-Pult", [("act", "s_dj", "♪"), ("set", "dj_lautstaerke", "🔊"), ("act", "s_djimport", "⇩"),
+        ("dj", "DJ-Pult", [("act", "s_dj", "♪"), ("set", "dj_lautstaerke", "🔊"), ("set", "dj_schutz", "▣"), ("act", "s_djimport", "⇩"),
                            ("set", "dj_analyse", "♯"), ("set", "dj_auto_rec", "●"), ("act", "s_djhandy", "⌕")]),
         ("anzeige", "Anzeige", [("set", "idle_seconds", "◐"), ("act", "s_theme", "◑"), ("set", "splash", "✦"),
                                 ("set", "boot_gans", "🪿")]),
@@ -3460,6 +3479,17 @@ class zynsimple_screen(zynthian_gui_base):
                 n = 0
             return ("Tasten belegen", "alle Tasten von Mischer, DJ-Pult und Barden Beats · jede Funktion auf jede Taste"
                     + (f" · {n} umbelegt" if n else ""), "Öffnen", True, False)
+        if art == "s_handpan":
+            g_, k_ = self.settings.get("handpan_geraet"), self.settings.get("handpan_kanal")
+            if g_:
+                return ("Handpan (MIDI)", f"„{g_}“, Kanal {int(k_) + 1} · ein Synth spielt mit · neu: Ton spielen",
+                        "Neu anlernen", True, False)
+            return ("Handpan (MIDI) anlernen", "z. B. Neotone · einen Ton spielen – danach spielt ein Synth mit",
+                    "Anlernen", True, False)
+        if art == "s_thru":
+            z = self.settings.get("thru_ziel") or ""
+            return ("Handpan-Töne weitergeben an", (f"„{z}“" if z else "aus") +
+                    " · z. B. an den Streichfett (MIDI-Ausgang) · tippen = nächstes Gerät", "Wechseln", True, False)
         if art == "s_keytar":
             g_, k_ = self.settings.get("keytar_geraet"), self.settings.get("keytar_kanal")
             if g_:
@@ -3746,6 +3776,20 @@ class zynsimple_screen(zynthian_gui_base):
                 pass
             elif art == "s_keytar":
                 return self.open_lernen()
+            elif art == "s_handpan":
+                return self.open_lernen("handpan")
+            elif art == "s_thru":
+                g_ = getattr(self.bridge, "geraete", None)
+                ziele = [""] + (g_.ausgaenge() if g_ else [])
+                z = self.settings.get("thru_ziel") or ""
+                neu = ziele[(ziele.index(z) + 1) % len(ziele)] if z in ziele else (ziele[1] if len(ziele) > 1 else "")
+                from . import settings as st_
+                st_.save(self.settings, {"thru_ziel": neu})
+                if g_:
+                    g_.start()
+                self._flash(f"Handpan-Töne → „{neu}“" if neu else "Handpan-Töne werden nicht weitergegeben")
+                self.sig = None
+                return
             elif art == "s_tasten":
                 return self.open_tasten()
             elif art == "s_bsp":

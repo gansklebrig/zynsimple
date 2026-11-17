@@ -8,6 +8,7 @@
   <controller id="ZynV5">
     <scriptfiles>
       <file filename="Zynthian-V5-ZynSimple-config.js" functionprefix=""/>
+      <file filename="ZynSimple-Wiederauf.js" functionprefix=""/>
       <file filename="Zynthian-V5-ZynSimple.js" functionprefix="ZynV5"/>
     </scriptfiles>
     <controls>

@@ -87,14 +87,16 @@ absturz_sichern() {
   ls -1t "$DIAG"/mixxx-absturz-*.txt 2>/dev/null | tail -n +11 | while read -r ALT; do rm -f "$ALT"; done
 }
 VERSUCH=0
+TITEL=()
 while [ $VERSUCH -lt 8 ]; do
   VERSUCH=$((VERSUCH + 1))
   START=$(date +%s)
   echo "DJ-Pult: starte Mixxx (Versuch $VERSUCH)"
   # LV2-Effekte des Zynthian aus: manche bringen Mixxx beim Durchschalten der Effekte zum Absturz
   # (Mixxx bekommt nur seine eigenen, erprobten Effekte – Filter, Echo, Hall …)
-  LV2_PATH=/nonexistent-zynsimple "$MIXXX" --fullScreen
+  LV2_PATH=/nonexistent-zynsimple "$MIXXX" --fullScreen "${TITEL[@]}"
   RC=$?
+  TITEL=()
   echo "DJ-Pult: Mixxx beendet ($RC)"
   # Sofort wieder zu (unter 20 s, ohne dass jemand beendet hat)? Dann lag es meist an der eigenen Ansicht:
   # einmal mit der Standard-Ansicht LateNight neu starten.
@@ -121,6 +123,9 @@ while [ $VERSUCH -lt 8 ]; do
     ABSTURZ=$((ABSTURZ + 1))
     echo "DJ-Pult: Mixxx ist abgestürzt ($ABSTURZ.) – starte neu"
     absturz_sichern "$RC"
+    # dort weitermachen, wo die Musik war (Titel in die Decks, Stelle und Play setzt das Mapping)
+    mapfile -t TITEL < <(/usr/bin/python3 "$HIER/dj-wiederauf.py" 2>/dev/null)
+    [ ${#TITEL[@]} -gt 0 ] && echo "DJ-Pult: Wiederaufnahme mit ${#TITEL[@]} Titel(n)"
     # Mehrmals hintereinander mit Mixxx 2.6 (Stems)? Für diese Sitzung die normale Version nehmen
     if [ $ABSTURZ -ge 3 ] && [ "$MIXXX" != mixxx ] && command -v mixxx >/dev/null; then
       echo "DJ-Pult: Mixxx 2.6 stürzt wiederholt ab – nehme für jetzt die normale Version"

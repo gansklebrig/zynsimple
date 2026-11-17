@@ -73,6 +73,28 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.26 – Auftrittssicher
+
+**DJ-Pult**
+- **Nach einem Absturz geht es weiter:** Das DJ-Pult merkt sich jede Sekunde, welcher Titel in welchem Deck an
+  welcher Stelle läuft. Stürzt Mixxx ab, lädt es die Titel wieder, springt an die Stelle und spielt weiter.
+- **Übersteuerungs-Schutz:** Übersteuert der Ausgang, nimmt das DJ-Pult die Gesamtlautstärke selbst etwas zurück
+  (Einstellungen → DJ-Pult, an).
+
+**Mischpult**
+- **Keytar-Kanal zieht mit:** Spielt die Keytar plötzlich auf einem anderen MIDI-Kanal, merkt das der Zynthian nach
+  drei Tönen und stellt Einstellung und Klang um. Kein Umstellen an der Keytar mehr nötig.
+- **Handpan (MIDI) – z. B. Neotone:** Einstellungen → Geräte → „Handpan anlernen“: einen Ton spielen, dann einen
+  Klang wählen, der mitspielt. „Handpan-Töne weitergeben an“ schickt dieselben Töne zusätzlich an einen
+  MIDI-Ausgang – z. B. den Streichfett. Zynthian-Synth und Streichfett spielen dann gleichzeitig.
+- **Auftritt automatisch aufnehmen:** Einstellungen → Spielen. Nimmt ab dem Einschalten den ganzen Mix auf; REC
+  beendet. Steckt ein USB-Stick, landet eine Kopie dort im Ordner „Auftritte“ (gilt auch für REC von Hand).
+
+**Gerät**
+- **Volle Leistung:** CPU taktet nicht mehr herunter (weniger Knackser bei Effekten), **WLAN-Stromsparen aus**
+  (der Zynthian verliert das WLAN seltener).
+- **Diagnose einrichten in 2 Minuten:** am Handy → ⚙ Extras → 🩺 – der Link zu GitHub füllt fast alles aus.
+
 ## Neu in Version 6.25 – Aufgeräumt
 
 - Reste vom alten „DJ + Instrumente“-Versuch entfernt.

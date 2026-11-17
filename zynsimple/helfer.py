@@ -354,6 +354,10 @@ def aufnahme_umschalten(bridge):
         for fn in ("stop_recording",):
             if hasattr(r, fn):
                 getattr(r, fn)()
+                stick = auftritt_stick()
+                if stick:
+                    threading.Thread(target=_auf_stick, args=(stick,), daemon=True).start()
+                    return "Aufnahme gespeichert – wird auf den USB-Stick kopiert (Ordner „Auftritte“)"
                 return "Aufnahme gespeichert – am Handy unter Extras → Aufnahmen"
     else:
         f = getattr(r, "start_recording")
@@ -363,6 +367,38 @@ def aufnahme_umschalten(bridge):
             f(None)
         return "Aufnahme läuft – nochmal drücken zum Beenden"
     raise RuntimeError("Recorder reagiert nicht")
+
+
+def auftritt_stick():
+    """Beschreibbarer USB-Stick (für die Kopie der Auftritts-Aufnahme) oder None."""
+    for basis in ("/media", "/mnt"):
+        try:
+            for wurzel, dirs, _ in os.walk(basis):
+                if wurzel.count(os.sep) > 3:
+                    dirs[:] = []
+                    continue
+                if os.path.ismount(wurzel) and wurzel not in ("/media", "/mnt") and os.access(wurzel, os.W_OK):
+                    return wurzel
+        except OSError:
+            pass
+    return None
+
+
+def _auf_stick(stick):
+    """Neueste Aufnahme (wenn fertig geschrieben) in „Auftritte“ auf den Stick kopieren."""
+    time.sleep(3)
+    try:
+        neu = aufnahmen()
+        if not neu:
+            return
+        quelle = aufnahme_pfad(neu[0]["name"])
+        ziel = os.path.join(stick, "Auftritte")
+        os.makedirs(ziel, exist_ok=True)
+        shutil.copy2(quelle, os.path.join(ziel, os.path.basename(quelle)))
+        subprocess.call(["sync"])
+        log.info(f"ZynSimple: Aufnahme auf den Stick kopiert: {ziel}")
+    except Exception as e:
+        log.warning(f"ZynSimple: Aufnahme auf den Stick: {e}")
 
 
 def aufnahmen():

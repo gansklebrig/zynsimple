@@ -672,7 +672,14 @@ def config_js(s):
             "handpanFx": bool(s.get("dj_handpan_fx", True)),
             "lautstaerke": int(s.get("dj_lautstaerke", 100) or 100),
             "kopfhoerer": bool(s.get("_kopfhoerer", True)),
+            "schutz": bool(s.get("dj_schutz", True)),
         }) + ";\n")
+
+
+def wiederauf_leeren():
+    """Normaler Start: keine Wiederaufnahme (die Datei muss aber da sein – das Mapping lädt sie)."""
+    with open(os.path.join(MIXXX, "controllers", "ZynSimple-Wiederauf.js"), "w", encoding="utf-8") as f:
+        f.write("var ZynSimpleWiederauf = null;\n")
 
 
 def stick_status():
@@ -743,7 +750,7 @@ def main():
     data["[Recording]"].setdefault("Encoding", "FLAC")
     skin(data, s)
     cfg_schreiben(pfad, data, order)
-    for schritt in (lambda: config_js(s), lambda: bibliothek(ordner), lambda: passende_kiste(s),
+    for schritt in (lambda: config_js(s), wiederauf_leeren, lambda: bibliothek(ordner), lambda: passende_kiste(s),
                     stem_kiste, favoriten_kiste, stick_status):
         try:
             schritt()

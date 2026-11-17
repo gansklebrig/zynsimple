@@ -351,12 +351,14 @@
     <h2 style="margin-top:14px">🩺 Diagnose automatisch hochladen</h2>
     <p id="dg-info">Stürzt etwas ab oder wechselt der Zynthian ungeplant die Ansicht, landet ein Bericht automatisch in deinem
       <b>privaten</b> GitHub-Repository – sobald WLAN da ist. Claude kann ihn dort direkt lesen.</p>
-    <details id="dg-anl"><summary>Einrichten (einmal, ca. 3 Minuten)</summary>
-      <p>1. Auf github.com ein neues <b>privates</b> Repository anlegen, Name z. B. <code>zynsimple-diagnose</code>.<br>
-         2. Einstellungen → Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token:
-         „Only select repositories“ → nur <code>zynsimple-diagnose</code>; Permissions → Repository → <b>Contents: Read and write</b>;
-         Ablauf z. B. 1 Jahr.<br>
-         3. Token (beginnt mit <code>github_pat_</code>) hier einfügen.</p>
+    <details id="dg-anl" open><summary>Einrichten (einmal, ca. 2 Minuten)</summary>
+      <p>Das private Repository <code>zynsimple-diagnose</code> gibt es schon. Es fehlt nur ein Schlüssel:</p>
+      <p>1. <a class="btn" target="_blank" rel="noopener"
+            href="https://github.com/settings/personal-access-tokens/new?name=ZynSimple-Diagnose&amp;description=Zynthian+l%C3%A4dt+Diagnose-Berichte+hoch&amp;target_name=gansklebrig&amp;expires_in=366&amp;contents=write">Schlüssel bei GitHub anlegen ↗</a>
+         – Name, Ablauf und Recht „Contents: Read and write“ sind schon ausgefüllt.<br>
+         2. Dort nur noch bei <b>Repository access</b> → „Only select repositories“ → <code>zynsimple-diagnose</code> wählen,
+         ganz unten <b>Generate token</b> und den Schlüssel (beginnt mit <code>github_pat_</code>) kopieren.<br>
+         3. Hier einfügen → <b>Speichern &amp; testen</b>.</p>
       <input id="dg-repo" placeholder="gansklebrig/zynsimple-diagnose" value="gansklebrig/zynsimple-diagnose" style="width:100%;margin:4px 0">
       <input id="dg-token" type="password" placeholder="github_pat_…" style="width:100%;margin:4px 0">
       <div class="line"><button class="btn" id="dg-save">Speichern &amp; testen</button></div>
@@ -807,7 +809,9 @@
       document.getElementById('st-info').innerHTML = info.map(x => String(x).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))).join('<br>');
       const dg = d.diagnose || {};
       document.getElementById('dg-btns').style.display = dg.an ? '' : 'none';
-      document.getElementById('dg-anl').querySelector('summary').textContent = dg.an ? '✓ eingerichtet (' + dg.repo + ') – ändern' : 'Einrichten (einmal, ca. 3 Minuten)';
+      const dgA = document.getElementById('dg-anl');
+      dgA.querySelector('summary').textContent = dg.an ? '✓ eingerichtet (' + dg.repo + ') – ändern' : 'Einrichten (einmal, ca. 2 Minuten)';
+      if (dg.an && !dgA.dataset.gesehen) { dgA.open = false; dgA.dataset.gesehen = '1'; }
       document.getElementById('st-m26').style.display = d.eingerichtet && !d.mixxx26 && !b26.laeuft ? '' : 'none';
       document.getElementById('st-ein').style.display = d.eingerichtet && !st.bereit && !(st.install && st.install.laeuft) ? '' : 'none';
       const tg = document.getElementById('st-toggle'); tg.style.display = st.bereit ? '' : 'none'; tg.textContent = st.an ? 'Stems pausieren' : 'Stems weiter';

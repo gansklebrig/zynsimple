@@ -156,6 +156,23 @@ ZynV5.init = function(id, debugging) {
         }, true);
     }
     engine.beginTimer(1500, function() { ZynV5.ebeneMelden(); ZynV5.fLeds(); }, true);
+    ZynV5.wiederaufnehmen();
+    // Übersteuerungs-Schutz: übersteuert der Ausgang, nimmt das DJ-Pult die Gesamtlautstärke
+    // schrittweise etwas zurück (höchstens alle 2 s um 1 dB) – Mixxx 2.4 hat keinen eigenen Limiter
+    if (ZynV5.cfg.schutz !== false) {
+        ZynV5.schutzZeit = 0;
+        ZynV5.verbinde("[Master]", "peak_indicator", function(v) {
+            if (!v) { return; }
+            var jetzt = Date.now();
+            if (jetzt - ZynV5.schutzZeit < 2000) { return; }
+            ZynV5.schutzZeit = jetzt;
+            var g = ZynV5.hole("[Master]", "gain");
+            if (g > 0.25) {
+                ZynV5.setze("[Master]", "gain", g * 0.89);
+                ZynV5.zeige("⚠ Übersteuert – Gesamtlautstärke etwas zurück (" + Math.round(g * 89) + " %)");
+            }
+        });
+    }
 };
 
 ZynV5.shutdown = function() {
@@ -217,7 +234,53 @@ ZynV5.waehleDeck = function() {
     return best;
 };
 
+// Für die Wiederaufnahme nach einem Absturz: jede Sekunde Länge, Stelle, Play und Tempo beider Decks melden
+ZynV5.decksMelden = function() {
+    var t = [];
+    for (var d = 1; d <= 2; d++) {
+        var g = "[Channel" + d + "]";
+        if (!ZynV5.hole(g, "track_loaded")) { t.push(d + "|0|0|0|0"); continue; }
+        t.push(d + "|" + ZynV5.hole(g, "duration").toFixed(2) + "|" + ZynV5.hole(g, "playposition").toFixed(5) + "|"
+               + (ZynV5.hole(g, "play") > 0 ? 1 : 0) + "|" + ZynV5.hole(g, "file_bpm").toFixed(2));
+    }
+    ZynV5.sage("S", t.join(";"));
+};
+
+// Nach einem Absturz: Titel stehen schon in den Decks (beim Start übergeben) – Stelle und Play wiederherstellen.
+// tausch: nur Deck B hatte einen Titel → er wurde in Deck A geladen und wird nach B geklont.
+ZynV5.wiederaufnehmen = function() {
+    if (typeof ZynSimpleWiederauf === "undefined" || !ZynSimpleWiederauf) { return; }
+    var w = ZynSimpleWiederauf, versuche = 0;
+    var t = engine.beginTimer(500, function() {
+        versuche++;
+        var fertig = true;
+        if (w.tausch && ZynV5.hole("[Channel1]", "track_loaded") && !ZynV5.hole("[Channel2]", "track_loaded")) {
+            ZynV5.setze("[Channel2]", "CloneFromDeck", 1);
+            fertig = false;
+        } else if (w.tausch && ZynV5.hole("[Channel2]", "track_loaded") && ZynV5.hole("[Channel1]", "track_loaded")) {
+            ZynV5.setze("[Channel1]", "eject", 1);
+            w.tausch = false;
+            fertig = false;
+        } else {
+            [1, 2].forEach(function(d) {
+                var z = w["d" + d], g = "[Channel" + d + "]";
+                if (!z || z.erledigt) { return; }
+                if (!ZynV5.hole(g, "track_loaded")) { fertig = false; return; }
+                ZynV5.setze(g, "playposition", z.pos);
+                if (z.play) { ZynV5.setze(g, "play", 1); }
+                z.erledigt = true;
+            });
+        }
+        if (fertig || versuche > 40) {
+            engine.stopTimer(t);
+            ZynV5.zeige(fertig ? "↺ Nach dem Absturz weiter – Titel und Stelle wiederhergestellt" : "↺ Wiederaufnahme unvollständig");
+        }
+    });
+};
+
 ZynV5.tempoSenden = function() {
+    ZynV5.melden = (ZynV5.melden || 0) + 1;
+    if (ZynV5.melden % 10 === 0) { ZynV5.decksMelden(); }
     var alt = ZynV5.fuehrend;
     ZynV5.fuehrend = ZynV5.waehleDeck();
     if (alt !== ZynV5.fuehrend && ZynV5.ebene === 1) { ZynV5.fLeds(); }

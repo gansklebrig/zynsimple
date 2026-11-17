@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "6.25"
+VERSION = "6.26"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -41,6 +41,8 @@ DEFAULTS = {
     "master_limiter": False,
     "dj_auto_rec": False,
     "dj_lautstaerke": 100,
+    "dj_schutz": True,
+    "auftritt_auto_rec": False,
     "dj_clock": True,
     "takt": "senden",
     "start_modus": "zynthian",
@@ -51,6 +53,9 @@ DEFAULTS = {
     "bsp_drums": False,
     "keytar_geraet": None,
     "keytar_kanal": None,
+    "handpan_geraet": None,
+    "handpan_kanal": None,
+    "thru_ziel": "",
     "dj_handpan_fx": True,
     "dj_stems": True,
     "geraet_melden": True,
@@ -107,7 +112,8 @@ def setup(zyngui):
     try:
         from .geraete import Geraete
         bridge.geraete = Geraete(bridge, settings)
-        if settings.get("keytar_geraet") or settings.get("bsp_an") or settings.get("ton_anzeige") == "alle":
+        if settings.get("keytar_geraet") or settings.get("bsp_an") or settings.get("ton_anzeige") == "alle" \
+                or settings.get("thru_ziel") or settings.get("handpan_geraet"):
             bridge.geraete.start()
     except Exception as e:
         bridge.geraete = None
@@ -165,6 +171,20 @@ def _buehne(zyngui, bridge, settings):
                 takt.anwenden(settings)          # auch, wenn die TR-8S erst später eingesteckt wird
         except Exception as e:
             log.debug(f"ZynSimple: Takt: {e}")
+        # Ganzen Auftritt aufnehmen: 20 s nach dem Start automatisch (Einstellungen → Spielen)
+        if zustand["n"] == 2 and settings.get("auftritt_auto_rec"):
+            try:
+                import shutil
+                from . import helfer
+                frei = shutil.disk_usage(helfer.CAPTURE_DIR if os.path.isdir(helfer.CAPTURE_DIR) else "/").free
+                if not helfer.aufnahme_laeuft(bridge) and frei > 2e9:
+                    log.info("ZynSimple: " + helfer.aufnahme_umschalten(bridge))
+                    scr = zyngui.screens.get(SCREEN_NAME)
+                    if scr is not None:
+                        scr.rec_on = True
+                        scr._flash("● Der Auftritt wird aufgenommen – REC beendet und speichert")
+            except Exception as e:
+                log.warning(f"ZynSimple: Auftritt aufnehmen: {e}")
         # Neues Instrument eingesteckt (USB-MIDI)? → im Mischpult anbieten, eine Spur dafür anzulegen
         try:
             import zynautoconnect as za

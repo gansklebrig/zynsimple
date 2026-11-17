@@ -7,6 +7,8 @@ ZynSimple – MIDI-Geräte: BeatStep Pro, Keytar (oder jeder andere Controller) 
   Mehrkanal    Geräte mit mehreren Spuren (BeatStep Pro, Keytar am DIN) werden im Zynthian auf
                „mehrere Kanäle gleichzeitig“ (MULTI) gestellt – jede Spur hört nur ihren Kanal
   Ton-Anzeige  welche Töne gerade gespielt werden (für die Keytar ohne Display), grün = passt zur Tonart
+  Weitergeben  alles von der angelernten Handpan (z. B. Neotone) zusätzlich an einen MIDI-Ausgang
+               (z. B. Streichfett) – so spielen Zynthian-Synth und externer Synth gleichzeitig
 """
 import collections
 import logging
@@ -62,6 +64,10 @@ class Geraete:
         self.lauf = False
         self._lock = threading.Lock()
         self.ddj_namen = set()        # DJ-Controller: seine Tasten sind keine gespielten Töne
+        self._neuer_kanal = {}        # Keytar spielt plötzlich auf anderem Kanal: kanal → [zeiten]
+        self.hinweis = None           # Text für den Bildschirm (holt screen.tick ab)
+        self.thru = None              # eigener MIDI-Ausgang: Handpan → externer Synth
+        self._hp = None               # Name des Handpan-Geräts, solange weitergegeben wird
 
     # ------------------------------------------------------------------
     def start(self):
@@ -80,9 +86,17 @@ class Geraete:
 
     def _process(self, frames):
         # Echtzeit: nur kopieren, nichts auswerten
+        out, hp = self.thru, self._hp
+        if out is not None:
+            out.clear_buffer()
         for name, p in list(self.ports.items()):
             ddj = name in self.ddj_namen
-            for _, data in p.incoming_midi_events():
+            for t, data in p.incoming_midi_events():
+                if out is not None and name == hp and len(data) >= 2 and 0x80 <= data[0] < 0xF0:
+                    try:
+                        out.write_midi_event(t, bytes(data))
+                    except Exception:
+                        pass
                 if len(data) < 3 or ddj:
                     continue
                 if 0x80 <= data[0] < 0xA0:
@@ -111,6 +125,7 @@ class Geraete:
                         if pname not in [c.name for c in self.jc.get_all_connections(port)]:
                             self.jc.connect(pname, port)
                 self._multi_pflegen()
+                self._thru_pflegen()
             except Exception as e:
                 log.debug(f"ZynSimple: MIDI-Geräte: {e}")
             time.sleep(3)
@@ -131,12 +146,72 @@ class Geraete:
                     self.zuletzt[k] = time.monotonic()
                 else:
                     d.pop(note, None)
+            if an and not self.lernen_cb:
+                self._kanal_folgen(geraet, kanal)
             if an and self.lernen_cb:
                 cb, self.lernen_cb = self.lernen_cb, None
                 try:
                     cb(geraet, kanal)
                 except Exception as e:
                     log.warning(f"ZynSimple: Anlernen: {e}")
+
+    def ausgaenge(self):
+        """MIDI-Ausgänge, an die die Handpan weitergeben kann (DIN-Buchse, USB-Synths)."""
+        try:
+            import zynautoconnect as za
+            return [_name(p) for p in list(za.devices_out)
+                    if p is not None and not RX_NICHT.search(_text(p)) and not RX_DDJ.search(_text(p))]
+        except Exception:
+            return []
+
+    def _thru_pflegen(self):
+        ziel, hp = self.settings.get("thru_ziel") or "", self.settings.get("handpan_geraet")
+        if not ziel or not hp:
+            self._hp = None
+            if self.thru is not None:
+                for c in self.jc.get_all_connections(self.thru):
+                    self.jc.disconnect(self.thru, c)
+            return
+        if self.thru is None:
+            self.thru = self.jc.midi_outports.register("thru_out")
+        import zynautoconnect as za
+        soll = [p.name for p in list(za.devices_out) if p is not None and _name(p) == ziel]
+        ist = [c.name for c in self.jc.get_all_connections(self.thru)]
+        for n in ist:
+            if n not in soll:
+                self.jc.disconnect(self.thru, n)
+        for n in soll:
+            if n not in ist:
+                self.jc.connect(self.thru, n)
+                log.info(f"ZynSimple: Handpan „{hp}“ → „{ziel}“")
+        self._hp = hp
+
+    def _kanal_folgen(self, geraet, kanal):
+        """Keytar nie mehr neu einstellen: spielt das angelernte Gerät dauerhaft auf einem anderen Kanal
+        (3 Töne in 6 s, auf dem alten seit 20 s nichts), zieht ZynSimple Einstellung und Spuren mit.
+        Kanal 10 bleibt außen vor – dort schicken Drumcomputer (TR-8S) gern ihre Töne."""
+        kg, kk = self.settings.get("keytar_geraet"), self.settings.get("keytar_kanal")
+        if not kg or kk is None or geraet != kg or kanal == int(kk) or kanal == 9:
+            return
+        jetzt = time.monotonic()
+        if jetzt - self.zuletzt.get((geraet, int(kk)), 0) < 20:
+            return
+        z = [t for t in self._neuer_kanal.get(kanal, []) if jetzt - t < 6] + [jetzt]
+        self._neuer_kanal[kanal] = z
+        if len(z) < 3:
+            return
+        self._neuer_kanal = {}
+        alt = int(kk)
+        try:
+            from . import settings as st
+            st.save(self.settings, {"keytar_kanal": kanal})
+            for cid, chain in list(self.b.cm.chains.items()):
+                if getattr(chain, "midi_chan", None) == alt and getattr(chain, "synth_slots", True):
+                    self.b.tracks.set_midi(cid, kanal)
+            log.info(f"ZynSimple: Keytar spielt jetzt auf Kanal {kanal + 1} (vorher {alt + 1}) – mitgezogen")
+            self.hinweis = f"🎸 Keytar spielt jetzt auf Kanal {kanal + 1} – Klang zieht mit"
+        except Exception as e:
+            log.warning(f"ZynSimple: Keytar-Kanal mitziehen: {e}")
 
     # ------------------------------------------------------------------
     # Anlernen und Anzeige
@@ -180,6 +255,8 @@ class Geraete:
             namen.add("__bsp__")
         if self.settings.get("keytar_geraet"):
             namen.add(self.settings["keytar_geraet"])
+        if self.settings.get("handpan_geraet"):
+            namen.add(self.settings["handpan_geraet"])
         if namen:
             self.multi_setzen(namen)
 

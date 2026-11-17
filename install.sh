@@ -127,6 +127,18 @@ if [ -f "$DEST/dj/zynsimple-wache.service" ] && [ -d /run/systemd/system ]; then
         && systemctl restart zynsimple-wache.service >/dev/null 2>&1 && echo "Wache läuft (Protokoll bei Hängern)"
 fi
 
+# 2d2) Leistung: CPU immer voll, WLAN ohne Stromsparen
+if [ -f "$DEST/dj/zynsimple-leistung.service" ] && [ -d /run/systemd/system ]; then
+    cp "$DEST/dj/zynsimple-leistung.service" /etc/systemd/system/zynsimple-leistung.service 2>/dev/null \
+        && systemctl daemon-reload && systemctl enable zynsimple-leistung.service >/dev/null 2>&1 \
+        && systemctl restart zynsimple-leistung.service >/dev/null 2>&1 &
+    echo "Leistung: CPU voll, WLAN ohne Stromsparen"
+fi
+# NetworkManager: WLAN-Stromsparen dauerhaft aus (falls NetworkManager benutzt wird)
+if [ -d /etc/NetworkManager/conf.d ] && [ ! -f /etc/NetworkManager/conf.d/zynsimple-wlan.conf ]; then
+    printf '[connection]\nwifi.powersave = 2\n' > /etc/NetworkManager/conf.d/zynsimple-wlan.conf 2>/dev/null
+fi
+
 # 2e) ♪-Knopf oben rechts im Mischpult → DJ-Pult (ersetzt den alten ♫-Knopf von Barden Beats)
 if [ -f "$DEST/dj/zynsimple-knopf.service" ] && [ -d /run/systemd/system ]; then
     systemctl disable --now imres-knopf.service >/dev/null 2>&1 || true

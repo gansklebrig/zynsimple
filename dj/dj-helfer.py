@@ -473,6 +473,24 @@ HUD_SOCK = "/tmp/zynsimple-dj-hud.sock"
 _hud = {"s": None}
 
 
+DECKS = "/run/zynsimple-decks.json"
+
+
+def decks_merken(text):
+    """„1|dauer|stelle|play|bpm;2|…“ von Mixxx → Datei für die Wiederaufnahme nach einem Absturz."""
+    try:
+        d = {"zeit": time.time()}
+        for teil in text.split(";"):
+            nr, dauer, pos, play, bpm = teil.split("|")
+            if float(dauer) > 0:
+                d["d" + nr] = {"dauer": float(dauer), "pos": float(pos), "play": play == "1", "bpm": float(bpm)}
+        with open(DECKS + ".neu", "w") as f:
+            json.dump(d, f)
+        os.replace(DECKS + ".neu", DECKS)
+    except Exception:
+        pass
+
+
 def an_hud(text):
     """Text an die Hinweisleiste (dj-hud.py) – z. B. „T|Filter A: 62 %“ oder „E|EFFEKTE|0|1“."""
     import socket
@@ -515,7 +533,10 @@ def mixxx_lesen(v, clock, leds):
                     if sysex[:1] == [0x7D]:
                         roh = sysex[1:]
                         text = "".join(chr((roh[i] << 7) | roh[i + 1]) for i in range(0, len(roh) - 1, 2))
-                        an_hud(text)
+                        if text.startswith("S|"):
+                            decks_merken(text[2:])
+                        else:
+                            an_hud(text)
                     sysex = None
                 elif b & 0x80:
                     sysex = None

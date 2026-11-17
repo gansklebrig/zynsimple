@@ -51,6 +51,7 @@ if command -v systemctl >/dev/null && systemctl list-units --type=service 2>/dev
 fi
 echo "Fertig."
 systemctl disable --now zynsimple-wache.service >/dev/null 2>&1; rm -f /etc/systemd/system/zynsimple-wache.service
+systemctl disable zynsimple-leistung.service >/dev/null 2>&1; rm -f /etc/systemd/system/zynsimple-leistung.service /etc/NetworkManager/conf.d/zynsimple-wlan.conf
 systemctl disable --now zynsimple-knopf.service >/dev/null 2>&1; rm -f /etc/systemd/system/zynsimple-knopf.service
 # Startbild des Zynthian zurück (Gans → Original)
 for B in /zynthian/config/img/fb_zynthian_boot.jpg /zynthian/config/img/fb_zynthian_error.jpg; do
