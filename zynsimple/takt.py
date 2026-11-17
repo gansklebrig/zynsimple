@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-ZynSimple – gemeinsamer Takt (MIDI-Clock) im Zynthian- und im Hybrid-Modus.
+ZynSimple – gemeinsamer Takt (MIDI-Clock) im Mischpult.
 
 Einstellung „takt“:
   senden  der Zynthian gibt den Takt vor und schickt MIDI-Clock an die TR-8S/TR-6S (USB) und die DIN-Buchse
   folgen  die TR-8S (oder was an der DIN-Buchse Clock schickt) gibt den Takt vor – der Zynthian läuft als Slave mit:
-          Sequenzer, Delays im Takt, Looper und im Hybrid-Modus auch Mixxx
+          Sequenzer, Delays im Takt, Looper
   aus     ZynSimple fasst die Clock-Einstellungen des Zynthian nicht an
 
 Im reinen DJ-Modus erledigt das der DJ-Helfer (dj/dj-helfer.py) mit derselben Einstellung.

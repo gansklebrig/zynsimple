@@ -73,6 +73,12 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.25 – Aufgeräumt
+
+- Reste vom alten „DJ + Instrumente“-Versuch entfernt.
+- Zwei Schalter weniger in „Erweitert“: „Einfache Ansicht statt Zynthian-Start“ und „Tasten-Farben ohne Blau“ sind
+  jetzt immer an (die klassische Oberfläche braucht es nicht, Blau nie).
+
 ## Neu in Version 6.24 – Vorhören erklärt sich selbst
 
 - Der Zynthian hat nur **einen** Ausgang – zum Vorhören braucht es den **Kopfhörer am DDJ** (Buchse PHONES).

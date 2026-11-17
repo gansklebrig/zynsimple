@@ -14,8 +14,6 @@ log = logging.getLogger("zynsimple")
 # (Schlüssel, Titel, Art, Auswahl, Hinweis)
 #  Art: "bool" = an/aus · "choice" = Liste von (Wert, Text)
 SPEC = [
-    ("replace_home", "Startbildschirm", "choice", [(True, "Mischpult"), (False, "Zynthian-Mischer")],
-     "was nach dem Einschalten und bei „nach Hause“ erscheint"),
     ("splash", "Start-Logo", "bool", None, "die Gans beim Hochfahren zeigen"),
     ("idle_seconds", "Bühnenbild nach", "choice", [(0, "nie"), (20, "20 s"), (45, "45 s"), (90, "1½ min"), (180, "3 min")],
      "Animation, wenn eine Weile niemand etwas bedient"),
@@ -25,7 +23,6 @@ SPEC = [
     ("xy_spring", "XY-Feld federt zurück", "bool", None, "nach dem Loslassen zurück zum Startpunkt"),
     ("synth_midi_chan", "MIDI-Kanal neuer Synths", "choice", [(i, f"Kanal {i + 1}") for i in range(16)],
      "auf diesem Kanal hören neu angelegte Synths"),
-    ("led_recolor", "Tasten-Farben ohne Blau", "bool", None, "warme LED-Farben · wirkt nach einem Neustart"),
     ("tonart", "Tonart der Band", "choice", None,
      "für Stimmgerät und DJ-Pult (passende Tracks) · z. B. Handpan-Grundton"),
     ("master_limiter", "Schutz vor Übersteuern", "bool", None, "Limiter am Hauptausgang · fängt laute Spitzen ab"),

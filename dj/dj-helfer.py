@@ -316,12 +316,11 @@ def fokus_waechter():
                 kandidaten = set(_xdo("search", "--onlyvisible", "--class", "mixxx")[1].split())
                 for pid in pids:
                     kandidaten.update(_xdo("search", "--onlyvisible", "--pid", pid)[1].split())
-                if True:
-                    for w in kandidaten:
-                        g = _xdo("getwindowgeometry", w)[1]
-                        m = re.search(r"Geometry:\s*(\d+)x(\d+)", g)
-                        if m and int(m.group(1)) * int(m.group(2)) > flaeche:
-                            beste, flaeche = w, int(m.group(1)) * int(m.group(2))
+                for w in kandidaten:
+                    g = _xdo("getwindowgeometry", w)[1]
+                    m = re.search(r"Geometry:\s*(\d+)x(\d+)", g)
+                    if m and int(m.group(1)) * int(m.group(2)) > flaeche:
+                        beste, flaeche = w, int(m.group(1)) * int(m.group(2))
                 haupt["wid"] = wid = beste
             if wid:
                 _xdo("windowfocus", wid)

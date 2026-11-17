@@ -3370,9 +3370,9 @@ class zynsimple_screen(zynthian_gui_base):
                               ("act", "s_zurueck", "⇧"), ("act", "s_handy", "▤"), ("act", "s_strom", "⚡")]),
         ("mehr", "Erweitert", [("set", "autosave", "↺"), ("act", "s_save", "✓"), ("set", "master_limiter", "▣"),
                                ("set", "xy_spring", "✥"), ("set", "synth_midi_chan", "♪"), ("set", "strip_min_width", "▥"),
-                               ("set", "led_recolor", "●"), ("set", "boot_animation", "✺"), ("set", "update_check", "⟳"),
+                               ("set", "boot_animation", "✺"), ("set", "update_check", "⟳"),
                                ("set", "dj_handpan_fx", "◎"), ("act", "s_djordner", "▤"), ("act", "s_mixxx26", "◆"),
-                               ("act", "s_stems", "≋"), ("set", "replace_home", "⌂"),
+                               ("act", "s_stems", "≋"), 
                                ("act", "s_admin", "⚙")]),
     ]
 

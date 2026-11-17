@@ -151,8 +151,7 @@ case "$1" in
     exec "$0" zynthian
     ;;
   hybrid)
-    # gab es früher („DJ + Instrumente“) – heute einfach zum Mischpult
-    exec "$0" zynthian
+    exec "$0" zynthian       # alter Name, falls Barden Beats ihn noch schickt
     ;;
   update-barden)
     [ -x "$IMRES_MODUS" ] && exec "$IMRES_MODUS" aktualisieren
@@ -353,5 +352,5 @@ case "$1" in
     echo "== Stems =="; echo "Dienst: $(systemctl is-active zynsimple-stems 2>/dev/null)"; cat /tmp/zynsimple-stems.json 2>/dev/null; echo
     ;;
   *)
-    echo "Benutzung: zynsimple-dj neu-einlesen|stems-einrichten|mixxx26|dj|zynthian|imres|aus|neustart|hybrid|update-zynsimple|update-zynthian|update-barden|importieren|installieren|einrichten|samba|status|pruefen"; exit 1 ;;
+    echo "Benutzung: zynsimple-dj neu-einlesen|stems-einrichten|mixxx26|dj|zynthian|imres|aus|neustart|update-zynsimple|update-zynthian|update-barden|importieren|installieren|einrichten|samba|status|pruefen"; exit 1 ;;
 esac

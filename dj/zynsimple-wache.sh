@@ -31,7 +31,6 @@ wechsel_bericht() {
     echo "--- DJ-Sitzung ---"; journalctl -u zynsimple-dj -n 120 --no-pager 2>/dev/null
     echo "--- Zynthian ---"; journalctl -u zynthian -n 60 --no-pager 2>/dev/null
     echo "--- mixxx.log (Ende) ---"; tail -n 200 /zynthian/zynthian-my-data/dj/.mixxx/mixxx.log 2>/dev/null
-    echo "--- Mixxx bei DJ + Instrumente (Ende) ---"; tail -n 120 /tmp/zynsimple-hybrid-mixxx.log 2>/dev/null
   } > "$AUSGABE/wechsel-$(date +%F_%H%M%S).txt" 2>/dev/null
   ls -1t "$AUSGABE"/wechsel-*.txt 2>/dev/null | tail -n +11 | xargs -r rm -f
 }

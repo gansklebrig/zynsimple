@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "6.24"
+VERSION = "6.25"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -119,7 +119,7 @@ def setup(zyngui):
     except Exception as e:
         log.debug(f"ZynSimple: Startbild: {e}")
 
-    if settings.get("led_recolor", True):
+    if True:                               # nie Blau – immer warme LED-Farben
         try:
             from . import leds
             leds.apply(zyngui, settings.get("led_colors") or {})
@@ -710,7 +710,7 @@ def redirect(zyngui, screen, hmode=None):
     """Entscheidet, ob ein Startbildschirm-Aufruf auf die einfache Ansicht umgeleitet wird."""
     try:
         settings = getattr(zyngui, "_zs_settings", None)
-        if not settings or not settings.get("replace_home", True):
+        if not settings:
             return screen
         if SCREEN_NAME not in zyngui.screens:
             return screen

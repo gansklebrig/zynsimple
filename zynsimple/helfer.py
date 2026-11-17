@@ -478,7 +478,7 @@ def looper_takt_info(bridge, chain):
 
 def looper_takt(bridge, chain, takte=None, loops=None, waehlen=None):
     """Looper im Takt des Zynthian: Aufnahme startet/endet auf dem Takt, feste Länge (1/2/4 Takte à 4/4).
-    Tempo kommt vom Zynthian (TAP, Mixxx im Hybrid-Modus oder die TR-8S bei „Takt: folgen“)."""
+    Tempo kommt vom Zynthian (TAP oder die TR-8S bei „Takt: folgen“)."""
     p = looper_proc(bridge, chain)
     if p is None:
         raise RuntimeError("In dieser Spur ist kein Looper")

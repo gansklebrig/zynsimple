@@ -4,8 +4,7 @@ ZynSimple DJ-Pult – Musik am Handy suchen und ins Deck laden.
 
 Gesucht wird direkt in der Mixxx-Bibliothek (nur lesend, Mixxx darf dabei laufen).
 Laden: der Titel wird in Mixxx' Suchfeld getippt und dann über das Mapping „Zynthian V5 (ZynSimple)“
-ins Deck geladen (CC 112 = Bereich wählen, CC 113 = Deck 1/2). Genutzt von dj-web.py (DJ-Modus)
-und von ZynSimple selbst (Hybrid-Modus).
+ins Deck geladen (CC 112 = Bereich wählen, CC 113 = Deck 1/2). Genutzt von dj-web.py (DJ-Modus).
 """
 import os
 import re
