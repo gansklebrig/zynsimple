@@ -91,7 +91,9 @@ while [ $VERSUCH -lt 8 ]; do
   VERSUCH=$((VERSUCH + 1))
   START=$(date +%s)
   echo "DJ-Pult: starte Mixxx (Versuch $VERSUCH)"
-  "$MIXXX" --fullScreen
+  # LV2-Effekte des Zynthian aus: manche bringen Mixxx beim Durchschalten der Effekte zum Absturz
+  # (Mixxx bekommt nur seine eigenen, erprobten Effekte – Filter, Echo, Hall …)
+  LV2_PATH=/nonexistent-zynsimple "$MIXXX" --fullScreen
   RC=$?
   echo "DJ-Pult: Mixxx beendet ($RC)"
   # Sofort wieder zu (unter 20 s, ohne dass jemand beendet hat)? Dann lag es meist an der eigenen Ansicht:

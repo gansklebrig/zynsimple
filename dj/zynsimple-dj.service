@@ -15,3 +15,5 @@ ExecStopPost=-/usr/local/bin/zynsimple-dj nach-ende
 TimeoutStopSec=12
 LimitRTPRIO=95
 LimitMEMLOCK=infinity
+# Speicher knapp? Dann trifft es zuerst andere Prozesse, nicht Mixxx mitten im Set
+OOMScoreAdjust=-800

@@ -73,6 +73,15 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.20 – DJ-Pult startet nie mehr mitten im Set neu
+
+- **Kein automatischer Neustart mehr, sobald in der Sitzung Musik lief.** Wird der DDJ dann neu erkannt,
+  kommt nur ein Hinweis (☰ → „USB neu einlesen“). Automatisch neu geladen wird nur, solange noch nichts lief.
+- **Mixxx nutzt nur noch seine eigenen, erprobten Effekte** – die vielen LV2-Effekte des Zynthian bleiben
+  im DJ-Pult aus (einige davon können Mixxx zum Absturz bringen).
+- **Wird der Speicher knapp, trifft es zuerst andere Programme, nicht Mixxx.**
+- `zynsimple-dj pruefen` zeigt den letzten Mixxx-Absturz (Uhrzeit und Fehlermeldung) mit an.
+
 ## Neu in Version 6.20 – Bard Hero ist jetzt eine eigene App
 
 - Bard Hero wohnt jetzt in einem eigenen Repo: **github.com/gansklebrig/Bard-Hero** – mit eigener Anleitung

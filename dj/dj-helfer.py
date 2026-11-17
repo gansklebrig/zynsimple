@@ -350,11 +350,13 @@ def ddj_waechter(clock):
         if jetzt is None:
             continue
         if jetzt and not vorher:
-            if getattr(clock, "musik", False):
+            # Mixxx nur neu starten, wenn in dieser Sitzung noch nie Musik lief – nie mitten im Set
+            if getattr(clock, "musik", False) or getattr(clock, "je_musik", False):
                 if not gemeldet:
-                    an_hud("T|🎛 DDJ erkannt – damit er steuert: ☰ → „USB neu einlesen“ (Musik läuft gerade)")
+                    an_hud("T|🎛 DDJ erkannt – damit er steuert: ☰ → „USB neu einlesen“ (startet Mixxx neu, Musik stoppt)")
                     gemeldet = True
-                continue                         # „vorher“ bleibt False → nach der Musik nochmal versuchen
+                vorher = jetzt
+                continue
             log("DDJ neu eingesteckt → Mixxx startet neu")
             an_hud("T|🎛 DDJ erkannt – DJ-Pult lädt neu …")
             subprocess.Popen([BEFEHL, "neu-einlesen"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -548,6 +550,8 @@ def mixxx_lesen(v, clock, leds):
                             clock.spielt = d2 > 0
                     elif d1 == 104:
                         clock.musik = d2 > 0
+                        if d2 > 0:
+                            clock.je_musik = True
 
 
 def main():

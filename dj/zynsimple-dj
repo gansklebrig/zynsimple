@@ -345,7 +345,9 @@ case "$1" in
     for D in smbd nmbd wsdd wsdd2; do echo "$D: $(systemctl is-active $D 2>/dev/null)"; done
     testparm -s 2>/dev/null | grep -A3 "MUSIK gekauft"; cat "$SAMBA_LOG" 2>/dev/null | tail -3
     echo "Adresse: \\\\$(hostname)\\MUSIK gekauft  ·  \\\\$(hostname -I | awk '{print $1}')\\MUSIK gekauft"
-    echo "== Log DJ-Sitzung =="; journalctl -u zynsimple-dj -n 40 --no-pager 2>&1 | tail -40
+    echo "== Log DJ-Sitzung =="; journalctl -u zynsimple-dj -n 40 --no-pager 2>&1 | grep -v "^$" | tail -25
+    A=$(ls -1t "$MUSIK/_Diagnose"/mixxx-absturz-*.txt 2>/dev/null | head -n1)
+    [ -n "$A" ] && { echo "== Letzter Mixxx-Absturz: $(basename "$A") =="; head -n1 "$A"; grep -i -E "critical|fatal|segment|abort|error|warning" "$A" | tail -15; }
     echo "== Installations-Log =="; tail -5 "$LOG" 2>/dev/null
     echo "== Mixxx 2.6 =="; [ -x /opt/mixxx-2.6/bin/mixxx ] && /opt/mixxx-2.6/bin/mixxx --version 2>&1 | head -1; tail -3 /tmp/zynsimple-mixxx26.log 2>/dev/null
     echo "== Stems =="; echo "Dienst: $(systemctl is-active zynsimple-stems 2>/dev/null)"; cat /tmp/zynsimple-stems.json 2>/dev/null; echo
