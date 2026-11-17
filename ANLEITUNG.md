@@ -73,6 +73,15 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.22 – Lautstärke und BEAT FX im DJ-Pult
+
+- **DJ-Lautstärke am Zynthian-Ausgang:** im DJ-Pult mit **Regler 2** (Ebene MISCHEN) und als Startwert unter
+  Einstellungen → DJ-Pult → „DJ-Lautstärke“. Der **MASTER-Regler am DDJ** ist reine Hardware und regelt nur die
+  MASTER-Buchsen hinten am DDJ – hängen die Boxen dort, geht er wie gewohnt.
+- **BEAT FX am DDJ geht:** ON/OFF schaltet Effekt 1 (vorher war kein Effekt „gewählt“, darum passierte nichts),
+  LEVEL/DEPTH regelt die Stärke, CH SELECT bestimmt Deck 1, 2 oder Master, BEAT ◀ ▶ wechselt den Platz,
+  FX SELECT den Effekt. ZynSimple überschreibt die CH-SELECT-Einstellung nicht mehr.
+
 ## Neu in Version 6.21 – DJ-Pult startet nie mehr mitten im Set neu
 
 - **Kein automatischer Neustart mehr, sobald in der Sitzung Musik lief.** Wird der DDJ dann neu erkannt,

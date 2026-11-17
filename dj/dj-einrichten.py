@@ -589,6 +589,7 @@ def config_js(s):
             "clock": s.get("takt") == "senden",
             "folgen": s.get("takt") == "folgen",
             "handpanFx": bool(s.get("dj_handpan_fx", True)),
+            "lautstaerke": int(s.get("dj_lautstaerke", 100) or 100),
         }) + ";\n")
 
 

@@ -6,7 +6,7 @@
 // Zynthian geben den Takt vor), CC 112 = Bibliothek-Bereich wählen, CC 113 = gefundenen Titel in Deck 1/2 laden.
 //
 // EBENEN (MIXER wechselt, ALT + ◀ ▶ auch):
-//   MISCHEN   R1 Titel wählen (drücken: Deck A laden) · R2 Kopfhörer: Vorhören ↔ Mix (drücken: Deck B laden)
+//   MISCHEN   R1 Titel wählen (drücken: Deck A laden) · R2 Lautstärke Zynthian-Ausgang (drücken: Deck B laden)
 //             R3 Filter Deck A (drücken: Mitte) · R4 Filter Deck B (drücken: Mitte)
 //             F1–F4 Stems Deck A (ALT: Deck B) – ohne Stems: Sampler 1–4
 //   EFFEKTE   R1 Effekt 1 Stärke (drücken: an/aus) · R2 Effekt 1 wählen (drücken: Ziel A → B → A+B)
@@ -86,9 +86,26 @@ ZynV5.init = function(id, debugging) {
         ZynV5.setze("[EffectRack1_EffectUnit2]", "group_[Auxiliary1]_enable", 0);
         ZynV5.setze(ZynV5.HANDPAN_FX, "group_[Auxiliary1]_enable", 1);
     }
-    // Effekt 1 auf Deck A, Effekt 2 auf Deck B – wie es die Hinweisleiste zeigt
-    ZynV5.zielSetzen(0, 0);
-    ZynV5.zielSetzen(1, 1);
+    // Lautstärke am Zynthian-Ausgang (Einstellungen → DJ-Pult); der MASTER-Regler am DDJ ist reine Hardware
+    if (ZynV5.cfg.lautstaerke) { ZynV5.setze("[Master]", "gain", Math.max(0, Math.min(5, ZynV5.cfg.lautstaerke / 100))); }
+    // Effekt 1 auf Deck A, Effekt 2 auf Deck B – aber nur, wenn noch nichts zugeordnet ist:
+    // am DDJ bestimmt der Schalter CH SELECT, wohin BEAT FX (Effekt-Einheit 1) wirkt
+    [0, 1].forEach(function(e) {
+        var u = "[EffectRack1_EffectUnit" + (e + 1) + "]";
+        if (!ZynV5.hole(u, "group_[Channel1]_enable") && !ZynV5.hole(u, "group_[Channel2]_enable")
+            && !ZynV5.hole(u, "group_[Master]_enable")) { ZynV5.zielSetzen(e, e); }
+    });
+    // BEAT FX am DDJ: ON/OFF schaltet den „fokussierten“ Effekt – ohne Fokus (0) tat es gar nichts.
+    // Also Effekt 1 fokussieren und dafür sorgen, dass dort ein Effekt geladen ist.
+    engine.beginTimer(1500, function() {
+        var u = "[EffectRack1_EffectUnit1]";
+        if (!ZynV5.hole(u, "focused_effect")) { ZynV5.setze(u, "focused_effect", 1); }
+        for (var i = 1; i <= 3; i++) {
+            var g = "[EffectRack1_EffectUnit1_Effect" + i + "]";
+            if (!ZynV5.hole(g, "loaded")) { ZynV5.setze(g, "effect_selector", 1); }
+        }
+        if (!ZynV5.hole(u, "enabled")) { ZynV5.setze(u, "enabled", 1); }
+    }, true);
     // LEDs
     ZynV5.F.forEach(function(nr, i) {
         ZynV5.verbinde("[Sampler" + (i + 1) + "]", "play_indicator", function() { ZynV5.fLeds(); });
@@ -381,7 +398,7 @@ ZynV5.regler = function(channel, control, value, status, group) {
     if (ZynV5.ebene === 0) {
         switch (control) {
         case 1: ZynV5.setze("[Library]", "MoveVertical", ZynV5.alt ? d * 10 : d); return;
-        case 2: ZynV5.drehen("[Master]", "headMix", d, -1, 1, 0.05 * fein, "Kopfhörer Vorhören ↔ Mix"); return;
+        case 2: ZynV5.drehen("[Master]", "gain", d, 0, 5, 0.02 * fein, "Lautstärke (Zynthian-Ausgang)"); return;
         case 3: ZynV5.drehen("[QuickEffectRack1_[Channel1]]", "super1", d, 0, 1, 0.02 * fein, "Filter A (Mitte = aus)"); return;
         case 4: ZynV5.drehen("[QuickEffectRack1_[Channel2]]", "super1", d, 0, 1, 0.02 * fein, "Filter B (Mitte = aus)"); return;
         }

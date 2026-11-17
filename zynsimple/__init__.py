@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "6.21"
+VERSION = "6.22"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -40,6 +40,7 @@ DEFAULTS = {
     "tonart": "",
     "master_limiter": False,
     "dj_auto_rec": False,
+    "dj_lautstaerke": 100,
     "dj_clock": True,
     "takt": "senden",
     "start_modus": "zynthian",

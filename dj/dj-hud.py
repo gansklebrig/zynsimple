@@ -28,7 +28,7 @@ FARBE = {"MISCHEN": GOLD, "EFFEKTE": GRUEN, "HANDPAN": ROT}
 
 # (Regler 1–4: (drehen, drücken)), F1–F4
 BELEGUNG = {
-    "MISCHEN": [("Titel wählen", "→ Deck A"), ("Kopfhörer-Mix", "→ Deck B"), ("Filter A", "Mitte"), ("Filter B", "Mitte")],
+    "MISCHEN": [("Titel wählen", "→ Deck A"), ("Lautstärke", "→ Deck B"), ("Filter A", "Mitte"), ("Filter B", "Mitte")],
     "EFFEKTE": [("Effekt 1 Stärke", "an/aus"), ("Effekt 1 wählen", "Ziel A/B"), ("Effekt 2 Stärke", "an/aus"),
                 ("Effekt 2 wählen", "Ziel A/B")],
     "HANDPAN": [("Handpan laut", "normal"), ("Handpan-Effekt", "an/aus"), ("Master", "normal"), ("Kopfhörer", "normal")],
