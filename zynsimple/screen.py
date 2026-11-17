@@ -2157,6 +2157,13 @@ class zynsimple_screen(zynthian_gui_base):
         self.mode = "more"
         self.draw_more()
 
+    def _version(self):
+        try:
+            from . import VERSION as v_
+            return v_
+        except Exception:
+            return "?"
+
     def open_apps(self):
         """⇄ Apps: die anderen Programme auf einen Blick – ein Tipp startet."""
         self.mehr_apps = True
@@ -2181,7 +2188,8 @@ class zynsimple_screen(zynthian_gui_base):
             upd = updater.status.get("available") and updater.status.get("latest")
         except Exception:
             upd = None
-        items = [("help", "? Hilfe", "erklärt Bildschirm und Tasten"),
+        items = [("update", f"⬇ Update {upd} installieren" if upd else "⬇ Aktualisieren", "ZynSimple · holt die neueste Version"),
+                 ("help", "? Hilfe", "erklärt Bildschirm und Tasten"),
                  ("newtrack", "＋ Neue Spur", "Eingang, Handpan, Gesang, Synth …"),
                  ("fxview", "Alle Effekte", "auch mit der CTRL-Taste"),
                  ("idle", "Bühnenbild", "Animation jetzt zeigen"),
@@ -2206,12 +2214,14 @@ class zynsimple_screen(zynthian_gui_base):
                 items.append(("imres", "♫ Barden Beats", "Bühne & Klangwelten im Vollbild"))
             items.append(("bardhero", "🎸 Bard Hero", "Rhythmusspiel mit der Keytar"
                           + ("" if getattr(self, "spiel_installed", False) else " · wird beim ersten Mal geladen")))
-        cols = 2 if apps else (4 if len(items) > 6 else 3)
+            items.append(("update", f"⬇ Update {upd}" if upd else "⬇ ZynSimple aktualisieren",
+                          f"du hast {self._version()} · holt die neueste Version, startet danach neu"))
+        cols = 3 if (apps and len(items) > 4) else 2 if apps else (4 if len(items) > 6 else 3)
         rows = math.ceil(len(items) / cols)
         gw, gh = (W - 40) / cols, (H - 70) / rows
         for k, (art, title, sub) in enumerate(items):
             cx, cy = 20 + (k % cols) * gw, 52 + (k // cols) * gh
-            gold = art in ("imres", "djpult", "djimport", "bardhero", "mischpult") or (art == "settings" and upd)
+            gold = art in ("imres", "djpult", "djimport", "bardhero", "mischpult") or (art in ("settings", "update") and upd)
             self.rrect(cx + 5, cy + 5, cx + gw - 5, cy + gh - 5, 14, fill=P["card2"] if not gold else "#2a2014",
                        outline=P["gold"] if gold else P["line"], width=2 if gold else 1)
             cv.create_text(cx + gw / 2, cy + gh * 0.42, text=title, font=self.f_big if apps else self.f_mid, fill=P["champ"],
@@ -2312,6 +2322,10 @@ class zynsimple_screen(zynthian_gui_base):
                 if art == "help":
                     self.open_help()
                 elif art == "mischpult":
+                    return
+                elif art == "update":
+                    from . import start_update
+                    start_update(self.zyngui)
                     return
                 elif art == "menu":
                     self.zyngui.show_screen("main_menu")

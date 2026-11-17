@@ -73,6 +73,12 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.29 – Update-Knopf
+
+- **⇄ Apps → „⬇ ZynSimple aktualisieren“** (und ganz vorne unter ⋯): ein Tipp sucht das neueste Update und
+  installiert es mit Fortschrittsanzeige – kein Terminal mehr nötig. Braucht WLAN mit Internet.
+  Ohne Internet: Update-Datei (zynsimple….zip) auf einen USB-Stick legen, dann denselben Knopf drücken.
+
 ## Neu in Version 6.28 – ⇄ Apps
 
 - Das **Mischpult** ist der Startbildschirm des Zynthian (Instrumente, Effekte, Looper). Unten rechts gibt es jetzt
