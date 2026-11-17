@@ -330,6 +330,42 @@ def fokus_waechter():
             time.sleep(5)
 
 
+def ddj_da():
+    try:
+        out = subprocess.run(["amidi", "-l"], capture_output=True, text=True, timeout=4).stdout
+    except Exception:
+        return None
+    return bool(re.search(r"DDJ", out, re.I))
+
+
+def ddj_waechter(clock):
+    """Mixxx erkennt Controller nur beim Start. Wird der DDJ erst danach (oder neu) eingesteckt,
+    startet das DJ-Pult Mixxx kurz neu, damit er wieder steuert – außer es läuft gerade Musik."""
+    time.sleep(25)                               # Mixxx erst fertig starten lassen
+    vorher = ddj_da()
+    gemeldet = False
+    while True:
+        time.sleep(3)
+        jetzt = ddj_da()
+        if jetzt is None:
+            continue
+        if jetzt and not vorher:
+            if getattr(clock, "musik", False):
+                if not gemeldet:
+                    an_hud("T|🎛 DDJ erkannt – damit er steuert: ☰ → „USB neu einlesen“ (Musik läuft gerade)")
+                    gemeldet = True
+                continue                         # „vorher“ bleibt False → nach der Musik nochmal versuchen
+            log("DDJ neu eingesteckt → Mixxx startet neu")
+            an_hud("T|🎛 DDJ erkannt – DJ-Pult lädt neu …")
+            subprocess.Popen([BEFEHL, "neu-einlesen"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+            time.sleep(30)                       # Mixxx neu starten lassen
+            vorher = ddj_da()
+            continue
+        vorher = jetzt
+        gemeldet = False
+
+
 def strom_waechter():
     """Unterspannung (zu schwaches Netzteil, leerer Akku) melden und Daten auf die Karte schreiben."""
     gemeldet = 0.0
@@ -526,6 +562,7 @@ def main():
     threading.Thread(target=befehle_empfangen, args=(v,), daemon=True).start()
     threading.Thread(target=strom_waechter, daemon=True).start()
     threading.Thread(target=fokus_waechter, daemon=True).start()
+    threading.Thread(target=ddj_waechter, args=(clock,), daemon=True).start()
     try:
         lib = ctypes.cdll.LoadLibrary(LIB)
     except OSError as e:

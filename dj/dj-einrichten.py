@@ -615,12 +615,24 @@ def main():
     os.makedirs(MUSIK, exist_ok=True)
     s = einstellungen()
     ver = mixxx_version()
-    ok, kh = ton_einrichten(s)
-    if ok:
-        soundconfig(s, kh, ver)
+    try:
+        ok, kh = ton_einrichten(s)
+        if ok:
+            soundconfig(s, kh, ver)
+    except Exception as e:
+        log("Ton-Einrichtung:", e)
     pfad = os.path.join(MIXXX, "mixxx.cfg")
     data, order = cfg_lesen(pfad)
-    ordner = [MUSIK] + usb_musik()
+    # Controller zuerst – der DDJ muss steuern, auch wenn weiter unten etwas schiefgeht
+    try:
+        controller(data, ver)
+    except Exception as e:
+        log("Controller:", e)
+    try:
+        ordner = [MUSIK] + usb_musik()
+    except Exception as e:
+        log("USB-Musik:", e)
+        ordner = [MUSIK]
     data.setdefault("[Playlist]", {})["Directory"] = ordner[-1]
     lib = data.setdefault("[Library]", {})
     lib["RescanOnStartup"] = "1" if (neu_einlesen_noetig(ordner) or os.environ.get("ZS_NEU_EINLESEN")) else "0"
@@ -638,18 +650,21 @@ def main():
         data["[Config]"]["Locale"] = "de_DE"
     stick = usb_stick()
     rec = os.path.join(stick, "DJ-Sets") if stick else os.path.join(DATEN, "DJ-Sets")
-    os.makedirs(rec, exist_ok=True)
+    try:
+        os.makedirs(rec, exist_ok=True)
+    except OSError:
+        rec = os.path.join(DATEN, "DJ-Sets")
+        os.makedirs(rec, exist_ok=True)
     data.setdefault("[Recording]", {})["Directory"] = rec
     data["[Recording]"].setdefault("Encoding", "FLAC")
-    controller(data, ver)
     skin(data, s)
     cfg_schreiben(pfad, data, order)
-    config_js(s)
-    bibliothek(ordner)
-    passende_kiste(s)
-    stem_kiste()
-    favoriten_kiste()
-    stick_status()
+    for schritt in (lambda: config_js(s), lambda: bibliothek(ordner), lambda: passende_kiste(s),
+                    stem_kiste, favoriten_kiste, stick_status):
+        try:
+            schritt()
+        except Exception as e:
+            log("Fehler (übersprungen):", e)
     log("fertig")
 
 

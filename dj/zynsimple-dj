@@ -32,16 +32,28 @@ imres_da() { [ -x "$IMRES_MODUS" ]; }
 mixxx_da() { command -v mixxx >/dev/null 2>&1; }
 dj_aktiv() { systemctl is-active -q zynsimple-dj.service; }
 
-# Mixxx sauber beenden (speichert Einstellungen), sonst nach kurzer Zeit hart
+# Mixxx sauber beenden (speichert Einstellungen), sonst nach kurzer Zeit hart.
+# Ohne Fenstermanager geht „windowactivate“ nicht – darum „windowfocus“.
+mixxx_quit() {
+  if command -v xdotool >/dev/null; then
+    W=$(DISPLAY=:0 XAUTHORITY="$DATEN/.Xauthority" xdotool search --onlyvisible --class mixxx 2>/dev/null | tail -n1)
+    if [ -n "$W" ]; then
+      DISPLAY=:0 XAUTHORITY="$DATEN/.Xauthority" xdotool windowfocus "$W" key --clearmodifiers ctrl+q 2>/dev/null
+      sleep 1
+      # Rückfrage „Es läuft noch ein Deck – wirklich beenden?“ bestätigen
+      DISPLAY=:0 XAUTHORITY="$DATEN/.Xauthority" xdotool key --clearmodifiers Return 2>/dev/null
+    fi
+  fi
+  for i in $(seq 1 12); do pgrep -x mixxx >/dev/null || return 0; sleep 0.5; done
+  pkill -TERM -x mixxx
+  for i in $(seq 1 10); do pgrep -x mixxx >/dev/null || return 0; sleep 0.5; done
+  pkill -KILL -x mixxx
+}
+
 mixxx_beenden() {
   dj_aktiv || return 0
-  if command -v xdotool >/dev/null; then
-    DISPLAY=:0 XAUTHORITY="$DATEN/.Xauthority" xdotool search --class mixxx windowactivate --sync key --clearmodifiers ctrl+q 2>/dev/null
-    sleep 1
-    # Rückfrage „Es läuft noch ein Deck – wirklich beenden?“ bestätigen
-    DISPLAY=:0 XAUTHORITY="$DATEN/.Xauthority" xdotool key --clearmodifiers Return 2>/dev/null
-    for i in $(seq 1 16); do dj_aktiv || return 0; sleep 0.5; done
-  fi
+  mixxx_quit
+  for i in $(seq 1 8); do dj_aktiv || return 0; sleep 0.5; done
   systemctl stop zynsimple-dj.service
 }
 
@@ -125,13 +137,7 @@ case "$1" in
   neu-einlesen)
     # USB-Sticks neu einlesen: Mixxx sauber beenden – die DJ-Sitzung richtet ein und startet Mixxx neu
     touch /run/zynsimple-dj-neu
-    if command -v xdotool >/dev/null; then
-      DISPLAY=:0 XAUTHORITY="$DATEN/.Xauthority" xdotool search --class mixxx windowactivate --sync key --clearmodifiers ctrl+q 2>/dev/null
-      sleep 1
-      DISPLAY=:0 XAUTHORITY="$DATEN/.Xauthority" xdotool key --clearmodifiers Return 2>/dev/null
-    else
-      pkill -TERM -x mixxx
-    fi
+    mixxx_quit
     ;;
   neustart)
     echo aus > "$ZIEL"
@@ -332,7 +338,9 @@ case "$1" in
     echo "== Mixxx =="; command -v mixxx && mixxx --version 2>&1 | head -2
     echo "== Dienste =="; for D in zynsimple-dj zynthian jack2 imres-buehne smbd; do echo "$D: $(systemctl is-active $D)"; done
     echo "== Soundkarten =="; cat /proc/asound/cards
-    echo "== MIDI (DDJ-200, VirMIDI, TR-8S) =="; amidi -l 2>&1
+    echo "== MIDI (DDJ, VirMIDI, TR-8S) =="; amidi -l 2>&1
+    echo "== Controller in Mixxx =="; sed -n '/^\[Controller\]/,/^$/p' "$DATEN/.mixxx/mixxx.cfg" 2>/dev/null
+    grep -i -E "controller|ddj|portmidi" "$DATEN/.mixxx/mixxx.log" 2>/dev/null | tail -15
     echo "== WLAN-Ordner =="; ls -la "$MUSIK" 2>&1 | head -5
     for D in smbd nmbd wsdd wsdd2; do echo "$D: $(systemctl is-active $D 2>/dev/null)"; done
     testparm -s 2>/dev/null | grep -A3 "MUSIK gekauft"; cat "$SAMBA_LOG" 2>/dev/null | tail -3

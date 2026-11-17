@@ -73,6 +73,16 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.19 – DDJ nach dem Einstecken wieder da
+
+- **DDJ erst nach dem Start (oder neu) eingesteckt?** Mixxx erkennt Controller nur beim Starten. Jetzt merkt
+  das DJ-Pult das selbst und lädt Mixxx kurz neu („🎛 DDJ erkannt – DJ-Pult lädt neu …“). Läuft gerade Musik,
+  kommt nur ein Hinweis – dann ☰ → „USB neu einlesen“.
+- „USB neu einlesen“ und „Zum Mischpult“ beenden Mixxx jetzt zuverlässig (vorher klappte das ohne
+  Fenstermanager manchmal nicht).
+- Die DDJ-Belegung wird beim Start als Erstes eingetragen – geht später etwas schief, steuert der DDJ trotzdem.
+- `zynsimple-dj pruefen` (Terminal) zeigt jetzt auch, welche Controller Mixxx eingetragen hat.
+
 ## Neu in Version 6.18 – Bard Hero: MIDI prüfen, MIDI-Kanal, Lautstärke-Drehregler
 
 - **MIDI prüfen** (Einstellungen → MIDI prüfen …): zeigt, welche MIDI-Eingänge gefunden wurden (JACK, USB,
