@@ -295,7 +295,7 @@
 <header>
   <span class="dot" id="dot"></span>
   <h1>Zynthian</h1>
-  <nav id="tabs"><button data-tab="mix" class="on">Mischer</button><button data-tab="imres">♫ Bühne</button><button data-tab="fxall">✦ Effekte</button><button data-tab="extras">⚙ Extras</button></nav>
+  <nav id="tabs"><button data-tab="mix" class="on">Mischer</button><button data-tab="imres">⇄ Wechseln</button><button data-tab="fxall">✦ Effekte</button><button data-tab="extras">⚙ Extras</button></nav>
   <span class="sp"></span>
   <small id="info"></small>
   <span id="sys" title="Auslastung: DSP = Audio-Last, dazu CPU und Temperatur"></span>
@@ -323,9 +323,9 @@
 <div id="strips"></div>
 <section id="imres" hidden>
   <div id="imres-modes">
-    <button data-mode="imres">♫ Imres-Bühne<small>Vollbild am Gerät</small></button>
-    <button data-mode="hintergrund">⇄ Zusammen<small>Zynthian + Imres</small></button>
-    <button data-mode="zynthian">◼ Nur Zynthian<small>Imres aus</small></button>
+    <button data-mode="zynthian">◼ Mischpult<small>Instrumente · hier bist du</small></button>
+    <button data-mode="dj">🎧 DJ-Pult<small>Mixxx mit dem DDJ</small></button>
+    <button data-mode="imres">♫ Barden Beats<small>Bühne &amp; Klangwelten</small></button>
   </div>
   <div id="dj-modes" style="display:none"><button data-dj="dj">🎧 DJ-Pult<small>Mixxx im Vollbild · DDJ</small></button></div>
   <div id="imres-msg"></div>
@@ -740,15 +740,10 @@
   async function imresCheck() {
     try {
       const d = await api('/api/imres');
-      document.getElementById('imres-modes').style.display = d.installed ? '' : 'none';
-      if (!d.installed) {
-        $fern.style.display = 'none';
-        $imsg.innerHTML = 'Imres ist auf diesem Zynthian noch nicht installiert. Per SSH einmal ausführen:<br><br>'
-          + '<code>curl -sL https://raw.githubusercontent.com/gansklebrig/Imres-tales-Public/main/zynthian/install.sh | bash</code>';
-        return;
-      }
+      document.querySelector('#imres-modes [data-mode="imres"]').style.display = d.installed ? '' : 'none';
+      if (!d.installed) { $fern.style.display = 'none'; $imsg.textContent = ''; return; }
       $fern.style.display = '';
-      $imsg.textContent = d.bridge ? '' : 'Die Imres-Fernbedienung antwortet gerade nicht – startet sie noch?';
+      $imsg.textContent = d.bridge ? '' : 'Die Barden-Beats-Fernbedienung antwortet gerade nicht – startet sie noch?';
       if (d.bridge && $fern.getAttribute('src') !== fernUrl) $fern.src = fernUrl;
     } catch (e) {}
   }
@@ -769,7 +764,14 @@
   document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
   document.querySelectorAll('#imres-modes button').forEach(b => b.onclick = async () => {
     const m = b.dataset.mode;
-    if (m === 'imres' && !confirm('Imres-Bühne im Vollbild starten? Die Zynthian-Oberfläche pausiert so lange.')) return;
+    if (m === 'zynthian') { toast('Du bist schon im Mischpult', 3000); return; }
+    if (m === 'dj') {
+      if (!confirm('Zum DJ-Pult wechseln?')) return;
+      try { await api('/api/dj', { aktion: 'dj' }); toast('DJ-Pult startet … diese Seite zeigt gleich die Musik-Suche', 6000); }
+      catch (e) { toast('Ging nicht: ' + e.message, 6000); }
+      return;
+    }
+    if (m === 'imres' && !confirm('Barden Beats im Vollbild starten? Das Mischpult pausiert so lange.')) return;
     try {
       let r;
       try { r = await api('/api/imres', { aktion: m }); }
@@ -780,7 +782,7 @@
         r = { ok: true };
       }
       if (r.error) throw new Error(r.error);
-      toast({ imres: 'Imres-Bühne startet …', hintergrund: 'Zynthian + Imres starten …', zynthian: 'Zurück zum Zynthian …' }[m], 5000);
+      toast('Barden Beats startet … zurück: dort im Menü „Zum Mischpult“', 6000);
       setTimeout(imresCheck, 6000);
     } catch (e) { toast('Ging nicht: ' + e.message, 6000); }
   });

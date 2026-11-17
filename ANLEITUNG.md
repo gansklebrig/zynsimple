@@ -73,6 +73,12 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.27 – Wechseln am Handy
+
+- Handy-Seite: der alte Reiter „♫ Bühne“ heißt jetzt **„⇄ Wechseln“** und hat drei Knöpfe:
+  **◼ Mischpult · 🎧 DJ-Pult · ♫ Barden Beats** (vorher noch „Imres / Zusammen / Nur Zynthian“).
+- Im DJ-Pult heißt der Handy-Knopf jetzt **„◼ Zum Mischpult“**.
+
 ## Neu in Version 6.26 – Auftrittssicher
 
 **DJ-Pult**

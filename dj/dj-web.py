@@ -113,7 +113,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("Unbekannte Aktion")
                 subprocess.Popen(["systemd-run", "--no-block", "--collect", "--quiet", "/usr/local/bin/zynsimple-dj", aktion],
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-                return self.antwort(200, {"text": "Zurück zum Zynthian …" if aktion == "zynthian" else "USB-Sticks werden neu eingelesen …"})
+                return self.antwort(200, {"text": "Mischpult startet …" if aktion == "zynthian" else "USB-Sticks werden neu eingelesen …"})
         except Exception as e:
             return self.antwort(200, {"fehler": str(e)})
         return self.antwort(404, {"fehler": "gibt es nicht"})

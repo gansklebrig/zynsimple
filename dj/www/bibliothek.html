@@ -63,7 +63,7 @@
 <footer>
   <button onclick="location.href='/import'">⇩ Vom Stick übernehmen</button>
   <button data-aktion="neu-einlesen">⟳ USB-Sticks neu einlesen</button>
-  <button data-aktion="zynthian">⟵ Zurück zum Zynthian</button>
+  <button data-aktion="zynthian">◼ Zum Mischpult</button>
 </footer>
 <div id="toast"></div>
 <script>
@@ -129,7 +129,7 @@ liste.addEventListener("click", async ev => {
   b.disabled = false;
 });
 document.querySelectorAll("footer button").forEach(b => b.onclick = async () => {
-  if (b.dataset.aktion === "zynthian" && !confirm("DJ-Pult beenden und zurück zum Zynthian?")) return;
+  if (b.dataset.aktion === "zynthian" && !confirm("DJ-Pult beenden und zum Mischpult wechseln?")) return;
   const r = await fetch("/api/system", {method: "POST", headers: {"Content-Type": "application/json"},
     body: JSON.stringify({aktion: b.dataset.aktion})});
   const d = await r.json();
