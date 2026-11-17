@@ -73,6 +73,18 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.18 – Bard Hero: MIDI prüfen, MIDI-Kanal, Lautstärke-Drehregler
+
+- **MIDI prüfen** (Einstellungen → MIDI prüfen …): zeigt, welche MIDI-Eingänge gefunden wurden (JACK, USB,
+  DIN-Buchse) und jede ankommende Taste mit Gerät, **Kanal** und Note. „Dein Controller sendet auf Kanal X“ –
+  mit ✓ (SEL/Enter) wird genau dieser Kanal fest eingestellt. Kommt gar nichts an, liegt es nicht am Kanal,
+  sondern an Kabel/Buchse.
+- **MIDI-Kanal (Eingang):** „alle“ (Standard) oder nur Kanal 1–16 – andere Kanäle werden dann ignoriert.
+- **DIN-Buchse:** Bard Hero liest sie jetzt robuster (auch neben JACK) und stellt die Baudrate selbst richtig,
+  wenn nur Datensalat ankommt.
+- **Lautstärke:** Drehregler 1 am Zynthian ist überall die Gesamtlautstärke (mit Anzeige), auch mitten im Lied.
+  Welcher Regler: Einstellungen → Lautstärke-Drehregler. Am Computer: + / −.
+
 ## Neu in Version 6.17 – Bard Hero mit jedem Gitarren-Controller
 
 - **Controller einrichten:** Nach „drück eine Taste auf deinem Instrument“ zeigt Bard Hero den erkannten Controller

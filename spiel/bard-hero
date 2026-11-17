@@ -116,7 +116,9 @@ case "$1" in
     echo "== Dienste =="; for D in zynsimple-spiel zynthian jack2 zynsimple-dj imres-buehne; do echo "$D: $(systemctl is-active $D)"; done
     echo "== Lieder =="; ls "$DATEN/lieder" 2>/dev/null | tr '\n' ' '; echo; du -sh "$DATEN" 2>/dev/null
     echo "== Bildschirme =="; DISPLAY=:0 xrandr 2>/dev/null | grep " connected"
-    echo "== MIDI =="; amidi -l 2>&1; jack_lsp -t 2>/dev/null | grep -B1 midi | head -20
+    echo "== MIDI =="; amidi -l 2>&1; jack_lsp -A -t 2>/dev/null | grep -B2 midi | head -30
+    echo "DIN-Buchse: $(ls /dev/ttyAMA* 2>/dev/null | tr '\n' ' ')"; grep -h -i "uart\|midi" /boot/firmware/config.txt /boot/config.txt 2>/dev/null | grep -v "^#"
+    echo "liest gerade DIN: $(fuser /dev/ttyAMA0 2>&1 | tr -s ' ')"; ps -eo pid,args | grep -i "ttymidi\|a2jmidid" | grep -v grep
     echo "== Log =="; journalctl -u zynsimple-spiel -n 50 --no-pager 2>&1 | tail -50
     ;;
   *)

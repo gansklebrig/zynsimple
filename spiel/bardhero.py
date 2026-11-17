@@ -40,7 +40,7 @@ DATEN = os.environ.get("BH_DATEN", "/zynthian/zynthian-my-data/bardhero")
 EINST_DATEI = os.path.join(DATEN, "einstellungen.json")
 REKORD_DATEI = os.path.join(DATEN, "rekorde.json")
 BEFEHL = "/usr/local/bin/bard-hero"
-VERSION = "1.1"
+VERSION = "1.2"
 
 STANDARD = {
     "grafik": 2, "fps": 60, "tempo": "normal", "versatz_ms": 0, "durchfallen": False, "insp_auto": True,
@@ -49,6 +49,8 @@ STANDARD = {
               "sfx": 0.7, "mic_kanal": 1},
     "spieler": [{"modus": "hero", "stufe": "leicht"}, {"modus": "hero", "stufe": "leicht"}],
     "belegung": {},
+    "midi_kanal": 0,                     # 0 = alle Kanäle
+    "laut_regler": 0,                    # Zynthian-Drehregler für die Lautstärke (0–3, -1 = keiner)
 }
 SICHT = {"langsam": 1.8, "normal": 1.35, "schnell": 1.0}
 MODUS_NAME = {"hero": "Hero · Tasten", "barde": "Barde · echte Töne"}
@@ -600,6 +602,8 @@ class Spielerwahl(Szene):
                 g.text_zeigen(s, "Spieler 1: " + self.app.geraet_name(self.geraete[0]), int(H * 0.035),
                               (W / 2, H * 0.62), g.GRUEN)
                 zeichne_controller(s, (W / 2, H * 0.74), H * 0.07, self.app.anzeige_form(self.geraete[0]))
+            g.text_zeigen(s, "Keine Reaktion? Einstellungen → MIDI prüfen (zeigt Kanal und Buchse)", int(H * 0.03),
+                          (W / 2, H * 0.86), g.GLUT)
             g.text_zeigen(s, "BACK / Esc = zurück", int(H * 0.03), (W / 2, H * 0.92), g.TX2)
             return
         mw = W * 0.6
@@ -1376,6 +1380,10 @@ class Einstellungen(Szene):
             ("anlernen2", "Controller einrichten: Spieler 2 …", None),
             ("ausgabe", "Bild", {"auto": "automatisch", "display": "Zynthian-Display", "hdmi": "Beamer (HDMI)",
                                  "beide": "Display + Beamer"}[e["ausgabe"]]),
+            ("midi_kanal", "MIDI-Kanal (Eingang)", "alle" if not e["midi_kanal"] else f"nur Kanal {e['midi_kanal']}"),
+            ("midi_test", "MIDI prüfen …", None),
+            ("laut_regler", "Lautstärke-Drehregler", "keiner" if e.get("laut_regler", 0) < 0
+             else f"Regler {e.get('laut_regler', 0) + 1}"),
             ("fertig", "Fertig", None)], wahl)
 
     def ereignis(self, ev, nav):
@@ -1416,6 +1424,13 @@ class Einstellungen(Szene):
             a = ["auto", "display", "hdmi", "beide"]
             e["ausgabe"] = a[(a.index(e["ausgabe"]) + d) % 4]
             self.app.meldung("Bild-Ausgabe gilt ab dem nächsten Start von Bard Hero")
+        elif k == "midi_kanal":
+            e["midi_kanal"] = (e["midi_kanal"] + d) % 17
+            self.app.kanal_setzen()
+        elif k == "laut_regler":
+            e["laut_regler"] = (e.get("laut_regler", 0) + 1 + d) % 5 - 1
+        elif k == "midi_test" and ok:
+            return self.app.wechsel(MidiTest(self.app, self))
         elif k == "fertig" and ok:
             return self.fertig()
         self.app.sfx("menue")
@@ -1648,6 +1663,123 @@ class Anlernen(Szene):
         g.text_zeigen(s, "BACK / Esc = abbrechen", int(H * 0.03), (W / 2, H * 0.94), g.TX2)
 
 
+class MidiTest(Szene):
+    """MIDI prüfen: welche Quellen gefunden wurden, was ankommt (Gerät, Kanal, Note) – und den Kanal festlegen."""
+
+    def __init__(self, app, zurueck):
+        super().__init__(app)
+        self.zurueck = zurueck
+        self.mischpult = self.mischpult_keytar()
+
+    def mischpult_keytar(self):
+        try:
+            with open("/zynthian/zynthian-my-data/zynsimple/zynsimple.json", encoding="utf-8") as f:
+                d = json.load(f)
+            if d.get("keytar_geraet"):
+                k = d.get("keytar_kanal")
+                return f"{d['keytar_geraet']}" + (f", Kanal {k + 1}" if isinstance(k, int) else "")
+        except (OSError, ValueError):
+            pass
+        return None
+
+    def letzter_kanal(self):
+        m = [x for x in self.app.eingaben.monitor if x[3][0] & 0xF0 in (0x80, 0x90)]
+        return m[-1][2] if m else None
+
+    def ereignis(self, ev, nav):
+        if ev[0] in ("an", "aus", "cc"):
+            return                                   # MIDI-Tasten sind hier nur zum Anzeigen da
+        e = self.app.e
+        if nav == "zurueck":
+            return self.raus()
+        if nav in ("links", "rechts") or (isinstance(nav, tuple) and nav[0] == "dreh"):
+            d = -1 if nav == "links" or (isinstance(nav, tuple) and nav[1] < 0) else 1
+            e["midi_kanal"] = (e["midi_kanal"] + d) % 17
+            self.app.kanal_setzen()
+            self.app.speichern()
+        elif nav == "ok":
+            self.uebernehmen()
+
+    def uebernehmen(self):
+        k = self.letzter_kanal()
+        if k is None:
+            self.app.meldung("Erst eine Taste am Controller drücken")
+            return
+        self.app.e["midi_kanal"] = k + 1
+        self.app.kanal_setzen()
+        self.app.speichern()
+        self.app.sfx("ok")
+        self.app.meldung(f"MIDI-Eingang: nur Kanal {k + 1}")
+
+    def raus(self):
+        if hasattr(self.zurueck, "bauen"):
+            self.zurueck.bauen(self.zurueck.m.wahl)
+        self.app.wechsel(self.zurueck, neu=False)
+
+    def tipp(self, pos):
+        W = self.app.groesse[0]
+        if pos[0] < W / 3:
+            self.raus()
+        elif pos[0] > W * 2 / 3:
+            self.uebernehmen()
+
+    def zeichnen(self, s):
+        W, H = s.get_size()
+        s.fill(g.BG)
+        ein = self.app.eingaben
+        g.text_zeigen(s, "MIDI prüfen", int(H * 0.06), (W / 2, H * 0.07), g.GOLD2, fett=True)
+        g.text_zeigen(s, "Drück Tasten auf deinem Controller – hier siehst du, was ankommt", int(H * 0.034),
+                      (W / 2, H * 0.14), g.CHAMP)
+        # links: Quellen
+        x = W * 0.04
+        y = H * 0.22
+        gr = int(H * 0.03)
+        g.text_zeigen(s, "Gefundene Eingänge", int(H * 0.036), (x, y), g.GOLD, "links")
+        y += H * 0.05
+        zeilen = [("über JACK: " + q, g.CHAMP) for q in ein.jack_quellen[-6:]]
+        zeilen += [(f"{name}: {st}", g.GRUEN if st.startswith("offen") else g.TX2) for name, st in ein.status.items()]
+        if not zeilen:
+            zeilen = [("noch keine – Kabel steckt? Gerät an?", g.ROT)]
+        for t, c in zeilen[:9]:
+            g.text_zeigen(s, t[:52], gr, (x, y), c, "links")
+            y += H * 0.042
+        if self.mischpult:
+            y += H * 0.02
+            g.text_zeigen(s, "Im Mischpult angelernte Keytar:", gr, (x, y), g.TX2, "links")
+            g.text_zeigen(s, self.mischpult[:46], gr, (x, y + H * 0.04), g.CHAMP, "links")
+        # rechts: was ankommt
+        x2 = W * 0.55
+        y = H * 0.22
+        g.text_zeigen(s, "Kommt an", int(H * 0.036), (x2, y), g.GOLD, "links")
+        y += H * 0.05
+        jetzt = time.monotonic()
+        mon = list(ein.monitor)[::-1]
+        if not mon:
+            g.text_zeigen(s, "noch nichts", gr, (x2, y), g.TX2, "links")
+        for t, quelle, ch, d, ok in mon[:9]:
+            art = {0x90: "an" if len(d) > 2 and d[2] else "aus", 0x80: "aus", 0xB0: "Regler", 0xE0: "Pitchbend"}[d[0] & 0xF0]
+            if d[0] & 0xF0 in (0x80, 0x90):
+                inhalt = f"{chart.NAMEN[d[1] % 12]}{d[1] // 12 - 1} {art}"
+            else:
+                inhalt = f"{art} {d[1]}"
+            text = f"Kanal {ch + 1} · {inhalt} · {quelle.replace('_', ' ')[:18]}"
+            farbe = g.CHAMP if ok else (110, 100, 90)
+            if jetzt - t < 0.4:
+                farbe = g.GOLD2 if ok else g.TX2
+            g.text_zeigen(s, text + ("" if ok else "  (gefiltert)"), gr, (x2, y), farbe, "links")
+            y += H * 0.042
+        # unten: Kanal
+        k = self.letzter_kanal()
+        if k is not None:
+            g.text_zeigen(s, f"Dein Controller sendet auf Kanal {k + 1}", int(H * 0.05), (W / 2, H * 0.74), g.ORANGE,
+                          fett=True)
+        e = self.app.e
+        g.text_zeigen(s, "MIDI-Eingang: " + ("alle Kanäle" if not e["midi_kanal"] else f"nur Kanal {e['midi_kanal']}"),
+                      int(H * 0.038), (W / 2, H * 0.82), g.CHAMP)
+        g.text_zeigen(s, "◀ ▶ Kanal wählen  ·  ✓ (SEL/Enter) = zuletzt gesehenen Kanal festlegen  ·  BACK zurück",
+                      int(H * 0.028), (W / 2, H * 0.92), g.TX2)
+
+
 class System(Szene):
     def __init__(self, app, zurueck):
         super().__init__(app)
@@ -1701,6 +1833,9 @@ class App:
         pygame.display.set_caption("Bard Hero")
         self.ton = Ton()
         self.eingaben = eingabe.Eingaben()
+        self.kanal_setzen()
+        self.laut_bis = 0.0
+        self.laut_speichern_ab = 0.0
         self.tasten_proc = self._tasten_starten()
         self.nr = 0
         self.dt = 0.016
@@ -1831,6 +1966,34 @@ class App:
         if geraet == "maus":
             return "Touch"
         return self.eingaben.geraete.get(geraet, geraet.split(":")[1].replace("_", " "))
+
+    def lautstaerke(self, d):
+        """Gesamtlautstärke (Drehregler 1 oder +/-) – wirkt sofort, überall, auch im Spiel."""
+        p = self.e["pegel"]
+        p["master"] = round(max(0.0, min(1.5, p["master"] + d)), 2)
+        self.ton.cmd(cmd="pegel", master=p["master"])
+        self.laut_bis = time.monotonic() + 1.5
+        self.laut_speichern_ab = time.monotonic() + 1.5
+
+    def laut_zeigen(self, s):
+        if time.monotonic() > self.laut_bis:
+            return
+        W, H = self.groesse
+        r = pygame.Rect(0, 0, W * 0.42, H * 0.1)
+        r.midtop = (W / 2, H * 0.04)
+        g.rrect(s, (24, 17, 12), r, 14)
+        g.rrect(s, g.GOLD, r, 14, 2)
+        v = self.e["pegel"]["master"]
+        g.text_zeigen(s, "Lautstärke", int(H * 0.03), (r.x + H * 0.03, r.centery), g.CHAMP, "links")
+        bx, bw = r.x + r.w * 0.38, r.w * 0.44
+        pygame.draw.rect(s, (50, 38, 28), (bx, r.centery - H * 0.012, bw, H * 0.024), border_radius=6)
+        pygame.draw.rect(s, g.ORANGE if v > 1 else g.GLUT, (bx, r.centery - H * 0.012, bw * v / 1.5, H * 0.024),
+                         border_radius=6)
+        g.text_zeigen(s, f"{v * 100:.0f} %", int(H * 0.03), (r.right - H * 0.025, r.centery), g.GOLD2, "rechts")
+
+    def kanal_setzen(self):
+        k = int(self.e.get("midi_kanal") or 0)
+        self.eingaben.kanal = None if k == 0 else k - 1
 
     def pad_name(self, geraet):
         if geraet and geraet.startswith("pad"):
@@ -1965,11 +2128,21 @@ class App:
                         self.szene.pausieren()
                     self.wechsel(System(self, self.szene))
                 continue
+            if ev[0] == "dreh" and ev[2] == self.e.get("laut_regler", 0):
+                self.lautstaerke(ev[4] * 0.02)
+                continue
+            if ev[0] == "taste" and ev[1] == "tast" and ev[4] and ev[2] in ("+", "=", "-", "[+]", "[-]"):
+                self.lautstaerke(0.05 if ev[2] in ("+", "=", "[+]") else -0.05)
+                continue
             nav = eingabe.navigation(ev)
             self.szene.ereignis(ev, nav)
         self.szene.update(self.dt)
         s = self.bildschirm
         self.szene.zeichnen(s)
+        self.laut_zeigen(s)
+        if self.laut_speichern_ab and time.monotonic() > self.laut_speichern_ab:
+            self.laut_speichern_ab = 0
+            self.speichern()
         text, bis = self.meldung_text
         if text and time.monotonic() < bis:
             W, H = self.groesse

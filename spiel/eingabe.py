@@ -33,6 +33,22 @@ TASTATUR_SPUREN = [["1", "a"], ["2", "s"], ["3", "d"], ["4", "f"], ["5", "g"], [
 SPUR_NAMEN_MIDI = ["C", "D", "E", "F", "G"]
 
 
+def din_baud():
+    """Baudrate der DIN-Buchse: mit dem Overlay „midi-uart“ steht 38400 für echte 31250 Baud, sonst 31250 direkt."""
+    if os.environ.get("BH_DIN_BAUD"):
+        return os.environ["BH_DIN_BAUD"]
+    for p in ("/boot/firmware/config.txt", "/boot/config.txt"):
+        try:
+            with open(p, encoding="utf-8", errors="replace") as f:
+                text = f.read()
+            if re.search(r"^\s*dtoverlay\s*=\s*midi-uart", text, re.M):
+                return "38400"
+            return "31250"
+        except OSError:
+            continue
+    return "38400"
+
+
 class MidiParser:
     """Rohe MIDI-Bytes → Nachrichten (mit Running Status, SysEx und Clock werden übergangen)."""
 
@@ -80,6 +96,10 @@ class Eingaben:
         self.doppelt = collections.Counter()
         self.ignoriert = set()
         self.lock = threading.Lock()
+        self.kanal = None                  # None = alle MIDI-Kanäle, sonst 0–15
+        self.monitor = collections.deque(maxlen=14)   # (zeit, quelle, kanal, bytes, angenommen)
+        self.status = {}                   # Quelle → Zustand (für „MIDI prüfen“)
+        self.jack_quellen = []
         try:
             os.remove(SPIEL)
         except OSError:
@@ -97,6 +117,11 @@ class Eingaben:
         st = daten[0] & 0xF0
         ch = daten[0] & 0x0F
         geraet = f"midi:{quelle}:{ch + 1}"
+        angenommen = self.kanal is None or ch == self.kanal
+        if st in (0x80, 0x90, 0xB0, 0xE0):
+            self.monitor.append((t, quelle, ch, daten, angenommen))
+        if not angenommen:
+            return
         # gleiche Nachricht kurz vorher über einen anderen Weg? (JACK und direkt zugleich) → zweiten Weg stilllegen
         if geraet in self.ignoriert:
             return
@@ -140,6 +165,7 @@ class Eingaben:
                     self.q.append(("dreh", "zyn", int(teile[1]), time.monotonic(), int(teile[2])))
                 elif art == "G":                              # neues Gerät bei JACK
                     self.jack_midi = True
+                    self.jack_quellen.append(d[2:])
                     self.ton_meldungen.append(d)
                 else:
                     self.ton_meldungen.append(d)
@@ -160,15 +186,23 @@ class Eingaben:
                         continue
                     try:
                         if pfad == DIN:
-                            subprocess.call(["stty", "-F", pfad, "38400", "raw", "-echo"],
-                                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            baud = getattr(self, "din_baud", None) or din_baud()
+                            self.din_baud = baud
+                            if subprocess.call(["stty", "-F", pfad, baud, "raw", "-echo"],
+                                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
+                                baud = "38400"
+                                subprocess.call(["stty", "-F", pfad, baud, "raw", "-echo"],
+                                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                             fd = os.open(pfad, os.O_RDONLY | os.O_NONBLOCK | os.O_NOCTTY)
+                            self.status[name] = f"offen ({pfad}, {baud} Baud)"
                         else:
                             fd = os.open(pfad, os.O_RDONLY | os.O_NONBLOCK)
+                            self.status[name] = f"offen ({pfad})"
                         offen[pfad] = (fd, name)
                         parser[pfad] = MidiParser()
-                    except OSError:
+                    except OSError as e:
                         offen[pfad] = (None, name)          # belegt (z. B. von JACK) – nicht nochmal versuchen
+                        self.status[name] = "belegt (läuft über JACK)" if e.errno == 16 else f"geht nicht: {e.strerror}"
                 # verschwundene Geräte
                 for pfad in list(offen):
                     if not os.path.exists(pfad):
@@ -193,8 +227,24 @@ class Eingaben:
                     os.close(fd)
                     offen[pfad] = (None, offen[pfad][1])
                     continue
-                for msg in parser[pfad].futter(daten):
+                msgs = parser[pfad].futter(daten)
+                for msg in msgs:
                     self._midi(t, offen[pfad][1], msg)
+                if pfad == DIN:
+                    self._din_pruefen(pfad, len(daten), len(msgs))
+
+    def _din_pruefen(self, pfad, nbytes, nmsgs):
+        """Kommen an der DIN-Buchse Bytes, aber keine gültigen Nachrichten, stimmt die Baudrate nicht → umschalten."""
+        self.din_bytes = getattr(self, "din_bytes", 0) + nbytes
+        self.din_msgs = getattr(self, "din_msgs", 0) + nmsgs
+        if self.din_msgs == 0 and self.din_bytes >= 24:
+            self.din_baud = "31250" if getattr(self, "din_baud", din_baud()) == "38400" else "38400"
+            subprocess.call(["stty", "-F", pfad, self.din_baud, "raw", "-echo"],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.status["MIDI-Buchse"] = f"offen ({pfad}, {self.din_baud} Baud – umgeschaltet)"
+            self.din_bytes = 0
+        elif self.din_msgs and self.din_bytes > 10000:
+            self.din_bytes = self.din_msgs = 1
 
     def _roh_geraete(self):
         raus = []
@@ -216,7 +266,7 @@ class Eingaben:
         return raus
 
     def jack_midi_din(self):
-        return any("ttymidi" in g or "serial" in g.lower() for g in self.geraete)
+        return any(re.search(r"ttymidi|serial|uart|\bDIN\b", q, re.I) for q in self.jack_quellen)
 
     # ---- Zynthian-LEDs ----
     def led(self, name, rgb):

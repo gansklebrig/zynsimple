@@ -289,6 +289,34 @@ def main():
     warten_auf(app, bh.Einstellungen)
     laufen(app, 0.4)
     foto(app, "15-einstellungen")
+    # MIDI prüfen: Kanal erkennen und festlegen, danach wird ein anderer Kanal ausgefiltert
+    app.szene.m.wahl = [k for k, _, _ in app.szene.m.e].index("midi_test")
+    taste(app, "return")
+    warten_auf(app, bh.MidiTest)
+    ein = app.eingaben
+    ein._midi(time.monotonic(), "Gitarre", bytes([0x94, 64, 100]))
+    ein._midi(time.monotonic(), "Gitarre", bytes([0x84, 64, 0]))
+    laufen(app, 0.3)
+    foto(app, "20-midi-pruefen")
+    taste(app, "return")
+    if app.e["midi_kanal"] != 5 or ein.kanal != 4:
+        fehler.append(f"MIDI-Kanal nicht übernommen: {app.e['midi_kanal']}")
+    ein.holen()
+    ein._midi(time.monotonic(), "Gitarre", bytes([0x90, 60, 100]))
+    ein._midi(time.monotonic() + 0.1, "Gitarre", bytes([0x94, 62, 100]))
+    angekommen = [e for e in ein.holen() if e[0] == "an"]
+    if len(angekommen) != 1 or angekommen[0][2] != 62:
+        fehler.append(f"Kanal-Filter: {angekommen}")
+    app.e["midi_kanal"] = 0
+    app.kanal_setzen()
+    # Drehregler 1 = Lautstärke
+    vorher = app.e["pegel"]["master"]
+    app.eingaben.q.append(("dreh", "zyn", 0, time.monotonic(), -5))
+    laufen(app, 0.2)
+    foto(app, "21-lautstaerke")
+    if abs(app.e["pegel"]["master"] - (vorher - 0.1)) > 0.001:
+        fehler.append(f"Lautstärke-Regler: {vorher} → {app.e['pegel']['master']}")
+    taste(app, "escape")
     # alle Themen einmal zeigen
     for lied in app.lieder:
         hg = bh.Hintergrundbild(app, lied["thema"], lied["bpm"], bh.g.hex2rgb(lied["farbe"]))

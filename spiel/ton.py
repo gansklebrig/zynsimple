@@ -395,7 +395,8 @@ class Maschine:
                     name = q.name
                     if name in self.midi_ports or name.startswith("bardhero:"):
                         continue
-                    if not (q.is_physical or name.startswith(("a2j:", "ttymidi", "system:"))):
+                    # alle MIDI-Quellen außer den eigenen und „Midi Through“ – auch DIN-Treiber mit eigenem Namen
+                    if "through" in name.lower():
                         continue
                     anzeige = name
                     try:
