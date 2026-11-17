@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-"""ZynSimple – Bard Hero (Rhythmusspiel mit der Keytar) starten, einmalig einrichten."""
+"""ZynSimple – Bard Hero (Rhythmusspiel mit der Keytar) starten, beim ersten Mal von GitHub holen und einrichten.
+
+Bard Hero ist eine eigene App (github.com/gansklebrig/Bard-Hero) mit eigenen Updates; ZynSimple startet sie nur."""
 
 import logging
 import os
@@ -11,13 +13,75 @@ import time
 log = logging.getLogger("zynsimple")
 
 BEFEHL = "/usr/local/bin/bard-hero"
+APP = "/zynthian/zynthian-my-data/bard-hero"
+REPO = "gansklebrig/Bard-Hero"
+APP_LOG = "/tmp/bardhero-app-install.log"
 INSTALL_LOG = "/tmp/bardhero-install.log"
 ERLAUBT = ("start", "zynthian", "aus", "neustart")
 SCHRITTE = [("Paketliste", 6), ("Herunterladen", 60), ("Installieren", 30), ("Einrichten", 4)]
 
 
 def eingerichtet():
-    return os.path.isfile(BEFEHL)
+    """Ist die eigene Bard-Hero-App installiert?"""
+    return os.path.isfile(BEFEHL) and os.path.isfile(os.path.join(APP, "bardhero.py"))
+
+
+def app_laden():
+    """Bard Hero von GitHub laden und installieren (mit Fortschritt). (ok, meldung)"""
+    import tempfile
+    import urllib.request
+    import zipfile
+    from . import fortschritt as fs
+    if not os.path.isdir(os.path.dirname(APP)):
+        return False, "Bard Hero läuft nur auf dem Zynthian"
+    fs.start("Bard Hero wird geladen", [("Herunterladen", 60), ("Installieren", 40)])
+    tmp = tempfile.mkdtemp(prefix="bardhero-app-")
+    try:
+        daten = None
+        for zweig in ("stabil", "main"):
+            try:
+                url = f"https://codeload.github.com/{REPO}/zip/refs/heads/{zweig}"
+                with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "ZynSimple"}),
+                                            timeout=60) as r:
+                    total = int(r.headers.get("Content-Length") or 0) or 3_000_000
+                    teile, n = [], 0
+                    while True:
+                        b = r.read(64 * 1024)
+                        if not b:
+                            break
+                        teile.append(b)
+                        n += len(b)
+                        fs.teil(bytes_=n, anteil=min(0.97, n / total))
+                    daten = b"".join(teile)
+                break
+            except Exception as e:
+                log.info(f"ZynSimple: Bard Hero von {zweig}: {e}")
+        if not daten:
+            raise RuntimeError("Kein Internet oder GitHub nicht erreichbar")
+        zp = os.path.join(tmp, "bh.zip")
+        with open(zp, "wb") as f:
+            f.write(daten)
+        with zipfile.ZipFile(zp) as z:
+            for name in z.namelist():
+                if name.startswith("/") or ".." in name.split("/"):
+                    raise RuntimeError("Ungültige ZIP-Datei")
+            z.extractall(tmp)
+        src = next((w for w, _, fs_ in os.walk(tmp) if "install.sh" in fs_ and "bardhero.py" in fs_), None)
+        if not src:
+            raise RuntimeError("In der ZIP fehlt install.sh")
+        fs.schritt(1, "Bard Hero wird installiert")
+        with open(APP_LOG, "w") as logf:
+            rc = subprocess.call(["bash", os.path.join(src, "install.sh")], stdout=logf, stderr=subprocess.STDOUT,
+                                 timeout=300)
+        if rc != 0 or not eingerichtet():
+            raise RuntimeError("Installation fehlgeschlagen – Protokoll: " + APP_LOG)
+        fs.fertig("Bard Hero ist installiert")
+        return True, "Bard Hero ist installiert"
+    except Exception as e:
+        fs.fehler(str(e))
+        return False, str(e)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def bereit():
@@ -40,7 +104,7 @@ def system(aktion):
     if aktion not in ERLAUBT:
         raise ValueError(f"Unbekannte Aktion {aktion}")
     if not eingerichtet():
-        raise RuntimeError("Bard Hero ist nicht eingerichtet – ZynSimple einmal neu installieren")
+        raise RuntimeError("Bard Hero ist nicht installiert")
     _losgeloest([aktion])
 
 

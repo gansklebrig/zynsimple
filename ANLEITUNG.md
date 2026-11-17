@@ -73,6 +73,15 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.20 – Bard Hero ist jetzt eine eigene App
+
+- Bard Hero wohnt jetzt in einem eigenen Repo: **github.com/gansklebrig/Bard-Hero** – mit eigener Anleitung
+  und **eigenen Updates im Spiel** (Einstellungen → Updates: suchen, installieren, abgebrochene Installation
+  fortsetzen, alte Dateien aufräumen).
+- Dieses ZynSimple-Update holt die eigene App beim Installieren automatisch (wenn Internet da ist) und räumt die
+  alte, eingebaute Fassung weg. Spielstände, Einstellungen und vorbereitete Lieder bleiben erhalten.
+- Ohne installierte App lädt ⋯ → „🎸 Bard Hero“ sie beim ersten Antippen von GitHub.
+
 ## Neu in Version 6.19 – DDJ nach dem Einstecken wieder da
 
 - **DDJ erst nach dem Start (oder neu) eingesteckt?** Mixxx erkennt Controller nur beim Starten. Jetzt merkt

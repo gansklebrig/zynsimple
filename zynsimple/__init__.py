@@ -11,7 +11,7 @@ import os
 
 log = logging.getLogger("zynsimple")
 
-VERSION = "6.19"
+VERSION = "6.20"
 
 HOME_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(HOME_DIR, "zynsimple.json")
@@ -265,13 +265,8 @@ def system_menue(zyngui):
                           "action": lambda *a, **k: threading.Thread(target=imres.system, args=("imres",), daemon=True).start()})
     except Exception:
         pass
-    try:
-        from . import spiel
-        if spiel.eingerichtet():
-            items.append({"icon": "midi_input.png", "title": "Bard Hero",
-                          "action": lambda *a, **k: start_spiel(zyngui)})
-    except Exception:
-        pass
+    items.append({"icon": "midi_input.png", "title": "Bard Hero",
+                  "action": lambda *a, **k: start_spiel(zyngui)})
     items.append({"icon": "mixer.png", "title": "Mischpult",
                   "action": lambda *a, **k: zyngui.show_screen_reset(SCREEN_NAME)})
     zyngui.screens["grid_sel"].setup("System", items, cols=3)
@@ -432,13 +427,8 @@ def _add_menu_entry(zyngui):
                     })
             except Exception:
                 pass
-            try:
-                from . import spiel
-                if spiel.eingerichtet():
-                    entries.append({"title": "Bard\nHero", "icon": "midi_input.png",
-                                    "action": lambda *a, **k: start_spiel(zyngui)})
-            except Exception:
-                pass
+            entries.append({"title": "Bard\nHero", "icon": "midi_input.png",
+                            "action": lambda *a, **k: start_spiel(zyngui)})
 
             def settings_page(*a, **k):
                 zyngui.show_screen_reset(SCREEN_NAME)
@@ -553,8 +543,11 @@ def start_spiel(zyngui, *a, **k):
     def run():
         from . import spiel
         if not spiel.eingerichtet():
-            show("Bard Hero fehlt", "ZynSimple einmal neu installieren. Antippen zum Schließen.", error=True)
-            return
+            show("Bard Hero wird geladen …", "einmalig von GitHub · braucht Internet")
+            ok, msg = spiel.app_laden()
+            if not ok:
+                show("Bard Hero ließ sich nicht laden", f"{msg} Antippen zum Schließen.", error=True)
+                return
         if not spiel.bereit():
             show("Bard Hero wird eingerichtet …", "einmalig · braucht Internet · einige Minuten")
             ok, msg = spiel.installieren()

@@ -19,12 +19,6 @@ jobs:
       - run: pip install pyflakes
       - name: Code-Prüfung
         run: bash tests/statisch.sh
-      - name: Bard Hero – Lieder prüfen
-        run: |
-          pip install pygame numpy
-          python3 tests/lieder_pruefen.py
-      - name: Bard Hero – Spiel durchspielen (ohne Bildschirm)
-        run: python3 tests/spiel_test.py /tmp/bh-fotos
       - name: Tasten-Test (3 × 3000 zufällige Eingaben)
         run: |
           set -o pipefail

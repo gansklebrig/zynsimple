@@ -2161,8 +2161,8 @@ class zynsimple_screen(zynthian_gui_base):
                  ("idle", "Bühnenbild", "Animation jetzt zeigen"),
                  ("settings", f"Update {upd} bereit" if upd else "Einstellungen", "Update, Start-Logo, Bühnenbild …"),
                  ("close", "Zurück", "")]
-        if getattr(self, "spiel_installed", False):
-            items.insert(0, ("bardhero", "🎸 Bard Hero", "Rhythmusspiel mit der Keytar"))
+        items.insert(0, ("bardhero", "🎸 Bard Hero", "Rhythmusspiel mit der Keytar"
+                         + ("" if getattr(self, "spiel_installed", False) else " · wird beim ersten Mal geladen")))
         if self.dj_installed:
             items.insert(0, ("djpult", "♪ DJ-Pult", "Mixxx im Vollbild mit dem DDJ · auch: CTRL 1,5 s halten"))
             try:
@@ -3396,7 +3396,7 @@ class zynsimple_screen(zynthian_gui_base):
                     "installiert (einige Minuten)", "Starten", getattr(self, "dj_installed", False), False)
         if art == "s_bardhero":
             return ("Bard Hero", "Rhythmusspiel: Melodie mit der Keytar, die Band spielt den Rest · auch am Beamer · "
-                    "beim ersten Mal wird es eingerichtet", "Starten", getattr(self, "spiel_installed", False), False)
+                    "beim ersten Mal von GitHub geladen und eingerichtet · eigene Updates im Spiel", "Starten", True, False)
         if art == "s_imres":
             return ("Barden Beats", "Bühne & Klangwelten im Vollbild · zurück: BACK 3 s → System-Menü", "Starten",
                     getattr(self, "imres_installed", False), False)

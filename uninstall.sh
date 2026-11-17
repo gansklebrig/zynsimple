@@ -32,7 +32,7 @@ if [ -f /etc/systemd/system/zynsimple-dj.service ]; then
     echo "DJ-Pult entfernt"
 fi
 
-# Bard Hero entfernen (Rekorde und gerenderte Lieder bleiben in /zynthian/zynthian-my-data/bardhero)
+# Alte, in ZynSimple eingebaute Bard-Hero-Fassung entfernen (die eigene App hat ihr eigenes uninstall.sh)
 if [ -f /etc/systemd/system/zynsimple-spiel.service ]; then
     systemctl stop zynsimple-spiel 2>/dev/null
     rm -f /etc/systemd/system/zynsimple-spiel.service /usr/local/bin/bard-hero

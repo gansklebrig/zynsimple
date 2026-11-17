@@ -43,7 +43,6 @@ if [ "$SRC" != "$DEST" ]; then
         rm -rf "$DEST/.vorher.neu" && mkdir -p "$DEST/.vorher.neu"
         cp -r "$DEST/zynsimple" "$DEST/.vorher.neu/"
         [ -d "$DEST/dj" ] && cp -r "$DEST/dj" "$DEST/.vorher.neu/"
-        [ -d "$DEST/spiel" ] && cp -r "$DEST/spiel" "$DEST/.vorher.neu/"
         for f in zynsimple_boot.py install.sh uninstall.sh ANLEITUNG.md VERSION; do
             [ -f "$DEST/$f" ] && cp "$DEST/$f" "$DEST/.vorher.neu/"
         done
@@ -55,8 +54,6 @@ if [ "$SRC" != "$DEST" ]; then
     cp -r "$SRC/zynsimple" "$DEST/"
     rm -rf "$DEST/dj"
     [ -d "$SRC/dj" ] && cp -r "$SRC/dj" "$DEST/"
-    rm -rf "$DEST/spiel"
-    [ -d "$SRC/spiel" ] && cp -r "$SRC/spiel" "$DEST/"
     cp "$SRC/zynsimple_boot.py" "$DEST/"
     cp "$SRC/install.sh" "$SRC/uninstall.sh" "$DEST/" 2>/dev/null || true
     cp "$SRC/ANLEITUNG.md" "$DEST/" 2>/dev/null || true
@@ -83,9 +80,21 @@ if [ -f "$DEST/dj/zynsimple-dj" ] && [ -d /run/systemd/system ]; then
     ZS_DIR="$DEST" bash "$DEST/dj/zynsimple-dj" einrichten || echo "DJ-Pult: Einrichtung übersprungen"
 fi
 
-# 2b2) Bard Hero (Rhythmusspiel) – Pakete kommen beim ersten Start
-if [ -f "$DEST/spiel/bard-hero" ] && [ -d /run/systemd/system ]; then
-    ZS_DIR="$DEST" bash "$DEST/spiel/bard-hero" einrichten || echo "Bard Hero: Einrichtung übersprungen"
+# 2b2) Bard Hero ist jetzt eine eigene App (github.com/gansklebrig/Bard-Hero). War es noch die alte, in ZynSimple
+#      eingebaute Fassung, wird die eigene App geholt und installiert – sonst bleibt die alte vorerst stehen.
+if [ -d "$DEST/spiel" ] && [ ! -f /zynthian/zynthian-my-data/bard-hero/bardhero.py ] && [ -d /run/systemd/system ]; then
+    BH_TMP=$(mktemp -d)
+    if (cd "$BH_TMP" && { curl -fsSL -m 120 -o bh.zip https://codeload.github.com/gansklebrig/Bard-Hero/zip/refs/heads/stabil \
+            || curl -fsSL -m 120 -o bh.zip https://codeload.github.com/gansklebrig/Bard-Hero/zip/refs/heads/main; } \
+            && python3 -m zipfile -e bh.zip . && bash Bard-Hero-*/install.sh); then
+        rm -rf "$DEST/spiel"
+        echo "Bard Hero ist jetzt eine eigene App mit eigenen Updates"
+    else
+        echo "Bard Hero: eigene App gerade nicht ladbar – die alte Fassung bleibt, bis Internet da ist"
+    fi
+    rm -rf "$BH_TMP"
+elif [ -d "$DEST/spiel" ] && [ -f /zynthian/zynthian-my-data/bard-hero/bardhero.py ]; then
+    rm -rf "$DEST/spiel"
 fi
 
 # 2c) Bühnen-Sicherheit: Speicherkarte nach Stromausfall beim Start automatisch prüfen und reparieren
