@@ -73,7 +73,7 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
-## Neu in Version 6.20 – DJ-Pult startet nie mehr mitten im Set neu
+## Neu in Version 6.21 – DJ-Pult startet nie mehr mitten im Set neu
 
 - **Kein automatischer Neustart mehr, sobald in der Sitzung Musik lief.** Wird der DDJ dann neu erkannt,
   kommt nur ein Hinweis (☰ → „USB neu einlesen“). Automatisch neu geladen wird nur, solange noch nichts lief.
