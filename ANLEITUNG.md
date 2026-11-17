@@ -73,6 +73,12 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.28 – ⇄ Apps
+
+- Das **Mischpult** ist der Startbildschirm des Zynthian (Instrumente, Effekte, Looper). Unten rechts gibt es jetzt
+  den goldenen Knopf **„⇄ Apps“**: ein Tipp zeigt alle Programme groß – **🎧 DJ-Pult · ♫ Barden Beats · 🎸 Bard Hero**
+  – noch ein Tipp startet. (Ersetzt den Knopf „♪ DJ“.)
+
 ## Neu in Version 6.27 – Wechseln am Handy
 
 - Handy-Seite: der alte Reiter „♫ Bühne“ heißt jetzt **„⇄ Wechseln“** und hat drei Knöpfe:

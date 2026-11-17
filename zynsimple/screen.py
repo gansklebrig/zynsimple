@@ -1497,16 +1497,12 @@ class zynsimple_screen(zynthian_gui_base):
         # rechts: Effekte, Sperre, Mehr
         mw = max(54, int(W * 0.08))
         ew = int(mw * 1.35)
-        if getattr(self, "dj_installed", False):
-            # Der Weg zum DJ-Pult – groß und golden (auch: CTRL 1,5 s halten). „Effekte“ liegt dann unter ⋯.
-            scharf = getattr(self, "_dj_scharf", 0) > time.monotonic()
-            self._button(W - 3 * (pad + mw) - (ew - mw), y + pad + 2, ew, h - 2 * pad - 2,
-                         "Sicher?" if scharf else "♪ DJ", True, "dj_pult", None, None,
-                         fill=P["rose"] if scharf else P["gold"], fg=P["black"], outline=P["gold"],
-                         font=self.f_small if scharf else self.f_mid)
-        else:
-            self._button(W - 3 * (pad + mw) - (ew - mw), y + pad + 2, ew, h - 2 * pad - 2, "Effekte", True, "fxview",
-                         None, None, fill=P["card2"], fg=P["gold"], outline=P["gold_dim"], font=self.f_small)
+        # Der Weg zu den anderen Programmen – DJ-Pult, Barden Beats, Bard Hero (groß und golden)
+        self._button(W - 3 * (pad + mw) - (ew - mw), y + pad + 2, ew, h - 2 * pad - 2,
+                     "⇄ Apps", True, "apps", None, None, fill=P["gold"], fg=P["black"], outline=P["gold"],
+                     font=self.f_mid)
+        self._anchor(W - 3 * (pad + mw) - (ew - mw), y + pad, W - 2 * (pad + mw), y + h - pad,
+                     "Andere Programme: DJ-Pult, Barden Beats, Bard Hero", "up")
         self._button(W - pad - mw, y + pad + 2, mw, h - 2 * pad - 2, "⋯", True, "more", None, None,
                      font=self.f_big, fg=P["gold"])
         self._button(W - 2 * (pad + mw), y + pad + 2, mw, h - 2 * pad - 2,
@@ -1949,6 +1945,9 @@ class zynsimple_screen(zynthian_gui_base):
             elif art == "fxview":
                 self.open_fxview()
                 return
+            elif art == "apps":
+                self.open_apps()
+                return
             elif art == "dj_pult":
                 # aus Versehen angetippt? Der Wechsel lässt alle Instrumente verstummen → zweimal tippen
                 if getattr(self, "_dj_scharf", 0) > time.monotonic():
@@ -2154,6 +2153,13 @@ class zynsimple_screen(zynthian_gui_base):
     # ------------------------------------------------------------------
 
     def open_more(self):
+        self.mehr_apps = False
+        self.mode = "more"
+        self.draw_more()
+
+    def open_apps(self):
+        """⇄ Apps: die anderen Programme auf einen Blick – ein Tipp startet."""
+        self.mehr_apps = True
         self.mode = "more"
         self.draw_more()
 
@@ -2163,7 +2169,8 @@ class zynsimple_screen(zynthian_gui_base):
         self.more_hits = []
         W, H = self._geom()
         cv.create_rectangle(0, 0, W, H, fill=P["bg"], outline="")
-        cv.create_text(20, 26, anchor="w", text="Mehr", font=self.f_big, fill=P["gold"])
+        apps = getattr(self, "mehr_apps", False)
+        cv.create_text(20, 26, anchor="w", text="⇄ Apps" if apps else "Mehr", font=self.f_big, fill=P["gold"])
         try:
             from . import VERSION as _v
             cv.create_text(W - 20, 26, anchor="e", text=f"ZynSimple {_v}", font=self.f_tiny, fill=P["tx2"])
@@ -2191,15 +2198,23 @@ class zynsimple_screen(zynthian_gui_base):
                 stick_ = None
             if stick_:
                 items.insert(0, ("djimport", "⇩ Musik übernehmen", f"„{stick_}“: Alben/Titel auswählen"))
-        cols = 4 if len(items) > 6 else 3
+        if apps:
+            items = [("mischpult", "🎛 Mischpult", "Instrumente, Effekte, Looper · hier bist du gerade")]
+            if self.dj_installed:
+                items.append(("djpult", "🎧 DJ-Pult", "Mixxx mit dem DDJ · auch: CTRL 1,5 s halten"))
+            if getattr(self, "imres_installed", False):
+                items.append(("imres", "♫ Barden Beats", "Bühne & Klangwelten im Vollbild"))
+            items.append(("bardhero", "🎸 Bard Hero", "Rhythmusspiel mit der Keytar"
+                          + ("" if getattr(self, "spiel_installed", False) else " · wird beim ersten Mal geladen")))
+        cols = 2 if apps else (4 if len(items) > 6 else 3)
         rows = math.ceil(len(items) / cols)
         gw, gh = (W - 40) / cols, (H - 70) / rows
         for k, (art, title, sub) in enumerate(items):
             cx, cy = 20 + (k % cols) * gw, 52 + (k // cols) * gh
-            gold = art in ("imres", "djpult", "djimport", "bardhero") or (art == "settings" and upd)
+            gold = art in ("imres", "djpult", "djimport", "bardhero", "mischpult") or (art == "settings" and upd)
             self.rrect(cx + 5, cy + 5, cx + gw - 5, cy + gh - 5, 14, fill=P["card2"] if not gold else "#2a2014",
                        outline=P["gold"] if gold else P["line"], width=2 if gold else 1)
-            cv.create_text(cx + gw / 2, cy + gh * 0.42, text=title, font=self.f_mid, fill=P["champ"],
+            cv.create_text(cx + gw / 2, cy + gh * 0.42, text=title, font=self.f_big if apps else self.f_mid, fill=P["champ"],
                            width=gw - 24, justify="center")
             if sub:
                 cv.create_text(cx + gw / 2, cy + gh * 0.68, text=sub, font=self.f_tiny, fill=P["tx2"],
@@ -2296,6 +2311,8 @@ class zynsimple_screen(zynthian_gui_base):
                 self.sig = None
                 if art == "help":
                     self.open_help()
+                elif art == "mischpult":
+                    return
                 elif art == "menu":
                     self.zyngui.show_screen("main_menu")
                 elif art == "expert":
