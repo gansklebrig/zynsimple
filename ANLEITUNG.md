@@ -73,6 +73,25 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.23 – PAD FX am DDJ-400
+
+Die Pad-Modi **PAD FX 1** und **PAD FX 2** (SHIFT + HOT CUE / SHIFT + SAMPLER … je nach DDJ) sind jetzt belegt –
+auf beiden Decks gleich. Pad **halten** = Effekt an, **loslassen** = aus:
+
+| Pad | PAD FX 1 | PAD FX 2 |
+|---|---|---|
+| 1 | Echo | Bitcrusher |
+| 2 | Flanger | Tremolo |
+| 3 | Hall | Autopan |
+| 4 | Phaser | Verzerrung |
+| 5 | Roll ¼ Schlag („Quick Repeat“) | Hochpass |
+| 6 | Roll ⅛ | Tiefpass |
+| 7 | Roll 1/16 | Rückwärts |
+| 8 | Bremse | Spinback |
+
+Die Effekte auf Pad 1–4 kommen nach dem **zweiten** Start des DJ-Pults (Mixxx muss seine Effektliste einmal
+angelegt haben); Roll, Filter, Bremse, Rückwärts und Spinback gehen sofort.
+
 ## Neu in Version 6.22 – Lautstärke und BEAT FX im DJ-Pult
 
 - **DJ-Lautstärke am Zynthian-Ausgang:** im DJ-Pult mit **Regler 2** (Ebene MISCHEN) und als Startwert unter

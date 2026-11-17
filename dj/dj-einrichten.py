@@ -390,6 +390,85 @@ def angeschlossene_ddj():
     return out
 
 
+# Reihenfolge der Effekte in Mixxx – die PAD-FX-Pads (ZynSimple-DDJ-PadFX.js) laden Effekte über diese Nummern
+EFFEKT_REIHE = ["echo", "flanger", "reverb", "phaser", "bitcrusher", "tremolo", "autopan", "distortion",
+                "filter", "moogladder4filter", "pitchshift", "whitenoise"]
+
+
+def effekt_reihe():
+    """In effects.xml die Liste sichtbarer Effekte so ordnen, dass die ersten acht EFFEKT_REIHE sind.
+    Gibt True zurück, wenn die Reihenfolge danach sicher stimmt (sonst lassen die Pads Effekte weg)."""
+    import xml.etree.ElementTree as ET
+    pfad = os.path.join(MIXXX, "effects.xml")
+    if not os.path.exists(pfad):
+        return False                     # erster Start: Mixxx legt die Datei selbst an – ab dem nächsten Start
+    try:
+        baum = ET.parse(pfad)
+        wurzel = baum.getroot()
+        vis = wurzel.find("VisibleEffects")
+        alt = []
+        if vis is not None:
+            for e in vis.findall("Effect"):
+                i, b = e.findtext("Id") or "", e.findtext("BackendType") or "Built-In"
+                if b != "LV2" and i:
+                    alt.append(i)
+            wurzel.remove(vis)
+        neu_ids = ["org.mixxx.effects." + x for x in EFFEKT_REIHE]
+        neu_ids += [i for i in alt if i not in neu_ids]
+        vis = ET.SubElement(wurzel, "VisibleEffects")
+        for i in neu_ids:
+            e = ET.SubElement(vis, "Effect")
+            ET.SubElement(e, "Id").text = i
+            ET.SubElement(e, "BackendType").text = "Built-In"
+        baum.write(pfad + ".neu", encoding="utf-8", xml_declaration=True)
+        os.replace(pfad + ".neu", pfad)
+        return True
+    except Exception as e:
+        log("Effekt-Reihenfolge:", e)
+        return False
+
+
+def ddj400_padfx(orig, ziel, reihe_ok):
+    """Kopie der Mixxx-Belegung für den DDJ-400 mit PAD FX 1/2 (fehlen im Original)."""
+    try:
+        with open(orig, encoding="utf-8") as f:
+            xml = f.read()
+        # Skripte des Originals mitkopieren (Mixxx sucht sie neben der Belegung)
+        for m in re.finditer(r'filename="([^"]+\.js)"', xml):
+            q = os.path.join(os.path.dirname(orig), m.group(1))
+            if os.path.exists(q):
+                shutil.copy(q, ziel)
+        with open(os.path.join(ziel, "ZynSimple-DDJ-PadFX-config.js"), "w", encoding="utf-8") as f:
+            f.write("var ZynSimpleFxReihe = %s;\n" % ("true" if reihe_ok else "false"))
+        xml = xml.replace("</scriptfiles>",
+                          '    <file functionprefix="" filename="ZynSimple-DDJ-PadFX-config.js"/>\n'
+                          '            <file functionprefix="ZSPadFx" filename="ZynSimple-DDJ-PadFX.js"/>\n'
+                          '        </scriptfiles>', 1)
+        ctl = []
+        for st in ("0x97", "0x99"):
+            for basis in (0x10, 0x50):
+                for k in range(8):
+                    ctl.append(f"""            <control>
+                <description>ZynSimple PAD FX {1 if basis == 0x10 else 2} Pad {k + 1}</description>
+                <group>[Channel{1 if st == "0x97" else 2}]</group>
+                <key>ZSPadFx.pad</key>
+                <status>{st}</status>
+                <midino>0x{basis + k:02X}</midino>
+                <options>
+                    <script-binding/>
+                </options>
+            </control>""")
+        xml = xml.replace("</controls>", "\n".join(ctl) + "\n        </controls>", 1)
+        xml = re.sub(r"<name>([^<]*)</name>", r"<name>\1 (ZynSimple)</name>", xml, count=1)
+        neu = os.path.join(ziel, "Pioneer-DDJ-400-ZynSimple.midi.xml")
+        with open(neu, "w", encoding="utf-8") as f:
+            f.write(xml)
+        return neu
+    except Exception as e:
+        log("DDJ-400 PAD FX:", e)
+        return None
+
+
 def controller(data, ver):
     ziel = os.path.join(MIXXX, "controllers")
     os.makedirs(ziel, exist_ok=True)
@@ -402,6 +481,8 @@ def controller(data, ver):
         x = ddj_mapping(mo)
         if x:
             mappings[mo] = x
+    if "400" in mappings:
+        mappings["400"] = ddj400_padfx(mappings["400"], ziel, effekt_reihe()) or mappings["400"]
     log("DDJ-Modelle:", ", ".join(sorted(modelle)), "→", ", ".join(os.path.basename(v) for v in mappings.values()) or "keine Belegung")
     zyn = os.path.join(ziel, "Zynthian-V5-ZynSimple.midi.xml")
     namen = midi_namen()
