@@ -19,6 +19,8 @@ ORDNER_NAME = "MUSIK gekauft"
 AUDIO = {".mp3", ".flac", ".wav", ".aif", ".aiff", ".m4a", ".mp4", ".aac", ".ogg", ".oga", ".opus", ".wma",
          ".alac", ".wv", ".stem.mp4"}
 _cache = {}
+# Systemordner auf Sticks – darin liegt keine Musik, die man haben will
+UEBERSPRINGEN = {"System Volume Information", "$RECYCLE.BIN", "RECYCLER", "LOST.DIR", "_Diagnose"}
 
 
 def ist_audio(name):
@@ -184,7 +186,7 @@ def _dateien(pfad):
         return [(pfad, os.path.getsize(pfad))] if ist_audio(pfad) else []
     out = []
     for wurzel, ordner, dateien in os.walk(pfad):
-        ordner[:] = sorted(d for d in ordner if not d.startswith(".") and d != "System Volume Information")
+        ordner[:] = sorted(d for d in ordner if not d.startswith(".") and d not in UEBERSPRINGEN)
         for d in sorted(dateien):
             if ist_audio(d):
                 p = os.path.join(wurzel, d)
@@ -227,7 +229,7 @@ def liste(pfad=None):
     with os.scandir(rp) as it:
         roh = sorted(it, key=lambda e: (not e.is_dir(), e.name.lower()))
     for e in roh:
-        if e.name.startswith(".") or e.name == "System Volume Information":
+        if e.name.startswith(".") or e.name in UEBERSPRINGEN:
             continue
         if e.is_dir():
             i = _info(e.path)
@@ -346,3 +348,25 @@ def groesse(b):
     if b >= 2**20:
         return f"{b / 2**20:.0f} MB"
     return f"{max(1, b // 1024)} kB"
+
+
+def alles_vorbereiten():
+    """Ganzer Stick (alle Sticks): jede Musikdatei, egal in welchem Ordner. Schreibt die Kopierliste und
+    daneben, welche Sticks danach als „übernommen“ markiert werden."""
+    st = [x["pfad"] for x in sticks(warten=True)]
+    if not st:
+        raise RuntimeError("Kein USB-Stick und keine SD-Karte (Kartenleser) gefunden")
+    liste = auswahl_vorbereiten(st)
+    with open(LISTE + ".sticks", "w", encoding="utf-8") as f:
+        f.write("\n".join(st) + "\n")
+    return liste
+
+
+if __name__ == "__main__":
+    import sys
+    if sys.argv[1:2] == ["alles"]:
+        try:
+            print(alles_vorbereiten())
+        except Exception as e:
+            print("FEHLER " + str(e))
+            sys.exit(1)

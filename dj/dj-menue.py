@@ -281,7 +281,7 @@ class Menue:
         reihen = [
             ("MUSIK", [("auflegen", "▶  Auflegen", "Menü schließen, zurück zu Mixxx", GOLD, True),
                        ("einlesen", "⟳  USB-Stick neu einlesen", "nach dem Einstecken – Mixxx startet kurz neu", GRUEN, False),
-                       ("importieren", "⇩  Musik auf den Zynthian", "„MUSIK gekauft“ ganz · Auswahl am Handy: …:8090/import", None, False)]),
+                       ("importieren", "⇩  Musik auf den Zynthian", "alle Musik vom Stick, egal welcher Ordner · nur Neues wird kopiert", None, False)]),
             ("WECHSELN", [("zynthian", "◼  Zum Mischpult", "Instrumente · auch: CTRL 1,5 s halten", None, False),
                           ("hilfe", "?  So geht's", "Tasten erklärt · Tasten belegen", GOLD, False)]),
             ("SYSTEM", [("updates", "⬇  Updates", "ZynSimple · Zynthian · Barden Beats", None, False),

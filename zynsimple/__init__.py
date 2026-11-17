@@ -576,7 +576,7 @@ def start_spiel(zyngui, *a, **k):
 
 def start_import(zyngui, *a, auswahl=None, **k):
     """Musik vom USB-Stick auf den Zynthian kopieren – mit Fortschritt auf dem Display.
-    auswahl: Ordner/Titel aus dem Stick-Browser; ohne = der ganze Ordner „MUSIK gekauft“."""
+    auswahl: Ordner/Titel aus dem Stick-Browser; ohne = jede Musikdatei auf dem Stick."""
     scr = zyngui.screens.get(SCREEN_NAME)
 
     def show(text, sub="", done=False, error=False):
@@ -588,8 +588,8 @@ def start_import(zyngui, *a, auswahl=None, **k):
         from . import dj
         from . import fortschritt as fs
         fs.start("Musik vom USB-Stick übernehmen", [("Stick prüfen", 5), ("Kopieren", 92), ("Fertig", 3)])
-        fs.schritt(0, "Auswahl wird geprüft" if auswahl else "Ordner „MUSIK gekauft“ wird gesucht")
-        show("Musik wird übernommen …", "deine Auswahl vom Stick" if auswahl else "vom USB-Stick (Ordner „MUSIK gekauft“)")
+        fs.schritt(0, "Auswahl wird geprüft" if auswahl else "Musik auf dem Stick wird gesucht")
+        show("Musik wird übernommen …", "deine Auswahl vom Stick" if auswahl else "alle Musik vom USB-Stick")
         try:
             dj.import_starten(auswahl)
         except Exception as e:

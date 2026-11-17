@@ -118,6 +118,13 @@ eines Liedes, die Band spielt den Rest. Greifst du daneben, verstummt die Melodi
   Zurück zum Mischpult: Titel → „Zum Mischpult“ oder BACK 3 s halten.
 - Kein Blau – auch nicht im Spiel.
 
+## Neu in Version 6.16 – Jede Musik vom Stick
+
+- **Musik übernehmen findet jetzt jede Musikdatei auf dem USB-Stick** (mp3, flac, wav, m4a, aiff, ogg …),
+  egal in welchem Ordner – kein Ordner „MUSIK gekauft“ mehr nötig. Gilt für „⇩ Musik auf den Zynthian“
+  im DJ-Menü und am Handy. Die Ordner vom Stick bleiben auf dem Zynthian erhalten, nur Neues wird kopiert.
+- Im Mischpult (⋯ → ⇩ Musik übernehmen) kannst du wie bisher einzelne Alben/Titel oder **„Alle“** wählen.
+
 ## Neu in Version 6.15 – BROWSE-Knopf bleibt bei der Titelliste
 
 - **Der BROWSE-Knopf am DDJ scrollt wieder zuverlässig.** Ohne Fenstermanager ging die Eingabe an das Fenster

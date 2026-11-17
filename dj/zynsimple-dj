@@ -195,35 +195,21 @@ case "$1" in
       echo "$N Titel übernommen ($NEU neu)."
       exit 0
     fi
-    QUELLE=""
-    for Q in /media/*/*/"MUSIK gekauft" /media/*/"MUSIK gekauft"; do [ -d "$Q" ] && { QUELLE="$Q"; break; }; done
-    if [ -z "$QUELLE" ]; then
-      echo "FEHLER Kein USB-Stick mit Ordner „MUSIK gekauft“ gefunden" > "$IMPORT_LOG"; cat "$IMPORT_LOG"; exit 1
-    fi
-    mkdir -p "$MUSIK"
-    BRAUCHT=$(du -sk "$QUELLE" 2>/dev/null | cut -f1); FREI=$(df -Pk "$MUSIK" | awk 'NR==2{print $4}')
-    if [ -n "$BRAUCHT" ] && [ -n "$FREI" ] && [ "$FREI" -lt $((BRAUCHT + 524288)) ]; then
-      echo "FEHLER Zu wenig Platz auf der SD-Karte ($((FREI / 1024)) MB frei, gebraucht $((BRAUCHT / 1024)) MB)" > "$IMPORT_LOG"
-      cat "$IMPORT_LOG"; exit 1
-    fi
-    GESAMT=$(find "$QUELLE" -type f | wc -l); N=0
-    GESAMT_B=$(du -sb "$QUELLE" 2>/dev/null | cut -f1); KOPIERT_B=0; NEU=0
-    echo "START $GESAMT $GESAMT_B" > "$IMPORT_LOG"
-    while IFS= read -r -d '' F; do
-      REL="${F#"$QUELLE"/}"; Z="$MUSIK/$REL"; N=$((N + 1)); GR=$(stat -c %s "$F")
-      if [ ! -f "$Z" ] || [ "$GR" != "$(stat -c %s "$Z")" ]; then
-        echo "DATEI $N $GESAMT $KOPIERT_B $GESAMT_B $REL" >> "$IMPORT_LOG"
-        mkdir -p "$(dirname "$Z")" && cp -p "$F" "$Z.teil" && mv "$Z.teil" "$Z"
-        NEU=$((NEU + 1))
-      fi
-      KOPIERT_B=$((KOPIERT_B + GR))
-      echo "STAND $N $GESAMT $KOPIERT_B $GESAMT_B $REL" >> "$IMPORT_LOG"
-    done < <(find "$QUELLE" -type f -print0)
-    sync
-    # merken: dieser Stick ist übernommen → Mixxx liest die Musik ab jetzt von der SD-Karte
-    touch "$QUELLE/.zynsimple-importiert" 2>/dev/null
-    echo "FERTIG $N $NEU" >> "$IMPORT_LOG"
-    echo "$N Dateien übernommen."
+    # ohne Liste: jede Musikdatei auf allen eingesteckten Sticks/Karten (egal in welchem Ordner)
+    LISTE=$(/usr/bin/python3 "$SRC/stick.py" alles 2>/dev/null | tail -n1)
+    case "$LISTE" in
+      ""|FEHLER*) echo "FEHLER ${LISTE#FEHLER }" | sed 's/^FEHLER $/FEHLER Keine Musik auf dem Stick gefunden/' > "$IMPORT_LOG"
+                  cat "$IMPORT_LOG"; exit 1 ;;
+    esac
+    exec 9>&-
+    "$0" importieren "$LISTE" || exit 1
+    # merken: diese Sticks sind übernommen → Mixxx liest die Musik ab jetzt von der SD-Karte
+    while IFS= read -r S; do
+      [ -d "$S" ] || continue
+      touch "$S/.zynsimple-importiert" 2>/dev/null
+      [ -d "$S/MUSIK gekauft" ] && touch "$S/MUSIK gekauft/.zynsimple-importiert" 2>/dev/null
+    done < "$LISTE.sticks"
+    exit 0
     ;;
   installieren)
     if mixxx_da && command -v xdotool >/dev/null; then echo "Mixxx ist schon installiert."; samba_einrichten; exit 0; fi

@@ -209,7 +209,7 @@ def tasten_modul():
 
 def import_starten(auswahl=None):
     """Musik vom USB-Stick übernehmen (läuft losgelöst; Fortschritt über import_stand()).
-    auswahl: Liste von Ordnern/Dateien auf dem Stick – sonst der ganze Ordner „MUSIK gekauft“."""
+    auswahl: Liste von Ordnern/Dateien auf dem Stick – sonst jede Musikdatei auf allen Sticks."""
     if not eingerichtet():
         raise RuntimeError("DJ-Pult ist nicht eingerichtet")
     if _laeuft("/run/zynsimple-dj-import.lock"):
