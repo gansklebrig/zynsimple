@@ -671,6 +671,7 @@ def config_js(s):
             "folgen": s.get("takt") == "folgen",
             "handpanFx": bool(s.get("dj_handpan_fx", True)),
             "lautstaerke": int(s.get("dj_lautstaerke", 100) or 100),
+            "kopfhoerer": bool(s.get("_kopfhoerer", True)),
         }) + ";\n")
 
 
@@ -699,6 +700,7 @@ def main():
     ver = mixxx_version()
     try:
         ok, kh = ton_einrichten(s)
+        s["_kopfhoerer"] = bool(kh)
         if ok:
             soundconfig(s, kh, ver)
     except Exception as e:

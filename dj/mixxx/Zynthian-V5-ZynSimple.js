@@ -339,6 +339,11 @@ ZynV5.taste = function(channel, control, value, status, group) {
         }
         ZynV5.auxUm("main_mix", "Handpan im Mix"); return;
     case N.CTRL:
+        if (ZynV5.cfg.kopfhoerer === false) {
+            // Der Zynthian hat nur einen Ausgang – Vorhören braucht eine zweite Soundkarte (Kopfhörer am DDJ)
+            ZynV5.zeige("Vorhören geht nur mit Kopfhörer am DDJ (Buchse PHONES) – DDJ anstecken, DJ-Pult neu starten");
+            return;
+        }
         var a = ZynV5.hole("[Channel1]", "pfl"), b = ZynV5.hole("[Channel2]", "pfl");
         var neu = a ? 2 : (b ? 0 : 1);           // A → B → aus → A
         ZynV5.setze("[Channel1]", "pfl", neu === 1 ? 1 : 0);

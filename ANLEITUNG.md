@@ -73,6 +73,11 @@ wie gewohnt von überall „nach Hause“ – und zu Hause ist jetzt der einfach
 
 ---
 
+## Neu in Version 6.24 – Vorhören erklärt sich selbst
+
+- Der Zynthian hat nur **einen** Ausgang – zum Vorhören braucht es den **Kopfhörer am DDJ** (Buchse PHONES).
+  Ohne DDJ-Soundkarte sagt CTRL (Vorhören) das jetzt direkt, statt scheinbar nichts zu tun.
+
 ## Neu in Version 6.23 – PAD FX am DDJ-400
 
 Die Pad-Modi **PAD FX 1** und **PAD FX 2** (SHIFT + HOT CUE / SHIFT + SAMPLER … je nach DDJ) sind jetzt belegt –
